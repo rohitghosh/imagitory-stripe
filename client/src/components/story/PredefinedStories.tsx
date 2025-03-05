@@ -139,11 +139,13 @@ export function PredefinedStories({ onSelectStory }: PredefinedStoriesProps) {
   return (
     <div className="mb-8">
       {/* Age Categories */}
-      <div className="flex justify-center mb-6 space-x-2">
+      <div className="flex justify-center mb-8 space-x-2">
         <button 
           className={cn(
-            "py-1 px-4 rounded-full text-sm font-medium",
-            selectedAgeGroup === '3-5' ? "bg-primary text-white" : "bg-gray-200 text-gray-700"
+            "py-2 px-5 rounded-md text-sm font-medium transition-colors",
+            selectedAgeGroup === '3-5' 
+              ? "bg-primary text-white shadow-sm" 
+              : "bg-gray-50 text-gray-700 border border-gray-200 hover:bg-gray-100"
           )}
           onClick={() => handleAgeFilterChange('3-5')}
         >
@@ -151,8 +153,10 @@ export function PredefinedStories({ onSelectStory }: PredefinedStoriesProps) {
         </button>
         <button 
           className={cn(
-            "py-1 px-4 rounded-full text-sm font-medium",
-            selectedAgeGroup === '6-8' ? "bg-primary text-white" : "bg-gray-200 text-gray-700"
+            "py-2 px-5 rounded-md text-sm font-medium transition-colors",
+            selectedAgeGroup === '6-8' 
+              ? "bg-primary text-white shadow-sm" 
+              : "bg-gray-50 text-gray-700 border border-gray-200 hover:bg-gray-100"
           )}
           onClick={() => handleAgeFilterChange('6-8')}
         >
@@ -160,8 +164,10 @@ export function PredefinedStories({ onSelectStory }: PredefinedStoriesProps) {
         </button>
         <button 
           className={cn(
-            "py-1 px-4 rounded-full text-sm font-medium",
-            selectedAgeGroup === '9-12' ? "bg-primary text-white" : "bg-gray-200 text-gray-700"
+            "py-2 px-5 rounded-md text-sm font-medium transition-colors",
+            selectedAgeGroup === '9-12' 
+              ? "bg-primary text-white shadow-sm" 
+              : "bg-gray-50 text-gray-700 border border-gray-200 hover:bg-gray-100"
           )}
           onClick={() => handleAgeFilterChange('9-12')}
         >
@@ -169,41 +175,46 @@ export function PredefinedStories({ onSelectStory }: PredefinedStoriesProps) {
         </button>
       </div>
       
-      <div className="relative">
+      <div className="relative px-8 max-w-4xl mx-auto">
         <div className="absolute left-0 top-1/2 transform -translate-y-1/2 z-10">
           <button 
             onClick={handlePrevCarousel}
-            className="bg-white rounded-full p-2 shadow-md hover:bg-gray-50 disabled:opacity-50"
+            className="bg-white rounded-md p-2 shadow-sm hover:bg-gray-50 disabled:opacity-30 transition-all border border-gray-100"
             disabled={carouselIndex === 0}
           >
-            <i className="fas fa-chevron-left text-gray-600"></i>
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-600">
+              <path d="m15 18-6-6 6-6"/>
+            </svg>
           </button>
         </div>
         
-        <div className="carousel-container overflow-x-auto hide-scrollbar py-4">
-          <div className="flex space-x-6 px-12">
+        <div className="carousel-container overflow-x-auto hide-scrollbar py-6">
+          <div className="flex space-x-8 px-12">
             {currentStories.slice(carouselIndex, carouselIndex + 3).map((story) => (
               <Card 
                 key={story.id}
                 className={cn(
-                  "flex-shrink-0 w-72 overflow-hidden hover:shadow-lg transition-all cursor-pointer border-2",
-                  selectedStory === story.id ? "border-primary" : "border-transparent hover:border-primary"
+                  "flex-shrink-0 w-80 overflow-hidden transition-all cursor-pointer rounded-lg",
+                  selectedStory === story.id 
+                    ? "ring-2 ring-primary shadow-md" 
+                    : "border border-gray-100 hover:border-gray-200 hover:shadow-md"
                 )}
                 onClick={() => handleSelectStory(story.id)}
               >
-                <div className="w-full h-40 overflow-hidden">
+                <div className="w-full h-44 overflow-hidden">
                   <img 
                     src={story.imageUrl} 
                     className="w-full h-full object-cover" 
                     alt={story.title} 
                   />
                 </div>
-                <CardContent className="p-4">
-                  <h3 className="font-heading font-bold text-lg">{story.title}</h3>
-                  <p className="text-sm text-text-secondary mb-2">{story.description}</p>
+                <CardContent className="p-5">
+                  <h3 className="font-bold text-xl mb-2">{story.title}</h3>
+                  <p className="text-sm text-gray-600 mb-3 line-clamp-2">{story.description}</p>
                   <div className="flex items-center text-xs text-primary font-medium">
-                    <i className="fas fa-star mr-1"></i>
-                    <span>Moral: {story.moral}</span>
+                    <span className="bg-primary/10 text-primary px-3 py-1 rounded-md">
+                      {story.moral}
+                    </span>
                   </div>
                 </CardContent>
               </Card>
@@ -214,21 +225,26 @@ export function PredefinedStories({ onSelectStory }: PredefinedStoriesProps) {
         <div className="absolute right-0 top-1/2 transform -translate-y-1/2 z-10">
           <button 
             onClick={handleNextCarousel}
-            className="bg-white rounded-full p-2 shadow-md hover:bg-gray-50 disabled:opacity-50"
+            className="bg-white rounded-md p-2 shadow-sm hover:bg-gray-50 disabled:opacity-30 transition-all border border-gray-100"
             disabled={carouselIndex >= currentStories.length - 2}
           >
-            <i className="fas fa-chevron-right text-gray-600"></i>
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-600">
+              <path d="m9 18 6-6-6-6"/>
+            </svg>
           </button>
         </div>
       </div>
 
-      <div className="flex justify-center mt-8">
+      <div className="flex justify-center mt-10">
         <Button 
           onClick={handleNextClick}
           disabled={!selectedStory}
-          className="bg-primary hover:bg-primary/90 text-white font-bold py-3 px-8 rounded-full text-lg shadow-lg hover:shadow-xl transition-all"
+          className={cn(
+            "bg-primary hover:bg-primary/90 text-white font-medium py-3 px-8 rounded-md text-base shadow-sm hover:shadow transition-all",
+            !selectedStory && "opacity-50 cursor-not-allowed"
+          )}
         >
-          Next: Preview Story
+          Continue to Preview
         </Button>
       </div>
     </div>
