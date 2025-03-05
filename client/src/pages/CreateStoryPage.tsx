@@ -12,7 +12,6 @@ import { BookPreview } from "@/components/preview/BookPreview";
 import { ShippingForm } from "@/components/preview/ShippingForm";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@/contexts/AuthContext";
 import { apiRequest } from "@/lib/queryClient";
 import { useLocation } from "wouter";
 import { generatePDF } from "@/utils/pdf";
@@ -49,7 +48,6 @@ export default function CreateStoryPage() {
   const [orderCompleted, setOrderCompleted] = useState(false);
   
   const { toast } = useToast();
-  const { user } = useAuth();
   const [, navigate] = useLocation();
 
   // Initialize book pages when story is selected
@@ -150,7 +148,6 @@ export default function CreateStoryPage() {
       toast({
         title: "Order placed successfully!",
         description: "Your book will be delivered soon.",
-        variant: "success",
       });
     } catch (error) {
       toast({
