@@ -118,6 +118,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/stories', authenticate, async (req: Request, res: Response) => {
     try {
       const userId = req.session!.userId;
+      // Ensure userId is defined before passing to storage
+      if (userId === undefined) {
+        return res.status(401).json({ message: "User not authenticated" });
+      }
       const stories = await storage.getStoriesByUserId(userId);
       res.status(200).json(stories);
     } catch (error) {
@@ -145,6 +149,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/books', authenticate, async (req: Request, res: Response) => {
     try {
       const userId = req.session!.userId;
+      // Ensure userId is defined before passing to storage
+      if (userId === undefined) {
+        return res.status(401).json({ message: "User not authenticated" });
+      }
       const books = await storage.getBooksByUserId(userId);
       res.status(200).json(books);
     } catch (error) {

@@ -103,7 +103,17 @@ export class MemStorage implements IStorage {
   async createCharacter(insertCharacter: InsertCharacter): Promise<Character> {
     const id = this.characterId++;
     const createdAt = new Date();
-    const character: Character = { ...insertCharacter, id, createdAt };
+    // Ensure all required fields are present with proper null handling
+    const character: Character = { 
+      ...insertCharacter, 
+      id, 
+      createdAt,
+      age: insertCharacter.age || null,
+      gender: insertCharacter.gender || null,
+      predefinedId: insertCharacter.predefinedId || null,
+      description: insertCharacter.description || null,
+      imageUrls: insertCharacter.imageUrls || null
+    };
     this.characters.set(id, character);
     return character;
   }
@@ -122,7 +132,16 @@ export class MemStorage implements IStorage {
   async createStory(insertStory: InsertStory): Promise<Story> {
     const id = this.storyId++;
     const createdAt = new Date();
-    const story: Story = { ...insertStory, id, createdAt };
+    // Ensure all required fields are present with proper null handling
+    const story: Story = { 
+      ...insertStory, 
+      id, 
+      createdAt,
+      predefinedId: insertStory.predefinedId || null,
+      genre: insertStory.genre || null,
+      instructions: insertStory.instructions || null,
+      elements: insertStory.elements || null
+    };
     this.stories.set(id, story);
     return story;
   }
