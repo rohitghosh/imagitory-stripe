@@ -4,7 +4,8 @@ import { storage } from "./storage";
 import { z } from "zod";
 import { insertUserSchema, insertCharacterSchema, insertStorySchema, insertBookSchema, insertOrderSchema, shippingFormSchema } from "@shared/schema";
 import { generatePDF } from "./utils/pdf";
-import { authenticate } from "./middleware/auth";
+// No longer using authentication middleware
+// import { authenticate } from "./middleware/auth";
 // Import firebase but don't initialize with credentials for now
 import admin from "firebase-admin";
 import session from "express-session";
@@ -71,10 +72,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   });
 
-  // Character routes
-  app.post('/api/characters', authenticate, async (req: Request, res: Response) => {
+  // Character routes - no authentication required
+  app.post('/api/characters', async (req: Request, res: Response) => {
     try {
-      const userId = req.session!.userId;
+      // Use a default user ID of 1 for all requests
+      const userId = 1;
       
       const validatedData = insertCharacterSchema.parse({
         ...req.body,
@@ -88,9 +90,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/characters', authenticate, async (req: Request, res: Response) => {
+  app.get('/api/characters', async (req: Request, res: Response) => {
     try {
-      const userId = req.session!.userId;
+      // Use a default user ID of 1 for all requests
+      const userId = 1;
       const characters = await storage.getCharactersByUserId(userId);
       res.status(200).json(characters);
     } catch (error) {
@@ -98,10 +101,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Story routes
-  app.post('/api/stories', authenticate, async (req: Request, res: Response) => {
+  // Story routes - no authentication required
+  app.post('/api/stories', async (req: Request, res: Response) => {
     try {
-      const userId = req.session!.userId;
+      // Use a default user ID of 1 for all requests
+      const userId = 1;
       
       const validatedData = insertStorySchema.parse({
         ...req.body,
@@ -115,13 +119,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/stories', authenticate, async (req: Request, res: Response) => {
+  app.get('/api/stories', async (req: Request, res: Response) => {
     try {
-      const userId = req.session!.userId;
-      // Ensure userId is defined before passing to storage
-      if (userId === undefined) {
-        return res.status(401).json({ message: "User not authenticated" });
-      }
+      // Use a default user ID of 1 for all requests
+      const userId = 1;
       const stories = await storage.getStoriesByUserId(userId);
       res.status(200).json(stories);
     } catch (error) {
@@ -129,10 +130,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Book routes
-  app.post('/api/books', authenticate, async (req: Request, res: Response) => {
+  // Book routes - no authentication required
+  app.post('/api/books', async (req: Request, res: Response) => {
     try {
-      const userId = req.session!.userId;
+      // Use a default user ID of 1 for all requests
+      const userId = 1;
       
       const validatedData = insertBookSchema.parse({
         ...req.body,
@@ -146,13 +148,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/books', authenticate, async (req: Request, res: Response) => {
+  app.get('/api/books', async (req: Request, res: Response) => {
     try {
-      const userId = req.session!.userId;
-      // Ensure userId is defined before passing to storage
-      if (userId === undefined) {
-        return res.status(401).json({ message: "User not authenticated" });
-      }
+      // Use a default user ID of 1 for all requests
+      const userId = 1;
       const books = await storage.getBooksByUserId(userId);
       res.status(200).json(books);
     } catch (error) {
@@ -160,10 +159,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Order routes
-  app.post('/api/orders', authenticate, async (req: Request, res: Response) => {
+  // Order routes - no authentication required
+  app.post('/api/orders', async (req: Request, res: Response) => {
     try {
-      const userId = req.session!.userId;
+      // Use a default user ID of 1 for all requests
+      const userId = 1;
       
       const validatedData = insertOrderSchema.parse({
         ...req.body,
@@ -177,8 +177,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // PDF generation
-  app.post('/api/pdf/generate', authenticate, async (req: Request, res: Response) => {
+  // PDF generation - no authentication required
+  app.post('/api/pdf/generate', async (req: Request, res: Response) => {
     try {
       const { title, pages } = req.body;
       
