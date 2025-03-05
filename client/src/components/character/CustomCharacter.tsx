@@ -96,7 +96,7 @@ export function CustomCharacter({ onSubmit }: CustomCharacterProps) {
 
   return (
     <div className="mb-8">
-      <Card className="max-w-2xl mx-auto">
+      <Card className="max-w-2xl mx-auto minimal-card">
         <CardContent className="p-6">
           <h3 className="text-xl font-heading font-bold mb-4">Create Your Custom Character</h3>
           
@@ -110,7 +110,7 @@ export function CustomCharacter({ onSubmit }: CustomCharacterProps) {
                     <FormItem>
                       <FormLabel>Character Name</FormLabel>
                       <FormControl>
-                        <Input placeholder="Enter character name" {...field} />
+                        <Input placeholder="Enter character name" className="minimal-input" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -128,7 +128,8 @@ export function CustomCharacter({ onSubmit }: CustomCharacterProps) {
                           type="number" 
                           placeholder="Enter age" 
                           min={1} 
-                          max={15} 
+                          max={15}
+                          className="minimal-input"
                           {...field} 
                         />
                       </FormControl>
@@ -239,8 +240,11 @@ export function CustomCharacter({ onSubmit }: CustomCharacterProps) {
                 </div>
               )}
               
-              <Button type="submit" className="w-full">
-                Next: Choose a Story
+              <Button 
+                type="submit" 
+                className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-3 px-8 rounded-md shadow-sm hover:shadow-md transition-all"
+              >
+                Continue to Story Selection
               </Button>
             </form>
           </Form>
