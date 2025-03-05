@@ -147,12 +147,22 @@ export function PredefinedCharacters({ onSelectCharacter }: PredefinedCharacters
           <Input
             type="text"
             id="character-name"
-            className="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-primary focus:border-primary"
+            className="minimal-input w-full"
             placeholder="Enter character name"
             value={customName}
             onChange={handleNameChange}
             disabled={!selectedCharacter}
           />
+        </div>
+        
+        <div className="flex justify-center mt-8">
+          <button
+            onClick={handleNextClick}
+            disabled={!selectedCharacter}
+            className="bg-primary hover:bg-primary/90 text-white font-bold py-3 px-8 rounded-md shadow-sm hover:shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Continue to Story Selection
+          </button>
         </div>
       </div>
     </div>
