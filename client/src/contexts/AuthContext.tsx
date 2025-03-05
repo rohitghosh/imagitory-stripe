@@ -26,20 +26,40 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(
-      auth,
-      (user) => {
-        setUser(user);
-        setLoading(false);
-      },
-      (error) => {
-        console.error("Auth state change error:", error);
-        setError("Authentication error");
-        setLoading(false);
-      }
-    );
-
-    return () => unsubscribe();
+    console.log("AuthProvider: Setting up auth state listener");
+    
+    try {
+      // Add a small delay to ensure Firebase is fully initialized
+      setTimeout(() => {
+        const unsubscribe = onAuthStateChanged(
+          auth,
+          (user) => {
+            console.log("Auth state changed:", user ? "User authenticated" : "No user");
+            setUser(user);
+            setLoading(false);
+          },
+          (error) => {
+            console.error("Auth state change error:", error);
+            setError("Authentication error");
+            setLoading(false);
+          }
+        );
+        
+        return () => {
+          console.log("Unsubscribing from auth state listener");
+          unsubscribe();
+        };
+      }, 500);
+    } catch (error) {
+      console.error("Error setting up auth state listener:", error);
+      setError("Failed to initialize authentication");
+      setLoading(false);
+    }
+    
+    return () => {
+      // Cleanup function if the setTimeout hasn't completed
+      console.log("Auth provider unmounting");
+    };
   }, []);
 
   const signIn = async () => {

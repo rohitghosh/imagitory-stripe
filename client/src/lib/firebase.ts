@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, Auth } from "firebase/auth";
 
 // Get Firebase configuration from environment variables
 const firebaseConfig = {
@@ -16,11 +16,26 @@ console.log("Firebase Config (without sensitive data):", {
   storageBucket: firebaseConfig.storageBucket,
 });
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-console.log("Firebase initialized successfully");
-const auth = getAuth(app);
-const provider = new GoogleAuthProvider();
+// Initialize Firebase - with proper error handling
+let auth: Auth;
+let provider: GoogleAuthProvider;
+
+try {
+  const app = initializeApp(firebaseConfig);
+  console.log("Firebase app initialized successfully");
+  
+  auth = getAuth(app);
+  console.log("Firebase auth initialized successfully");
+  
+  provider = new GoogleAuthProvider();
+  console.log("Google auth provider created successfully");
+} catch (error) {
+  console.error("Error initializing Firebase:", error);
+  // Create fallback objects for development so the app doesn't crash
+  const app = {} as any;
+  auth = {} as Auth;
+  provider = {} as GoogleAuthProvider;
+}
 
 export const signInWithGoogle = async () => {
   try {
