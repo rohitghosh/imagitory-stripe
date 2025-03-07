@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { 
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -37,7 +37,8 @@ interface CustomStoryProps {
     genre: string;
     instructions: string;
     elements: string[];
-    type: 'custom';
+    type: "custom";
+    moral: string;
   }) => void;
 }
 
@@ -52,8 +53,11 @@ const STORY_ELEMENTS = [
 ];
 
 export function CustomStory({ onSubmit }: CustomStoryProps) {
-  const [selectedElements, setSelectedElements] = useState<string[]>(["talking-animals", "friendship-themes"]);
-  
+  const [selectedElements, setSelectedElements] = useState<string[]>([
+    "talking-animals",
+    "friendship-themes",
+  ]);
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -65,10 +69,10 @@ export function CustomStory({ onSubmit }: CustomStoryProps) {
   });
 
   const toggleElement = (elementId: string) => {
-    setSelectedElements(prev => 
+    setSelectedElements((prev) =>
       prev.includes(elementId)
-        ? prev.filter(id => id !== elementId)
-        : [...prev, elementId]
+        ? prev.filter((id) => id !== elementId)
+        : [...prev, elementId],
     );
   };
 
@@ -76,7 +80,8 @@ export function CustomStory({ onSubmit }: CustomStoryProps) {
     onSubmit({
       ...values,
       elements: selectedElements,
-      type: 'custom',
+      type: "custom",
+      moral: "",
     });
   };
 
@@ -84,10 +89,15 @@ export function CustomStory({ onSubmit }: CustomStoryProps) {
     <div className="mb-8">
       <Card className="max-w-2xl mx-auto">
         <CardContent className="p-6">
-          <h3 className="text-xl font-heading font-bold mb-4">Create Your Custom Story</h3>
-          
+          <h3 className="text-xl font-heading font-bold mb-4">
+            Create Your Custom Story
+          </h3>
+
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(handleSubmitForm)} className="space-y-6">
+            <form
+              onSubmit={form.handleSubmit(handleSubmitForm)}
+              className="space-y-6"
+            >
               <FormField
                 control={form.control}
                 name="title"
@@ -95,21 +105,24 @@ export function CustomStory({ onSubmit }: CustomStoryProps) {
                   <FormItem>
                     <FormLabel>Story Title</FormLabel>
                     <FormControl>
-                      <Input placeholder="Enter a title for your story" {...field} />
+                      <Input
+                        placeholder="Enter a title for your story"
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              
+
               <FormField
                 control={form.control}
                 name="genre"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Story Genre</FormLabel>
-                    <Select 
-                      onValueChange={field.onChange} 
+                    <Select
+                      onValueChange={field.onChange}
                       defaultValue={field.value}
                     >
                       <FormControl>
@@ -120,16 +133,20 @@ export function CustomStory({ onSubmit }: CustomStoryProps) {
                       <SelectContent>
                         <SelectItem value="adventure">Adventure</SelectItem>
                         <SelectItem value="fantasy">Fantasy</SelectItem>
-                        <SelectItem value="science-fiction">Science Fiction</SelectItem>
+                        <SelectItem value="science-fiction">
+                          Science Fiction
+                        </SelectItem>
                         <SelectItem value="educational">Educational</SelectItem>
-                        <SelectItem value="everyday-life">Everyday Life</SelectItem>
+                        <SelectItem value="everyday-life">
+                          Everyday Life
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              
+
               <FormField
                 control={form.control}
                 name="instructions"
@@ -137,23 +154,28 @@ export function CustomStory({ onSubmit }: CustomStoryProps) {
                   <FormItem>
                     <FormLabel>Story Instructions</FormLabel>
                     <FormControl>
-                      <Textarea 
+                      <Textarea
                         placeholder="Describe what you want the story to be about. Include any specific elements you'd like to include."
                         className="min-h-[100px]"
-                        {...field} 
+                        {...field}
                       />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              
+
               <div>
-                <FormLabel className="block text-sm font-medium text-gray-700 mb-1">Story Elements</FormLabel>
+                <FormLabel className="block text-sm font-medium text-gray-700 mb-1">
+                  Story Elements
+                </FormLabel>
                 <div className="grid grid-cols-2 gap-3">
                   {STORY_ELEMENTS.map((element) => (
-                    <div key={element.id} className="flex items-center space-x-2">
-                      <Checkbox 
+                    <div
+                      key={element.id}
+                      className="flex items-center space-x-2"
+                    >
+                      <Checkbox
                         id={element.id}
                         checked={selectedElements.includes(element.id)}
                         onCheckedChange={() => toggleElement(element.id)}
@@ -168,7 +190,7 @@ export function CustomStory({ onSubmit }: CustomStoryProps) {
                   ))}
                 </div>
               </div>
-              
+
               <Button type="submit" className="w-full">
                 Next: Preview Story
               </Button>

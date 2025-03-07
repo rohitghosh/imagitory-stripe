@@ -11,7 +11,6 @@ build = ["npm", "run", "build"]
 run = ["npm", "run", "start"]
 
 [workflows]
-runButton = "Project"
 
 [[workflows.workflow]]
 name = "Project"
@@ -36,6 +35,15 @@ task = "packager.installForAll"
 task = "shell.exec"
 args = "npm run dev"
 waitForPort = 5000
+
+[[workflows.workflow]]
+name = ""
+mode = "sequential"
+author = 7359736
+
+[[workflows.workflow.tasks]]
+task = "packager.installForLanguage"
+args = "nodejs"
 
 [[ports]]
 localPort = 5000

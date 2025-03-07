@@ -19,78 +19,189 @@ import { generatePDF } from "@/utils/pdf";
 const STEPS = [
   { id: 1, name: "Choose Character" },
   { id: 2, name: "Select Story" },
-  { id: 3, name: "Preview & Download" }
+  { id: 3, name: "Preview & Download" },
 ];
 
-// Mock pages for preview
-const mockPages = [
-  { id: 1, imageUrl: "https://images.unsplash.com/photo-1566140967404-b8b3932483f5?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&h=250&q=80", content: "Adventure Alex in The Magical Forest" },
-  { id: 2, imageUrl: "https://images.unsplash.com/photo-1511497584788-876760111969?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&h=250&q=80", content: "Once upon a time, there was a brave adventurer named Alex who loved exploring." },
-  { id: 3, imageUrl: "https://images.unsplash.com/photo-1448375240586-882707db888b?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&h=250&q=80", content: "One day, Alex discovered a hidden path that led to a magical forest filled with wonders." },
-  { id: 4, imageUrl: "https://images.unsplash.com/photo-1596328546171-77e37b5e8b3d?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&h=250&q=80", content: "In the forest, Alex met a talking fox who needed help finding a special treasure." },
-  { id: 5, imageUrl: "https://images.unsplash.com/photo-1547036967-23d11aacaee0?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&h=250&q=80", content: "\"I'll help you,\" said Alex, showing kindness to the new friend." },
-  { id: 6, imageUrl: "https://images.unsplash.com/photo-1516233758813-a38d024919c5?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&h=250&q=80", content: "They searched through the dense trees and across bubbling streams." },
-  { id: 7, imageUrl: "https://images.unsplash.com/photo-1426604966848-d7adac402bff?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&h=250&q=80", content: "Finally, they found the treasure - a magical seed that could grow a tree of friendship." },
-  { id: 8, imageUrl: "https://images.unsplash.com/photo-1501084817091-a4f3d1d19e07?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&h=250&q=80", content: "They planted the seed together and watched in amazement as it grew instantly." },
-  { id: 9, imageUrl: "https://images.unsplash.com/photo-1483721310020-03333e577078?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&h=250&q=80", content: "The forest animals gathered around to celebrate their new friendship." },
-  { id: 10, imageUrl: "https://images.unsplash.com/photo-1513836279014-a89f7a76ae86?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&h=250&q=80", content: "Alex learned that kindness and friendship are the greatest treasures of all." }
-];
+const DEBUG_LOGGING = true;
 
 export default function CreateStoryPage() {
+  // Global flow state
   const [currentStep, setCurrentStep] = useState(1);
-  const [characterType, setCharacterType] = useState<'predefined' | 'custom'>('predefined');
-  const [storyType, setStoryType] = useState<'predefined' | 'custom'>('predefined');
+  const [characterType, setCharacterType] = useState<"predefined" | "custom">(
+    "predefined",
+  );
+  const [storyType, setStoryType] = useState<"predefined" | "custom">(
+    "predefined",
+  );
   const [selectedCharacter, setSelectedCharacter] = useState<any | null>(null);
   const [selectedStory, setSelectedStory] = useState<any | null>(null);
+
+  // Book preview state
   const [bookTitle, setBookTitle] = useState("");
-  const [bookPages, setBookPages] = useState<typeof mockPages>([]);
+  const [bookPages, setBookPages] = useState<any[]>([]);
+  const [storyResult, setStoryResult] = useState<any | null>(null);
+
+  // Shipping / order states
   const [showShippingForm, setShowShippingForm] = useState(false);
   const [orderCompleted, setOrderCompleted] = useState(false);
-  
+
+  // Data for training / generation
+  const [modelId, setModelId] = useState("");
+  const [kidName, setKidName] = useState("");
+  const [baseStoryPrompt, setBaseStoryPrompt] = useState("");
+  const [moral, setMoral] = useState("");
+  const [loading, setLoading] = useState(false);
+
   const { toast } = useToast();
   const [, navigate] = useLocation();
 
-  // Initialize book pages when story is selected
-  useEffect(() => {
-    if (selectedCharacter && selectedStory) {
-      const title = `${selectedCharacter.name} in ${selectedStory.title}`;
-      setBookTitle(title);
-      
-      // In a real app, we would generate the story here based on the character and story
-      // For now, we'll use the mock pages
-      setBookPages(mockPages.map(page => ({
-        ...page,
-        content: page.id === 1 ? title : page.content
-      })));
+  // Logging helper
+  const log = (...args: any[]) => {
+    if (DEBUG_LOGGING) {
+      console.log("[CreateStoryPage]", ...args);
     }
-  }, [selectedCharacter, selectedStory]);
-
-  const handleCharacterToggle = (type: 'predefined' | 'custom') => {
-    setCharacterType(type);
   };
 
-  const handleStoryToggle = (type: 'predefined' | 'custom') => {
-    setStoryType(type);
-  };
-
-  const handleSelectCharacter = (character: any) => {
+  // STEP 1: When a character is selected, trigger model training immediately
+  const handleSelectCharacter = async (character: any) => {
+    log("Character selected:", character);
     setSelectedCharacter(character);
+    setKidName(character.name);
+    // Immediately trigger training once the user confirms character selection.
+    await handleTrainModel(character);
+    // Once training is complete, move to Step 2.
     setCurrentStep(2);
   };
 
-  const handleSelectStory = (story: any) => {
+  // STEP 2: When a story is selected, trigger story generation immediately
+  const handleSelectStory = async (story: any) => {
+    log("Story selected:", story);
     setSelectedStory(story);
+    setBaseStoryPrompt(story.instructions);
+    setMoral(story.moral);
+    // Trigger generation immediately.
+    await handleGenerateStory();
+    // Once generation is complete, move to Step 3.
     setCurrentStep(3);
   };
 
+  // Trigger model training using the kid's image URLs.
+  const handleTrainModel = async (character: any) => {
+    if (
+      !character ||
+      !character.imageUrls ||
+      character.imageUrls.length === 0
+    ) {
+      toast({
+        title: "Images required",
+        description: "Please upload at least one image of your character",
+        variant: "destructive",
+      });
+      log("handleTrainModel: No images found");
+      return;
+    }
+    log("handleTrainModel: Training model with character:", character);
+    try {
+      const captions = character.imageUrls.map(() => character.name);
+      const payload = {
+        imageUrls: character.imageUrls,
+        captions,
+        modelName: "kids_custom_model",
+      };
+      log("handleTrainModel: Training payload:", payload);
+      const response = await fetch("/api/trainModel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json();
+      log("handleTrainModel: Training response received:", data);
+      setModelId(data.modelId);
+      toast({
+        title: "Model Training Complete",
+        description: "Your custom model is ready to generate your story!",
+      });
+    } catch (err: any) {
+      log("handleTrainModel: Training error:", err);
+      toast({
+        title: "Training Error",
+        description: err.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Trigger story generation using the trained model and story inputs.
+  const handleGenerateStory = async () => {
+    log("handleGenerateStory triggered");
+    if (!kidName || !modelId || !baseStoryPrompt || !moral) {
+      toast({
+        title: "Incomplete Data",
+        description:
+          "Ensure kid name, trained model, story prompt, and moral are provided.",
+        variant: "destructive",
+      });
+      log("handleGenerateStory: Missing data", {
+        kidName,
+        modelId,
+        baseStoryPrompt,
+        moral,
+      });
+      return;
+    }
+    const payload = { kidName, modelId, baseStoryPrompt, moral };
+    log("handleGenerateStory: Payload:", payload);
+    try {
+      setLoading(true);
+      const response = await fetch("/api/generateStory", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json();
+      log("handleGenerateStory: Response received:", data);
+      setStoryResult(data);
+    } catch (err: any) {
+      log("handleGenerateStory: Generation error:", err);
+      toast({
+        title: "Generation Error",
+        description: err.message,
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // When storyResult changes, update the book preview.
+  useEffect(() => {
+    log("useEffect: storyResult changed:", storyResult);
+    if (storyResult) {
+      const title =
+        storyResult.sceneTexts && storyResult.sceneTexts[0]
+          ? storyResult.sceneTexts[0]
+          : "Your Story";
+      setBookTitle(title);
+      const pages = storyResult.pages.map((url: string, index: number) => ({
+        id: index + 1,
+        imageUrl: url,
+        content: storyResult.sceneTexts[index] || "",
+      }));
+      setBookPages(pages);
+      log("useEffect: Updated bookTitle and bookPages:", { title, pages });
+    }
+  }, [storyResult]);
+
+  // Other utility handlers remain mostly unchanged.
   const handleUpdatePage = (id: number, content: string) => {
-    setBookPages(pages => 
-      pages.map(page => page.id === id ? { ...page, content } : page)
+    log("handleUpdatePage: Updating page", { id, content });
+    setBookPages((pages) =>
+      pages.map((page) => (page.id === id ? { ...page, content } : page)),
     );
   };
 
   const handleRegenerate = (id: number) => {
-    // In a real app, we would call an API to regenerate the image
+    log("handleRegenerate: Regenerating image for page", id);
     toast({
       title: "Regenerating image",
       description: `Regenerating image for page ${id}...`,
@@ -98,13 +209,21 @@ export default function CreateStoryPage() {
   };
 
   const handleResetAll = () => {
-    setBookPages(mockPages.map(page => ({
-      ...page,
-      content: page.id === 1 ? bookTitle : page.content
-    })));
+    if (storyResult) {
+      const title = storyResult.sceneTexts[0];
+      setBookTitle(title);
+      const pages = storyResult.pages.map((url: string, index: number) => ({
+        id: index + 1,
+        imageUrl: url,
+        content: storyResult.sceneTexts[index] || "",
+      }));
+      setBookPages(pages);
+      log("handleResetAll: Reset all pages to initial storyResult");
+    }
   };
 
   const handleRegenerateAll = () => {
+    log("handleRegenerateAll: Regenerating all pages");
     toast({
       title: "Regenerating all pages",
       description: "Regenerating all pages of your book...",
@@ -112,62 +231,68 @@ export default function CreateStoryPage() {
   };
 
   const handleDownloadPDF = async () => {
+    log("handleDownloadPDF: Downloading PDF with", { bookTitle, bookPages });
     try {
-      // Call the PDF generation function
       await generatePDF(bookTitle, bookPages);
-      
-      // Save book to database
-      await apiRequest('POST', '/api/books', {
+      await apiRequest("POST", "/api/books", {
         title: bookTitle,
         pages: bookPages,
         characterId: selectedCharacter.id,
-        storyId: selectedStory.id
+        storyId: selectedStory.id,
       });
     } catch (error) {
-      console.error('Error generating PDF:', error);
+      log("handleDownloadPDF: Error generating PDF:", error);
+      console.error("Error generating PDF:", error);
       throw error;
     }
   };
 
   const handlePrint = () => {
+    log("handlePrint: Print button clicked");
     setShowShippingForm(true);
   };
 
   const handleShippingSubmit = async (formData: any) => {
+    log("handleShippingSubmit: Submitting shipping form", formData);
     try {
-      await apiRequest('POST', '/api/orders', {
+      await apiRequest("POST", "/api/orders", {
         ...formData,
         bookTitle,
         characterId: selectedCharacter.id,
-        storyId: selectedStory.id
+        storyId: selectedStory.id,
       });
-      
       setOrderCompleted(true);
       setShowShippingForm(false);
-      
       toast({
         title: "Order placed successfully!",
         description: "Your book will be delivered soon.",
       });
     } catch (error) {
+      log("handleShippingSubmit: Order submission error:", error);
       toast({
         title: "Order failed",
-        description: "There was a problem placing your order. Please try again.",
+        description:
+          "There was a problem placing your order. Please try again.",
         variant: "destructive",
       });
     }
   };
 
   const handleBackToStep = (step: number) => {
+    log("handleBackToStep: Navigating back to step", step);
     setCurrentStep(step);
   };
 
   const handleCreateNewStory = () => {
+    log(
+      "handleCreateNewStory: Resetting all story data for new story creation",
+    );
     setCurrentStep(1);
     setSelectedCharacter(null);
     setSelectedStory(null);
     setBookTitle("");
     setBookPages([]);
+    setStoryResult(null);
     setShowShippingForm(false);
     setOrderCompleted(false);
   };
@@ -175,49 +300,59 @@ export default function CreateStoryPage() {
   return (
     <div className="min-h-screen flex flex-col">
       <Header />
-      
       <main className="flex-grow">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <StepIndicator currentStep={currentStep} steps={STEPS} />
-          
+
           {/* Step 1: Choose Character */}
           {currentStep === 1 && (
             <div>
               <div className="mb-8">
-                <h2 className="text-3xl font-heading font-bold text-center mb-2">Step 1: Choose Your Character</h2>
-                <p className="text-center text-text-secondary">Select a predefined character or create your own custom hero!</p>
+                <h2 className="text-3xl font-heading font-bold text-center mb-2">
+                  Step 1: Choose Your Character
+                </h2>
+                <p className="text-center text-text-secondary">
+                  Select a predefined character or create your own custom hero!
+                </p>
               </div>
-              
-              <CharacterToggle type={characterType} onToggle={handleCharacterToggle} />
-              
-              {characterType === 'predefined' ? (
-                <PredefinedCharacters onSelectCharacter={handleSelectCharacter} />
+              <CharacterToggle
+                type={characterType}
+                onToggle={(type) => setCharacterType(type)}
+              />
+              {characterType === "predefined" ? (
+                <PredefinedCharacters
+                  onSelectCharacter={handleSelectCharacter}
+                />
               ) : (
                 <CustomCharacter onSubmit={handleSelectCharacter} />
               )}
             </div>
           )}
-          
+
           {/* Step 2: Choose Story */}
           {currentStep === 2 && (
             <div>
               <div className="mb-8">
-                <h2 className="text-3xl font-heading font-bold text-center mb-2">Step 2: Choose Your Story</h2>
-                <p className="text-center text-text-secondary">Select a predefined story or create your own custom adventure!</p>
+                <h2 className="text-3xl font-heading font-bold text-center mb-2">
+                  Step 2: Choose Your Story
+                </h2>
+                <p className="text-center text-text-secondary">
+                  Select a predefined story or create your own custom adventure!
+                </p>
               </div>
-              
-              <StoryToggle type={storyType} onToggle={handleStoryToggle} />
-              
-              {storyType === 'predefined' ? (
+              <StoryToggle
+                type={storyType}
+                onToggle={(type) => setStoryType(type)}
+              />
+              {storyType === "predefined" ? (
                 <PredefinedStories onSelectStory={handleSelectStory} />
               ) : (
                 <CustomStory onSubmit={handleSelectStory} />
               )}
-              
-              <div className="flex justify-center space-x-4 mt-8">
+              <div className="flex justify-center mt-8">
                 <Button
                   variant="outline"
-                  onClick={() => handleBackToStep(1)}
+                  onClick={() => setCurrentStep(1)}
                   className="border border-gray-300 bg-white hover:bg-gray-50 text-text-primary font-bold py-3 px-6 rounded-full text-lg shadow-sm hover:shadow-md transition-all"
                 >
                   Back
@@ -225,15 +360,18 @@ export default function CreateStoryPage() {
               </div>
             </div>
           )}
-          
+
           {/* Step 3: Preview */}
           {currentStep === 3 && (
             <div>
               <div className="mb-8">
-                <h2 className="text-3xl font-heading font-bold text-center mb-2">Step 3: Preview Your Story</h2>
-                <p className="text-center text-text-secondary">Review your book, make edits, and prepare to download or print</p>
+                <h2 className="text-3xl font-heading font-bold text-center mb-2">
+                  Step 3: Preview Your Story
+                </h2>
+                <p className="text-center text-text-secondary">
+                  Review your book, make edits, and prepare to download or print
+                </p>
               </div>
-              
               <BookPreview
                 bookTitle={bookTitle}
                 pages={bookPages}
@@ -244,29 +382,27 @@ export default function CreateStoryPage() {
                 onDownload={handleDownloadPDF}
                 onPrint={handlePrint}
               />
-              
               {showShippingForm && !orderCompleted && (
                 <ShippingForm onSubmit={handleShippingSubmit} />
               )}
-              
               {orderCompleted && (
                 <div className="flex items-center justify-center bg-green-100 text-green-800 p-4 rounded-lg mb-8 max-w-md mx-auto mt-8">
                   <i className="fas fa-check-circle text-green-500 mr-2 text-xl"></i>
-                  <span>Order successfully placed! Your book will be delivered soon.</span>
+                  <span>
+                    Order successfully placed! Your book will be delivered soon.
+                  </span>
                 </div>
               )}
-              
               <div className="flex justify-center space-x-4 mt-8">
                 {!orderCompleted && !showShippingForm && (
                   <Button
                     variant="outline"
-                    onClick={() => handleBackToStep(2)}
+                    onClick={() => setCurrentStep(2)}
                     className="border border-gray-300 bg-white hover:bg-gray-50 text-text-primary font-bold py-3 px-6 rounded-full text-lg shadow-sm hover:shadow-md transition-all"
                   >
                     Back
                   </Button>
                 )}
-                
                 {orderCompleted && (
                   <Button
                     onClick={handleCreateNewStory}
@@ -280,7 +416,6 @@ export default function CreateStoryPage() {
           )}
         </div>
       </main>
-      
       <Footer />
     </div>
   );
