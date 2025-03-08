@@ -9,7 +9,7 @@ const PREDEFINED_STORIES = {
     {
       id: "magical-forest",
       title: "The Magical Forest",
-      description:
+      instructions:
         "An adventure through an enchanted forest where animals talk and trees whisper secrets.",
       moral: "Kindness and friendship",
       imageUrl:
@@ -18,7 +18,7 @@ const PREDEFINED_STORIES = {
     {
       id: "underwater-kingdom",
       title: "Underwater Kingdom",
-      description:
+      instructions:
         "Dive deep into the ocean to help merfolk save their coral reef from pollution.",
       moral: "Environmental care",
       imageUrl:
@@ -27,7 +27,7 @@ const PREDEFINED_STORIES = {
     {
       id: "friendly-dragon",
       title: "The Friendly Dragon",
-      description:
+      instructions:
         "Meet a friendly dragon who just wants to make new friends in the village.",
       moral: "Don't judge by appearances",
       imageUrl:
@@ -38,7 +38,7 @@ const PREDEFINED_STORIES = {
     {
       id: "space-explorer",
       title: "Space Explorer",
-      description:
+      instructions:
         "A journey through the stars where your child discovers new planets and makes alien friends.",
       moral: "Courage and curiosity",
       imageUrl:
@@ -47,7 +47,7 @@ const PREDEFINED_STORIES = {
     {
       id: "dragon-rescue",
       title: "Dragon Rescue",
-      description:
+      instructions:
         "Help a lost baby dragon find its family while learning valuable lessons.",
       moral: "Compassion and responsibility",
       imageUrl:
@@ -56,7 +56,7 @@ const PREDEFINED_STORIES = {
     {
       id: "treasure-hunters",
       title: "Treasure Hunters",
-      description:
+      instructions:
         "Find a mysterious map and go on a treasure hunt with unexpected results.",
       moral: "Teamwork and sharing",
       imageUrl:
@@ -67,7 +67,7 @@ const PREDEFINED_STORIES = {
     {
       id: "time-traveler",
       title: "The Time Traveler",
-      description:
+      instructions:
         "Travel through time to witness historical events and learn about different eras.",
       moral: "Learning from history",
       imageUrl:
@@ -76,7 +76,7 @@ const PREDEFINED_STORIES = {
     {
       id: "robot-friend",
       title: "The Robot Friend",
-      description:
+      instructions:
         "Build a robot friend who helps solve problems in unexpected ways.",
       moral: "Innovation and creativity",
       imageUrl:
@@ -85,7 +85,7 @@ const PREDEFINED_STORIES = {
     {
       id: "detective-case",
       title: "The Detective Case",
-      description:
+      instructions:
         "Solve a neighborhood mystery using clues and detective skills.",
       moral: "Critical thinking and observation",
       imageUrl:
@@ -99,7 +99,7 @@ type AgeGroup = "3-5" | "6-8" | "9-12";
 interface Story {
   id: string;
   title: string;
-  description: string;
+  instructions: string;
   moral: string;
   imageUrl: string;
 }
@@ -142,6 +142,7 @@ export function PredefinedStories({ onSelectStory }: PredefinedStoriesProps) {
           type: "predefined",
           predefinedId: story.id,
           moral: story.moral,
+          instructions: story.instructions,
           elements: [],
         });
       }

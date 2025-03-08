@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { StepIndicator } from "@/components/StepIndicator";
@@ -51,6 +51,7 @@ export default function CreateStoryPage() {
   const [baseStoryPrompt, setBaseStoryPrompt] = useState("");
   const [moral, setMoral] = useState("");
   const [loading, setLoading] = useState(false);
+  const [generatingStory, setGeneratingStory] = useState(false);
 
   const { toast } = useToast();
   const [, navigate] = useLocation();
@@ -62,30 +63,149 @@ export default function CreateStoryPage() {
     }
   };
 
-  // STEP 1: When a character is selected, trigger model training immediately
-  const handleSelectCharacter = async (character: any) => {
+  const modelIdRef = useRef(modelId);
+  useEffect(() => {
+    modelIdRef.current = modelId;
+    log("useEffect: modelId updated:", modelId);
+  }, [modelId]);
+
+  useEffect(() => {
+    if (
+      currentStep === 3 &&
+      modelId &&
+      baseStoryPrompt &&
+      moral &&
+      !storyResult
+    ) {
+      // Model training is complete and all data is available.
+      log("useEffect: Triggering story generation", {
+        kidName,
+        modelId,
+        baseStoryPrompt,
+        moral,
+      });
+      handleGenerateStoryWithData(kidName, modelId, baseStoryPrompt, moral)
+        .then(() => setGeneratingStory(false))
+        .catch((err) => {
+          setGeneratingStory(false);
+          log("Error in story generation:", err);
+        });
+    }
+  }, [currentStep, modelId, baseStoryPrompt, moral, storyResult]);
+
+  // STEP 1: When a character is selected, start training asynchronously.
+  const handleSelectCharacter = (character: any) => {
     log("Character selected:", character);
     setSelectedCharacter(character);
     setKidName(character.name);
-    // Immediately trigger training once the user confirms character selection.
-    await handleTrainModel(character);
-    // Once training is complete, move to Step 2.
+    // Kick off training without awaiting.
+    handleTrainModel(character);
     setCurrentStep(2);
   };
 
-  // STEP 2: When a story is selected, trigger story generation immediately
-  const handleSelectStory = async (story: any) => {
+  // STEP 2: When a story is selected, start story generation asynchronously
+  // and move to Step 3 immediately.
+  // const handleSelectStory = (story: any) => {
+  //   log("Story selected:", story);
+  //   setSelectedStory(story);
+  //   // Use instructions if available; otherwise, fall back to description.
+  //   const prompt = story.instructions || story.description || "";
+  //   const moralValue = story.moral || "";
+  //   // Set state for consistency if you need it later.
+  //   setBaseStoryPrompt(prompt);
+  //   setMoral(moralValue);
+  //   // Mark generation as in progress.
+  //   setGeneratingStory(true);
+  //   // Call a helper that uses these values directly.
+  //   handleGenerateStoryWithData(kidName, modelId, prompt, moralValue)
+  //     .then(() => setGeneratingStory(false))
+  //     .catch((err) => {
+  //       setGeneratingStory(false);
+  //       log("Error in generateStoryWithData:", err);
+  //     });
+  //   setCurrentStep(3);
+  // };
+
+  const handleSelectStory = (story: any) => {
     log("Story selected:", story);
     setSelectedStory(story);
-    setBaseStoryPrompt(story.instructions);
-    setMoral(story.moral);
-    // Trigger generation immediately.
-    await handleGenerateStory();
-    // Once generation is complete, move to Step 3.
+    // Use instructions if available; if not, fallback to description.
+    const prompt = story.instructions || story.description || "";
+    const moralValue = story.moral || "";
+    setBaseStoryPrompt(prompt);
+    setMoral(moralValue);
+    setGeneratingStory(true);
     setCurrentStep(3);
   };
 
-  // Trigger model training using the kid's image URLs.
+  const handleGenerateStoryWithData = async (
+    kidName: string,
+    modelId: string,
+    prompt: string,
+    moralValue: string,
+  ) => {
+    log("handleGenerateStoryWithData triggered", {
+      kidName,
+      modelId,
+      prompt,
+      moralValue,
+    });
+    try {
+      // Optionally wait for modelId to be ready using your polling function.
+      await waitForModelId();
+    } catch (err) {
+      toast({
+        title: "Model Training Delay",
+        description: "Your model is still training. Please wait and try again.",
+        variant: "destructive",
+      });
+      log("Model training timeout:", err);
+      return;
+    }
+    if (!kidName || !modelId || !prompt || !moralValue) {
+      toast({
+        title: "Incomplete Data",
+        description: "Missing kid name, modelId, prompt, or moral.",
+        variant: "destructive",
+      });
+      log("handleGenerateStoryWithData: Missing data", {
+        kidName,
+        modelId,
+        prompt,
+        moralValue,
+      });
+      return;
+    }
+    const payload = {
+      kidName,
+      modelId,
+      baseStoryPrompt: prompt,
+      moral: moralValue,
+    };
+    log("handleGenerateStoryWithData: Payload:", payload);
+    try {
+      setLoading(true);
+      const response = await fetch("/api/generateStory", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json();
+      log("handleGenerateStoryWithData: Response received:", data);
+      setStoryResult(data);
+    } catch (err: any) {
+      log("handleGenerateStoryWithData: Generation error:", err);
+      toast({
+        title: "Generation Error",
+        description: err.message,
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Trigger model training using the provided character data.
   const handleTrainModel = async (character: any) => {
     if (
       !character ||
@@ -131,9 +251,36 @@ export default function CreateStoryPage() {
     }
   };
 
-  // Trigger story generation using the trained model and story inputs.
+  // Trigger story generation using the trained model and provided story inputs.
+  const waitForModelId = async (timeout = 60000, interval = 2000) => {
+    const startTime = Date.now();
+    while (true) {
+      if (modelIdRef.current && modelIdRef.current !== "") {
+        return;
+      }
+      if (Date.now() - startTime > timeout) {
+        throw new Error("Model training did not complete in time.");
+      }
+      log("Waiting for modelId... current value:", modelIdRef.current);
+      await new Promise((resolve) => setTimeout(resolve, interval));
+    }
+  };
+
   const handleGenerateStory = async () => {
     log("handleGenerateStory triggered");
+    try {
+      // Wait until modelId is available.
+      await waitForModelId();
+    } catch (err) {
+      toast({
+        title: "Model Training Delay",
+        description: "Your model is still training. Please wait and try again.",
+        variant: "destructive",
+      });
+      log("handleGenerateStory: Model training timeout", err);
+      return;
+    }
+
     if (!kidName || !modelId || !baseStoryPrompt || !moral) {
       toast({
         title: "Incomplete Data",
@@ -141,7 +288,7 @@ export default function CreateStoryPage() {
           "Ensure kid name, trained model, story prompt, and moral are provided.",
         variant: "destructive",
       });
-      log("handleGenerateStory: Missing data", {
+      log("handleGenerateStory: Missing data after waiting", {
         kidName,
         modelId,
         baseStoryPrompt,
@@ -173,7 +320,7 @@ export default function CreateStoryPage() {
     }
   };
 
-  // When storyResult changes, update the book preview.
+  // Update preview when storyResult is updated.
   useEffect(() => {
     log("useEffect: storyResult changed:", storyResult);
     if (storyResult) {
@@ -192,7 +339,7 @@ export default function CreateStoryPage() {
     }
   }, [storyResult]);
 
-  // Other utility handlers remain mostly unchanged.
+  // Utility handlers remain unchanged.
   const handleUpdatePage = (id: number, content: string) => {
     log("handleUpdatePage: Updating page", { id, content });
     setBookPages((pages) =>
@@ -218,7 +365,7 @@ export default function CreateStoryPage() {
         content: storyResult.sceneTexts[index] || "",
       }));
       setBookPages(pages);
-      log("handleResetAll: Reset all pages to initial storyResult");
+      log("handleResetAll: Reset pages to initial storyResult");
     }
   };
 
@@ -317,7 +464,7 @@ export default function CreateStoryPage() {
               </div>
               <CharacterToggle
                 type={characterType}
-                onToggle={(type) => setCharacterType(type)}
+                onToggle={setCharacterType}
               />
               {characterType === "predefined" ? (
                 <PredefinedCharacters
@@ -340,10 +487,7 @@ export default function CreateStoryPage() {
                   Select a predefined story or create your own custom adventure!
                 </p>
               </div>
-              <StoryToggle
-                type={storyType}
-                onToggle={(type) => setStoryType(type)}
-              />
+              <StoryToggle type={storyType} onToggle={setStoryType} />
               {storyType === "predefined" ? (
                 <PredefinedStories onSelectStory={handleSelectStory} />
               ) : (
@@ -372,16 +516,28 @@ export default function CreateStoryPage() {
                   Review your book, make edits, and prepare to download or print
                 </p>
               </div>
-              <BookPreview
-                bookTitle={bookTitle}
-                pages={bookPages}
-                onUpdatePage={handleUpdatePage}
-                onRegenerate={handleRegenerate}
-                onResetAll={handleResetAll}
-                onRegenerateAll={handleRegenerateAll}
-                onDownload={handleDownloadPDF}
-                onPrint={handlePrint}
-              />
+              {/* Show a buffering message while story is generating */}
+              {generatingStory && (
+                <div className="flex justify-center mt-8">
+                  <p className="text-lg text-center">
+                    Creating the perfect story... making your character
+                    life-like and magical...
+                  </p>
+                </div>
+              )}
+              {/* Once generation is complete, show the book preview */}
+              {!generatingStory && storyResult && (
+                <BookPreview
+                  bookTitle={bookTitle}
+                  pages={bookPages}
+                  onUpdatePage={handleUpdatePage}
+                  onRegenerate={handleRegenerate}
+                  onResetAll={handleResetAll}
+                  onRegenerateAll={handleRegenerateAll}
+                  onDownload={handleDownloadPDF}
+                  onPrint={handlePrint}
+                />
+              )}
               {showShippingForm && !orderCompleted && (
                 <ShippingForm onSubmit={handleShippingSubmit} />
               )}

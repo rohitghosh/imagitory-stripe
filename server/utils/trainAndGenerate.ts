@@ -6,7 +6,7 @@ import { WritableStreamBuffer } from "stream-buffers";
 import { getStorage } from "firebase-admin/storage";
 import { v4 as uuidv4 } from "uuid";
 import path from "path";
-
+import { URL } from "url";
 const DEBUG_LOGGING = process.env.DEBUG_LOGGING === "true";
 
 /**
@@ -65,14 +65,14 @@ async function createZipBuffer(imageUrls: string[]): Promise<Buffer> {
 /**
  * Helper: Extract file extension from a URL.
  */
-function getExtension(url: string): string {
-  const parts = url.split(".");
-  if (parts.length === 0) return "";
-  let ext = parts.pop() || "";
-  if (ext.indexOf("?") !== -1) {
-    ext = ext.split("?")[0];
+function getExtension(urlStr: string): string {
+  try {
+    const urlObj = new URL(urlStr);
+    return path.extname(urlObj.pathname); // returns extension including the dot, e.g. ".jpg"
+  } catch (error) {
+    console.error("Failed to extract extension from URL:", urlStr, error);
+    return "";
   }
-  return "." + ext;
 }
 
 /**
@@ -89,99 +89,118 @@ export async function trainCustomModel(
     throw new Error("Number of image URLs and captions must match.");
   }
 
-  // Create a zip buffer from the provided image URLs.
-  if (DEBUG_LOGGING)
-    console.log("[trainCustomModel] Creating zip from image URLs...");
-  const zipBuffer = await createZipBuffer(imageUrls);
+  // // Create a zip buffer from the provided image URLs.
+  // if (DEBUG_LOGGING)
+  //   console.log("[trainCustomModel] Creating zip from image URLs...");
+  // const zipBuffer = await createZipBuffer(imageUrls);
 
-  // Upload the zip file to Firebase Storage.
-  const bucket = getStorage().bucket();
-  const zipFilename = `${uuidv4()}.zip`;
-  const fileUpload = bucket.file(zipFilename);
-  await fileUpload.save(zipBuffer, {
-    metadata: {
-      contentType: "application/zip",
-    },
-  });
-  const zipUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(
-    zipFilename,
-  )}?alt=media`;
-  if (DEBUG_LOGGING) {
-    console.log("[trainCustomModel] Zip uploaded. Public URL:", zipUrl);
-  }
+  // // Upload the zip file to Firebase Storage.
+  // const bucket = getStorage().bucket();
+  // const zipFilename = `${uuidv4()}.zip`;
+  // const fileUpload = bucket.file(zipFilename);
+  // await fileUpload.save(zipBuffer, {
+  //   metadata: {
+  //     contentType: "application/zip",
+  //   },
+  // });
+  // const zipUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(
+  //   zipFilename,
+  // )}?alt=media`;
+  // if (DEBUG_LOGGING) {
+  //   console.log("[trainCustomModel] Zip uploaded. Public URL:", zipUrl);
+  // }
 
-  // Build the payload per fal.ai API; note that image_urls is now a single string (zipUrl)
-  const input = {
-    image_urls: zipUrl, // Pass the zip file URL
-    captions, // Still pass the captions array as required (if API expects it)
-    custom_token: "<kidStyle>",
-    model_name: modelName,
-    fast_training: true,
-    steps: 5,
-    create_masks: true,
+  // // Build the payload per fal.ai API; note that image_urls is now a single string (zipUrl)
+  // const input = {
+  //   images_data_url: zipUrl, // Pass the zip file URL
+  //   captions, // Still pass the captions array as required (if API expects it)
+  //   custom_token: "<kidStyle>",
+  //   model_name: modelName,
+  //   fast_training: true,
+  //   steps: 5,
+  //   create_masks: true,
+  // };
+  // if (DEBUG_LOGGING) {
+  //   console.log(
+  //     "[trainCustomModel] Training input payload:",
+  //     JSON.stringify(input, null, 2),
+  //   );
+  // }
+
+  // const result = await fal.subscribe("fal-ai/flux-lora-fast-training", {
+  //   input,
+  //   logs: true,
+  //   onQueueUpdate: (update) => {
+  //     if (DEBUG_LOGGING && update.status === "IN_PROGRESS") {
+  //       update.logs
+  //         .map((log) => log.message)
+  //         .forEach((msg) =>
+  //           console.log("[trainCustomModel] Queue update:", msg),
+  //         );
+  //     }
+  //   },
+  // });
+
+  // if (DEBUG_LOGGING) {
+  //   console.log("[trainCustomModel] Training result data:", result.data);
+  //   console.log("[trainCustomModel] Request ID:", result.requestId);
+  // }
+
+  // // Assume result.data contains the modelId.
+  // return {
+  //   modelId: result.data.diffusers_lora_file.url,
+  //   requestId: result.requestId,
+  // };
+  await new Promise((resolve) => setTimeout(resolve, 10000));
+  return {
+    modelId:
+      "https://v3.fal.media/files/rabbit/Q2UqOqEdJzLM1dZfJuBsV_pytorch_lora_weights.safetensors",
+    requestId: "66115f6e-7f18-459a-abbb-184253c769e8",
   };
-  if (DEBUG_LOGGING) {
-    console.log(
-      "[trainCustomModel] Training input payload:",
-      JSON.stringify(input, null, 2),
-    );
-  }
-
-  const result = await fal.subscribe("fal-ai/flux-lora-fast-training", {
-    input,
-    logs: true,
-    onQueueUpdate: (update) => {
-      if (DEBUG_LOGGING && update.status === "IN_PROGRESS") {
-        update.logs
-          .map((log) => log.message)
-          .forEach((msg) =>
-            console.log("[trainCustomModel] Queue update:", msg),
-          );
-      }
-    },
-  });
-
-  if (DEBUG_LOGGING) {
-    console.log("[trainCustomModel] Training result data:", result.data);
-    console.log("[trainCustomModel] Request ID:", result.requestId);
-  }
-
-  // Assume result.data contains the modelId.
-  return { modelId: result.data.modelId, requestId: result.requestId };
 }
 
 /**
  * Generate a single image using fal.ai and the custom-trained model.
  */
-export async function generateImage(
-  prompt: string,
-  modelId: string,
-): Promise<string> {
-  if (DEBUG_LOGGING)
-    console.log(
-      "[generateImage] Generating image with prompt:",
-      prompt,
-      "using modelId:",
-      modelId,
-    );
-  const response = await fetch("https://api.fal.ai/v1/generate", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${process.env.FALAI_API_KEY}`,
+
+export async function generateImage(prompt: string, modelId: string): Promise<string> {
+  console.log("[generateImage] Generating image with prompt:", prompt, "using lora path:", modelId);
+
+  // Build payload matching the API docs
+  const payload = {
+    loras: [
+      {
+        path: modelId, // This is the URL returned from training.
+        scale: 1
+      }
+    ],
+    prompt,               // The generation prompt.
+    embeddings: [],       // No extra embeddings.
+    model_name: null,     // As required.
+    enable_safety_checker: true
+  };
+
+  console.log("[generateImage] Payload:", JSON.stringify(payload, null, 2));
+
+  // Use fal.subscribe to trigger image generation.
+  const result = await fal.subscribe("fal-ai/flux-lora", {
+    input: payload,
+    logs: true,
+    onQueueUpdate: (update) => {
+      if (update.status === "IN_PROGRESS") {
+        update.logs.map((log) => console.log("[generateImage] Queue update:", log.message));
+      }
     },
-    body: JSON.stringify({
-      prompt,
-      model: modelId,
-      num_inference_steps: 50,
-      guidance_scale: 7.5,
-    }),
   });
-  const data = await response.json();
-  if (DEBUG_LOGGING) {
-    console.log("[generateImage] Fal.ai generate response:", data);
+
+  console.log("[generateImage] Generation result data:", result.data);
+  console.log("[generateImage] Request ID:", result.requestId);
+
+  if (result.data && result.data.images && result.data.images.length > 0) {
+    return result.data.images[0].url;
+  } else {
+    throw new Error("No image returned from generation");
   }
-  return data.imageUrl;
 }
 
 /**
@@ -193,33 +212,48 @@ export async function generateScenePromptsLLM(
   basePrompt: string,
   moral: string,
 ): Promise<string[]> {
-  const llmPrompt = `Generate a list of 10 creative, one-sentence scene descriptions for a story about ${kidName} based on this prompt: "${basePrompt}". The story should clearly convey the moral: "${moral}".`;
-  if (DEBUG_LOGGING)
+  const llmPrompt = `Generate a numbered list of 10 creative, one-sentence scene descriptions for a story about ${kidName} based on this prompt: "${basePrompt}". The story should clearly convey the moral: "${moral}".`;
+  if (DEBUG_LOGGING) {
     console.log("[generateScenePromptsLLM] LLM Prompt:", llmPrompt);
-  const response = await fetch(
-    "https://api.openai.com/v1/engines/text-davinci-003/completions",
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-      },
-      body: JSON.stringify({
-        prompt: llmPrompt,
-        max_tokens: 500,
-        n: 1,
-        temperature: 0.7,
-      }),
+  }
+
+  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
     },
-  );
+    body: JSON.stringify({
+      model: "gpt-3.5-turbo",
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are a creative assistant that helps generate engaging scene descriptions for children's stories.",
+        },
+        { role: "user", content: llmPrompt },
+      ],
+      temperature: 0.7,
+      max_tokens: 500,
+    }),
+  });
+
   const data = await response.json();
   if (DEBUG_LOGGING) {
     console.log("[generateScenePromptsLLM] OpenAI response:", data);
   }
-  const scenes = data.choices[0].text
+
+  if (data.error) {
+    throw new Error(data.error.message);
+  }
+
+  // Extract the assistant's reply.
+  const content = data.choices[0].message.content;
+  // Split the text into individual scene prompts. Adjust the splitting logic if needed.
+  const scenes = content
     .split("\n")
-    .map((s: string) => s.trim())
-    .filter((s: string) => s.length > 0);
+    .map((line: string) => line.trim())
+    .filter((line: string) => line.length > 0);
   if (DEBUG_LOGGING) {
     console.log("[generateScenePromptsLLM] Generated scene prompts:", scenes);
   }
