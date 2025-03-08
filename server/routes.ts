@@ -74,6 +74,14 @@ try {
 export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
 
+  // Authentication middleware
+  const authenticate = (req: Request, res: Response, next: NextFunction) => {
+    if (!req.session || !req.session.userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    next();
+  };
+
   // Authentication routes
   app.post("/api/auth/login", async (req: Request, res: Response) => {
     try {
@@ -116,6 +124,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       res.status(200).json({ message: "Logged out successfully" });
     });
+  });
+  
+  // Get current user data
+  app.get("/api/user", authenticate, async (req: Request, res: Response) => {
+    try {
+      const userId = req.session!.userId;
+      const user = await storage.getUser(userId!);
+      
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      res.status(200).json(user);
+    } catch (error) {
+      console.error("Error fetching user:", error);
+      res.status(500).json({ message: "Server error" });
+    }
+  });
+
+  // Get current user data
+  app.get("/api/user", authenticate, async (req: Request, res: Response) => {
+    try {
+      const userId = req.session!.userId;
+      const user = await storage.getUser(userId!);
+      
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      res.status(200).json(user);
+    } catch (error) {
+      console.error("Error fetching user:", error);
+      res.status(500).json({ message: "Server error" });
+    }
   });
 
   const upload = multer({ storage: multer.memoryStorage() });
@@ -248,11 +290,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Character routes - no authentication required
+  // Character routes with optional authentication
   app.post("/api/characters", async (req: Request, res: Response) => {
     try {
-      // Use a default user ID of 1 for all requests
-      const userId = 1;
+      // Use session userId if authenticated, otherwise use default
+      const userId = req.session?.userId || 1;
 
       const validatedData = insertCharacterSchema.parse({
         ...req.body,
@@ -268,8 +310,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/characters", async (req: Request, res: Response) => {
     try {
-      // Use a default user ID of 1 for all requests
-      const userId = 1;
+      // Use session userId if authenticated, otherwise use default
+      const userId = req.session?.userId || 1;
       const characters = await storage.getCharactersByUserId(userId);
       res.status(200).json(characters);
     } catch (error) {
@@ -277,11 +319,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Story routes - no authentication required
+  // Story routes with optional authentication
   app.post("/api/stories", async (req: Request, res: Response) => {
     try {
-      // Use a default user ID of 1 for all requests
-      const userId = 1;
+      // Use session userId if authenticated, otherwise use default
+      const userId = req.session?.userId || 1;
 
       const validatedData = insertStorySchema.parse({
         ...req.body,
@@ -297,8 +339,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/stories", async (req: Request, res: Response) => {
     try {
-      // Use a default user ID of 1 for all requests
-      const userId = 1;
+      // Use session userId if authenticated, otherwise use default
+      const userId = req.session?.userId || 1;
       const stories = await storage.getStoriesByUserId(userId);
       res.status(200).json(stories);
     } catch (error) {
@@ -306,11 +348,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Book routes - no authentication required
+  // Book routes with optional authentication
   app.post("/api/books", async (req: Request, res: Response) => {
     try {
-      // Use a default user ID of 1 for all requests
-      const userId = 1;
+      // Use session userId if authenticated, otherwise use default
+      const userId = req.session?.userId || 1;
 
       const validatedData = insertBookSchema.parse({
         ...req.body,
@@ -326,8 +368,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/books", async (req: Request, res: Response) => {
     try {
-      // Use a default user ID of 1 for all requests
-      const userId = 1;
+      // Use session userId if authenticated, otherwise use default
+      const userId = req.session?.userId || 1;
       const books = await storage.getBooksByUserId(userId);
       res.status(200).json(books);
     } catch (error) {
@@ -335,11 +377,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Order routes - no authentication required
+  // Order routes with optional authentication
   app.post("/api/orders", async (req: Request, res: Response) => {
     try {
-      // Use a default user ID of 1 for all requests
-      const userId = 1;
+      // Use session userId if authenticated, otherwise use default
+      const userId = req.session?.userId || 1;
 
       const validatedData = insertOrderSchema.parse({
         ...req.body,
