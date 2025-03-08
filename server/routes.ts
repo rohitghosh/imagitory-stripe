@@ -22,7 +22,6 @@ import { v4 as uuidv4 } from "uuid";
 import path from "path";
 import {
   trainCustomModel,
-  pollTrainingJob,
   generateStoryImages,
 } from "./utils/trainAndGenerate";
 

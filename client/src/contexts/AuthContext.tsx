@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, ReactNode } from "react
 import { User as FirebaseUser, onAuthStateChanged } from "firebase/auth";
 import { auth, signInWithGoogle, logOut } from "../lib/firebase";
 
+// Define the shape of the auth context
 type AuthContextType = {
   user: FirebaseUser | null;
   loading: boolean;
@@ -10,6 +11,7 @@ type AuthContextType = {
   signOut: () => Promise<void>;
 };
 
+// Create the context with default values
 const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
@@ -18,7 +20,9 @@ const AuthContext = createContext<AuthContextType>({
   signOut: async () => {},
 });
 
-export const useAuth = () => useContext(AuthContext);
+// Export the hook using named constant function
+const useAuth = () => useContext(AuthContext);
+export { useAuth };
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<FirebaseUser | null>(null);

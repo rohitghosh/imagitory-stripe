@@ -3,9 +3,12 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
+import { Header } from "@/components/Header";
+import { Footer } from "@/components/Footer";
+import { FaGoogle } from "react-icons/fa";
 
 export default function LoginPage() {
-  const { user, signIn, loading } = useAuth();
+  const { user, signIn, loading, error } = useAuth();
   const { toast } = useToast();
   const [location, setLocation] = useLocation();
 
@@ -15,13 +18,25 @@ export default function LoginPage() {
     }
   }, [user, setLocation]);
 
+  useEffect(() => {
+    if (error) {
+      toast({
+        title: "Authentication error",
+        description: error,
+        variant: "destructive",
+      });
+    }
+  }, [error, toast]);
+
   const handleSignIn = async () => {
     try {
+      console.log("Starting Google sign in process...");
       await signIn();
-    } catch (error) {
+    } catch (error: any) {
+      console.error("Sign in error:", error);
       toast({
         title: "Sign in failed",
-        description: "There was a problem signing in with Google.",
+        description: error?.message || "There was a problem signing in with Google.",
         variant: "destructive",
       });
     }
@@ -29,21 +44,14 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      <header className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <h1 className="text-3xl font-[Fredoka One]">
-            <span className="text-primary">Story</span>
-            <span className="text-secondary">Pals</span>
-          </h1>
-        </div>
-      </header>
+      <Header />
       
-      <main className="flex-grow flex items-center justify-center">
-        <div className="max-w-md w-full mx-4">
+      <main className="flex-grow flex items-center justify-center p-4">
+        <div className="max-w-md w-full">
           <div className="bg-white rounded-xl shadow-lg p-8">
             <div className="text-center mb-8">
-              <h2 className="text-3xl font-heading font-bold mb-2">Welcome to StoryPals</h2>
-              <p className="text-text-secondary">
+              <h2 className="text-3xl font-bold mb-2">Welcome to StoryPals</h2>
+              <p className="text-gray-600">
                 Create personalized stories for your kids in just a few minutes!
               </p>
             </div>
@@ -53,28 +61,40 @@ export default function LoginPage() {
                 <Button
                   onClick={handleSignIn}
                   disabled={loading}
-                  className="w-full flex items-center justify-center gap-2 py-6"
+                  size="lg"
+                  className="w-full flex items-center justify-center gap-3 py-6 text-lg"
                 >
-                  <i className="fab fa-google"></i>
-                  <span>Sign in with Google</span>
+                  {loading ? (
+                    <span>Connecting...</span>
+                  ) : (
+                    <>
+                      <FaGoogle className="w-5 h-5" />
+                      <span>Sign in with Google</span>
+                    </>
+                  )}
                 </Button>
               </div>
               
-              <div className="text-center text-sm text-gray-500">
+              <div className="text-center text-sm text-gray-500 mt-8">
                 <p>By signing in, you agree to our Terms of Service and Privacy Policy.</p>
               </div>
             </div>
           </div>
+          
+          <div className="mt-8 text-center">
+            <p className="text-gray-600">Don't want to sign in?</p>
+            <Button 
+              variant="link" 
+              className="text-primary"
+              onClick={() => setLocation("/")}
+            >
+              Continue as guest
+            </Button>
+          </div>
         </div>
       </main>
       
-      <footer className="bg-white border-t border-gray-200 py-6">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center text-sm text-gray-500">
-            <p>© {new Date().getFullYear()} StoryPals. All rights reserved.</p>
-          </div>
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 }
