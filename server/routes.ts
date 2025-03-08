@@ -84,35 +84,107 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Authentication routes
   app.post("/api/auth/login", async (req: Request, res: Response) => {
     try {
+      const DEBUG_LOGGING = process.env.DEBUG_LOGGING === "true";
       const { idToken } = req.body;
 
+      if (DEBUG_LOGGING) {
+        console.log("[/api/auth/login] Received authentication request");
+      }
+
       if (!idToken) {
+        if (DEBUG_LOGGING) {
+          console.error("[/api/auth/login] Missing ID token in request");
+        }
         return res.status(400).json({ message: "ID token is required" });
       }
 
-      // Verify the ID token
-      const decodedToken = await admin.auth().verifyIdToken(idToken);
-      const uid = decodedToken.uid;
+      try {
+        // Verify the ID token
+        if (DEBUG_LOGGING) {
+          console.log("[/api/auth/login] Verifying Firebase ID token");
+        }
+        
+        const decodedToken = await admin.auth().verifyIdToken(idToken);
+        const uid = decodedToken.uid;
+        
+        if (DEBUG_LOGGING) {
+          console.log(`[/api/auth/login] Token verified for user: ${decodedToken.email}`);
+        }
 
-      // Find or create user in your database
-      let user = await storage.getUserByUid(uid);
+        // Find or create user in your database
+        if (DEBUG_LOGGING) {
+          console.log(`[/api/auth/login] Looking up user with UID: ${uid}`);
+        }
+        
+        let user = await storage.getUserByUid(uid);
 
-      if (!user) {
-        user = await storage.createUser({
-          uid,
-          email: decodedToken.email || "",
-          displayName: decodedToken.name,
-          photoURL: decodedToken.picture,
+        if (!user) {
+          if (DEBUG_LOGGING) {
+            console.log(`[/api/auth/login] Creating new user for: ${decodedToken.email}`);
+          }
+          
+          user = await storage.createUser({
+            uid,
+            email: decodedToken.email || "",
+            displayName: decodedToken.name || decodedToken.email?.split('@')[0] || "User",
+            photoURL: decodedToken.picture || "",
+          });
+          
+          if (DEBUG_LOGGING) {
+            console.log(`[/api/auth/login] User created with ID: ${user.id}`);
+          }
+        } else if (DEBUG_LOGGING) {
+          console.log(`[/api/auth/login] Found existing user with ID: ${user.id}`);
+        }
+
+        // Set session data
+        req.session!.userId = user.id;
+        
+        if (DEBUG_LOGGING) {
+          console.log(`[/api/auth/login] Session created for user ID: ${user.id}`);
+        }
+
+        res.status(200).json({ 
+          message: "Authenticated successfully", 
+          user: {
+            id: user.id,
+            email: user.email,
+            displayName: user.displayName,
+            photoURL: user.photoURL
+          } 
+        });
+      } catch (verifyError: any) {
+        // Handle specific Firebase auth errors
+        console.error("[/api/auth/login] Firebase token verification error:", verifyError);
+        
+        let errorMessage = "Invalid authentication token";
+        let statusCode = 401;
+        
+        // Map Firebase auth error codes to more specific messages
+        if (verifyError.code === 'auth/id-token-expired') {
+          errorMessage = "Authentication token has expired. Please sign in again.";
+        } else if (verifyError.code === 'auth/id-token-revoked') {
+          errorMessage = "Authentication token has been revoked. Please sign in again.";
+        } else if (verifyError.code === 'auth/invalid-id-token') {
+          errorMessage = "Invalid authentication token. Please sign in again.";
+        } else if (verifyError.code === 'auth/argument-error') {
+          errorMessage = "Invalid authentication token format.";
+        } else if (verifyError.code === 'auth/user-disabled') {
+          errorMessage = "This user account has been disabled.";
+          statusCode = 403;
+        }
+        
+        return res.status(statusCode).json({ 
+          message: errorMessage,
+          error: DEBUG_LOGGING ? verifyError.message : undefined
         });
       }
-
-      // Set session data
-      req.session!.userId = user.id;
-
-      res.status(200).json({ message: "Authenticated successfully", user });
-    } catch (error) {
-      console.error("Authentication error:", error);
-      res.status(401).json({ message: "Authentication failed" });
+    } catch (error: any) {
+      console.error("[/api/auth/login] Server error during authentication:", error);
+      res.status(500).json({ 
+        message: "Server error during authentication",
+        error: process.env.DEBUG_LOGGING === "true" ? error.message : undefined
+      });
     }
   });
 
