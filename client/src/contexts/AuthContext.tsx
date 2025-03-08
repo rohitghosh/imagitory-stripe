@@ -20,10 +20,7 @@ const AuthContext = createContext<AuthContextType>({
   signOut: async () => {},
 });
 
-// Export the hook using named constant function
-const useAuth = () => useContext(AuthContext);
-export { useAuth };
-
+// Create the Auth Provider component
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [loading, setLoading] = useState(true);
@@ -97,3 +94,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
+
+// Using a separate export for the hook - placing at the end to avoid HMR issues
+export const useAuth = () => useContext(AuthContext);
