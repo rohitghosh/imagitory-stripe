@@ -1,17 +1,12 @@
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./index.css";
-import { AuthProvider } from "./contexts/AuthContext";
 
-// Create the root and render with AuthProvider
+// Create the root and render the app
 const rootElement = document.getElementById("root");
 if (rootElement) {
   const root = createRoot(rootElement);
-  root.render(
-    <AuthProvider>
-      <App />
-    </AuthProvider>
-  );
+  root.render(<App />);
 } else {
   console.error("Could not find root element to mount React app");
 }
