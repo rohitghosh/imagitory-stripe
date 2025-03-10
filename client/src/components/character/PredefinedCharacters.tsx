@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
@@ -62,7 +63,7 @@ export function PredefinedCharacters({
 
   const handleSelectCharacter = (charId: string) => {
     setSelectedCharacter(charId);
-    const character = PREDEFINED_CHARACTERS.find((c) => c.id === charId);
+    const character = characters.find((c) => c.id === charId);
     if (character) {
       setCustomName(character.name);
     }
@@ -74,7 +75,7 @@ export function PredefinedCharacters({
 
   const handleNextClick = () => {
     if (selectedCharacter) {
-      const character = PREDEFINED_CHARACTERS.find(
+      const character = characters.find(
         (c) => c.id === selectedCharacter,
       );
       if (character) {
@@ -83,7 +84,7 @@ export function PredefinedCharacters({
           name: customName || character.name,
           type: "predefined",
           predefinedId: character.id,
-          imageUrls: [character.imageUrl],
+          imageUrl: [character.imageUrl],
           age: character.age,
           gender: character.gender,
         });
@@ -97,7 +98,7 @@ export function PredefinedCharacters({
 
   const handleNextCarousel = () => {
     setCarouselIndex(
-      Math.min(PREDEFINED_CHARACTERS.length - 3, carouselIndex + 1),
+      Math.min(characters.length - 3, carouselIndex + 1),
     );
   };
   
@@ -118,7 +119,7 @@ export function PredefinedCharacters({
 
         <div className="carousel-container overflow-x-auto hide-scrollbar py-4">
           <div className="flex space-x-6 px-12">
-            {PREDEFINED_CHARACTERS.slice(carouselIndex, carouselIndex + 4).map(
+            {characters.slice(carouselIndex, carouselIndex + 4).map(
               (character) => (
                 <Card
                   key={character.id}
