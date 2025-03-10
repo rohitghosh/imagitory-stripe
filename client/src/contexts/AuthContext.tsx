@@ -1,4 +1,5 @@
 
+import React from "react";
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { User as FirebaseUser, onAuthStateChanged } from "firebase/auth";
 import { auth, signInWithGoogle, logOut } from "../lib/firebase";
@@ -91,10 +92,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 };
 
 // Using a separate export for the hook - placing at the end to avoid HMR issues
-export const useAuth = () => {
+export function useAuth() {
   const context = useContext(AuthContext);
   if (!context) {
     throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
-};
+}
