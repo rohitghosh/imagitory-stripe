@@ -1,3 +1,4 @@
+
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { User as FirebaseUser, onAuthStateChanged } from "firebase/auth";
 import { auth, signInWithGoogle, logOut } from "../lib/firebase";
@@ -12,13 +13,7 @@ type AuthContextType = {
 };
 
 // Create the context with default values
-const AuthContext = createContext<AuthContextType>({
-  user: null,
-  loading: true,
-  error: null,
-  signIn: async () => null,
-  signOut: async () => {},
-});
+const AuthContext = createContext<AuthContextType | null>(null);
 
 // Create the Auth Provider component
 export const AuthProvider = ({ children }: { children: ReactNode }) => {

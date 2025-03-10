@@ -154,7 +154,7 @@ export function PredefinedCharacters({
           <button
             onClick={handleNextCarousel}
             className="bg-white rounded-full p-2 shadow-md hover:bg-gray-50 disabled:opacity-50"
-            disabled={carouselIndex >= PREDEFINED_CHARACTERS.length - 3}
+            disabled={carouselIndex >= characters.length - 3}
           >
             <i className="fas fa-chevron-right text-gray-600"></i>
           </button>
