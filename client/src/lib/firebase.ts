@@ -1,5 +1,16 @@
 import { initializeApp, getApp, getApps } from "firebase/app";
-import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, Auth, User, AuthError } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
+import {
+  getAuth,
+  GoogleAuthProvider,
+  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
+  signOut,
+  Auth,
+  User,
+  AuthError,
+} from "firebase/auth";
 
 // Debug logging utility
 const DEBUG_LOGGING = import.meta.env.VITE_DEBUG_LOGGING === "true";
@@ -16,7 +27,7 @@ const debugLog = (message: string, data?: any) => {
 
 const debugError = (message: string, error: any) => {
   console.error(`[FIREBASE ERROR] ${message}`, error);
-  
+
   // Additional detailed logging for development
   if (DEBUG_LOGGING) {
     if (error.code) console.error(`Error code: ${error.code}`);
@@ -29,17 +40,20 @@ const debugError = (message: string, error: any) => {
 // Check if Firebase configuration is properly set
 const validateFirebaseConfig = () => {
   const missingVars = [];
-  
-  if (!import.meta.env.VITE_FIREBASE_API_KEY) missingVars.push('VITE_FIREBASE_API_KEY');
-  if (!import.meta.env.VITE_FIREBASE_PROJECT_ID) missingVars.push('VITE_FIREBASE_PROJECT_ID');
-  if (!import.meta.env.VITE_FIREBASE_APP_ID) missingVars.push('VITE_FIREBASE_APP_ID');
-  
+
+  if (!import.meta.env.VITE_FIREBASE_API_KEY)
+    missingVars.push("VITE_FIREBASE_API_KEY");
+  if (!import.meta.env.VITE_FIREBASE_PROJECT_ID)
+    missingVars.push("VITE_FIREBASE_PROJECT_ID");
+  if (!import.meta.env.VITE_FIREBASE_APP_ID)
+    missingVars.push("VITE_FIREBASE_APP_ID");
+
   if (missingVars.length > 0) {
-    const errorMsg = `Missing Firebase configuration: ${missingVars.join(', ')}`;
+    const errorMsg = `Missing Firebase configuration: ${missingVars.join(", ")}`;
     debugError(errorMsg, { missingVars });
     throw new Error(errorMsg);
   }
-  
+
   return true;
 };
 
@@ -70,7 +84,7 @@ let provider: GoogleAuthProvider;
 try {
   // Validate Firebase configuration
   validateFirebaseConfig();
-  
+
   // Initialize Firebase (check if it's already initialized)
   if (getApps().length === 0) {
     // Not initialized, so initialize it
@@ -81,27 +95,31 @@ try {
     app = getApps()[0];
     debugLog("Using existing Firebase app");
   }
-  
+
+  const db = getFirestore(app);
+
   // Initialize Auth
   auth = getAuth(app);
   debugLog("Firebase auth initialized successfully");
-  
+
   // Create Google Auth Provider
   provider = new GoogleAuthProvider();
-  
+
   // Add scopes for additional Google API access if needed
-  provider.addScope('profile');
-  provider.addScope('email');
+  provider.addScope("profile");
+  provider.addScope("email");
   provider.setCustomParameters({
-    prompt: 'select_account' // Forces account selection even when one account is available
+    prompt: "select_account", // Forces account selection even when one account is available
   });
   debugLog("Google auth provider created successfully");
-  
+
   // Handle redirect results automatically
   getRedirectResult(auth)
     .then((result) => {
       if (result) {
-        debugLog("Detected redirect result from Google sign-in", { user: result.user.email });
+        debugLog("Detected redirect result from Google sign-in", {
+          user: result.user.email,
+        });
       }
     })
     .catch((error) => {
@@ -115,7 +133,7 @@ try {
 export const signInWithGoogle = async (): Promise<User> => {
   try {
     debugLog("Attempting to sign in with Google...");
-    
+
     // Try using popup first (better UX when it works)
     try {
       const result = await signInWithPopup(auth, provider);
@@ -124,10 +142,12 @@ export const signInWithGoogle = async (): Promise<User> => {
     } catch (popupError: any) {
       // If popup fails (common on mobile or when popups are blocked), try redirect
       debugError("Popup sign-in failed, attempting redirect", popupError);
-      
-      if (popupError.code === 'auth/popup-blocked' || 
-          popupError.code === 'auth/popup-closed-by-user' ||
-          popupError.code === 'auth/cancelled-popup-request') {
+
+      if (
+        popupError.code === "auth/popup-blocked" ||
+        popupError.code === "auth/popup-closed-by-user" ||
+        popupError.code === "auth/cancelled-popup-request"
+      ) {
         debugLog("Using redirect method instead...");
         await signInWithRedirect(auth, provider);
         // Control will transfer to the redirect, then return via getRedirectResult
@@ -148,31 +168,33 @@ const processAuthResult = async (user: User): Promise<User> => {
   try {
     debugLog("Getting ID token for authenticated user");
     const idToken = await user.getIdToken();
-    
+
     debugLog("Sending ID token to backend...");
     // Send the ID token to the backend for verification and session management
-    const response = await fetch('/api/auth/login', {
-      method: 'POST',
+    const response = await fetch("/api/auth/login", {
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({ idToken }),
-      credentials: 'include'
+      credentials: "include",
     });
-    
+
     if (!response.ok) {
-      let errorMessage = 'Failed to authenticate with server';
+      let errorMessage = "Failed to authenticate with server";
       try {
         const errorData = await response.json();
         errorMessage = errorData.message || errorMessage;
       } catch (e) {
         // If we can't parse the error as JSON, just use the default message
       }
-      
-      debugError(`Backend authentication failed: ${errorMessage}`, { status: response.status });
+
+      debugError(`Backend authentication failed: ${errorMessage}`, {
+        status: response.status,
+      });
       throw new Error(errorMessage);
     }
-    
+
     debugLog("User authenticated successfully with backend");
     return user;
   } catch (error) {
@@ -185,22 +207,22 @@ export const logOut = async (): Promise<void> => {
   try {
     await signOut(auth);
     debugLog("Firebase signOut successful");
-    
+
     // Clear session on the backend
-    const response = await fetch('/api/auth/logout', {
-      method: 'POST',
-      credentials: 'include'
+    const response = await fetch("/api/auth/logout", {
+      method: "POST",
+      credentials: "include",
     });
-    
+
     if (!response.ok) {
-      let errorMessage = 'Failed to logout from server';
+      let errorMessage = "Failed to logout from server";
       try {
         const errorData = await response.json();
         errorMessage = errorData.message || errorMessage;
       } catch (e) {
         // If we can't parse the error as JSON, just use the default message
       }
-      
+
       console.warn(`Backend logout error: ${errorMessage}`);
       // We still want to continue even if backend logout fails
     } else {
@@ -212,4 +234,4 @@ export const logOut = async (): Promise<void> => {
   }
 };
 
-export { auth };
+export { auth, db };

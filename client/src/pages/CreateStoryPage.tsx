@@ -15,6 +15,10 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useLocation } from "wouter";
 import { generatePDF } from "@/utils/pdf";
+import { db } from "@/lib/firebase";
+import { collection, addDoc } from "firebase/firestore";
+import { useAuth } from "@/contexts/AuthContext";
+const { user } = useAuth();
 
 const STEPS = [
   { id: 1, name: "Choose Character" },
@@ -308,6 +312,33 @@ export default function CreateStoryPage() {
       const data = await response.json();
       log("handleGenerateStory: Response received:", data);
       setStoryResult(data);
+      // Save the generated story to Firestore
+      if (user) {
+        const newBook = {
+          title:
+            data.sceneTexts && data.sceneTexts[0]
+              ? data.sceneTexts[0]
+              : "Your Story",
+          content: data.sceneTexts,
+          imageUrls: data.pages,
+          createdAt: new Date().toISOString(),
+          userId: user.uid,
+          userName: user.displayName,
+          characterId: selectedCharacter?.id,
+          storyId: selectedStory?.id,
+        };
+        try {
+          await apiRequest("POST", "/api/books", newBook);
+          log("Book saved via API to Firestore successfully.");
+        } catch (error) {
+          log("Error saving book via API:", error);
+          toast({
+            title: "Save Error",
+            description: "Failed to save your book.",
+            variant: "destructive",
+          });
+        }
+      }
     } catch (err: any) {
       log("handleGenerateStory: Generation error:", err);
       toast({

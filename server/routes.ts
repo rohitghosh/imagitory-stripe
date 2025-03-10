@@ -14,7 +14,6 @@ import { generatePDF } from "./utils/pdf";
 // No longer using authentication middleware
 // import { authenticate } from "./middleware/auth";
 // Import firebase but don't initialize with credentials for now
-import admin from "firebase-admin";
 import session from "express-session";
 import multer from "multer";
 import { getStorage } from "firebase-admin/storage";
@@ -24,6 +23,7 @@ import {
   trainCustomModel,
   generateStoryImages,
 } from "./utils/trainAndGenerate";
+import admin from "./firebaseAdmin";
 
 import { fal } from "@fal-ai/client";
 
@@ -34,40 +34,6 @@ declare module "express-session" {
   interface SessionData {
     userId?: number;
   }
-}
-
-// Initialize Firebase Admin SDK with credentials
-try {
-  // Check if app is already initialized
-  if (admin.apps.length === 0) {
-    // Create a service account object from environment variables
-    const serviceAccount = {
-      type: "service_account",
-      project_id: process.env.VITE_FIREBASE_PROJECT_ID || "kids-story-5eb1b",
-      private_key_id: process.env.FIREBASE_PRIVATE_KEY_ID,
-      private_key: process.env.FIREBASE_PRIVATE_KEY ? 
-        process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n') : undefined,
-      client_email: process.env.FIREBASE_CLIENT_EMAIL,
-      client_id: process.env.FIREBASE_CLIENT_ID,
-      auth_uri: "https://accounts.google.com/o/oauth2/auth",
-      token_uri: "https://oauth2.googleapis.com/token",
-      auth_provider_x509_cert_url: "https://www.googleapis.com/oauth2/v1/certs",
-      client_x509_cert_url: process.env.FIREBASE_CLIENT_CERT_URL,
-      universe_domain: "googleapis.com"
-    };
-
-    // Initialize with explicit credentials
-    admin.initializeApp({
-      credential: process.env.FIREBASE_PRIVATE_KEY 
-        ? admin.credential.cert(serviceAccount as admin.ServiceAccount)
-        : admin.credential.applicationDefault(), // Fallback but will likely fail in Replit
-      storageBucket: "kids-story-5eb1b.firebasestorage.app"
-    });
-    
-    console.log("Firebase Admin SDK initialized successfully");
-  }
-} catch (err) {
-  console.error("Firebase admin initialization error:", err);
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -103,87 +69,104 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (DEBUG_LOGGING) {
           console.log("[/api/auth/login] Verifying Firebase ID token");
         }
-        
+
         const decodedToken = await admin.auth().verifyIdToken(idToken);
         const uid = decodedToken.uid;
-        
+
         if (DEBUG_LOGGING) {
-          console.log(`[/api/auth/login] Token verified for user: ${decodedToken.email}`);
+          console.log(
+            `[/api/auth/login] Token verified for user: ${decodedToken.email}`,
+          );
         }
 
         // Find or create user in your database
         if (DEBUG_LOGGING) {
           console.log(`[/api/auth/login] Looking up user with UID: ${uid}`);
         }
-        
+
         let user = await storage.getUserByUid(uid);
 
         if (!user) {
           if (DEBUG_LOGGING) {
-            console.log(`[/api/auth/login] Creating new user for: ${decodedToken.email}`);
+            console.log(
+              `[/api/auth/login] Creating new user for: ${decodedToken.email}`,
+            );
           }
-          
+
           user = await storage.createUser({
             uid,
             email: decodedToken.email || "",
-            displayName: decodedToken.name || decodedToken.email?.split('@')[0] || "User",
+            displayName:
+              decodedToken.name || decodedToken.email?.split("@")[0] || "User",
             photoURL: decodedToken.picture || "",
           });
-          
+
           if (DEBUG_LOGGING) {
             console.log(`[/api/auth/login] User created with ID: ${user.id}`);
           }
         } else if (DEBUG_LOGGING) {
-          console.log(`[/api/auth/login] Found existing user with ID: ${user.id}`);
+          console.log(
+            `[/api/auth/login] Found existing user with ID: ${user.id}`,
+          );
         }
 
         // Set session data
         req.session!.userId = user.id;
-        
+
         if (DEBUG_LOGGING) {
-          console.log(`[/api/auth/login] Session created for user ID: ${user.id}`);
+          console.log(
+            `[/api/auth/login] Session created for user ID: ${user.id}`,
+          );
         }
 
-        res.status(200).json({ 
-          message: "Authenticated successfully", 
+        res.status(200).json({
+          message: "Authenticated successfully",
           user: {
             id: user.id,
             email: user.email,
             displayName: user.displayName,
-            photoURL: user.photoURL
-          } 
+            photoURL: user.photoURL,
+          },
         });
       } catch (verifyError: any) {
         // Handle specific Firebase auth errors
-        console.error("[/api/auth/login] Firebase token verification error:", verifyError);
-        
+        console.error(
+          "[/api/auth/login] Firebase token verification error:",
+          verifyError,
+        );
+
         let errorMessage = "Invalid authentication token";
         let statusCode = 401;
-        
+
         // Map Firebase auth error codes to more specific messages
-        if (verifyError.code === 'auth/id-token-expired') {
-          errorMessage = "Authentication token has expired. Please sign in again.";
-        } else if (verifyError.code === 'auth/id-token-revoked') {
-          errorMessage = "Authentication token has been revoked. Please sign in again.";
-        } else if (verifyError.code === 'auth/invalid-id-token') {
+        if (verifyError.code === "auth/id-token-expired") {
+          errorMessage =
+            "Authentication token has expired. Please sign in again.";
+        } else if (verifyError.code === "auth/id-token-revoked") {
+          errorMessage =
+            "Authentication token has been revoked. Please sign in again.";
+        } else if (verifyError.code === "auth/invalid-id-token") {
           errorMessage = "Invalid authentication token. Please sign in again.";
-        } else if (verifyError.code === 'auth/argument-error') {
+        } else if (verifyError.code === "auth/argument-error") {
           errorMessage = "Invalid authentication token format.";
-        } else if (verifyError.code === 'auth/user-disabled') {
+        } else if (verifyError.code === "auth/user-disabled") {
           errorMessage = "This user account has been disabled.";
           statusCode = 403;
         }
-        
-        return res.status(statusCode).json({ 
+
+        return res.status(statusCode).json({
           message: errorMessage,
-          error: DEBUG_LOGGING ? verifyError.message : undefined
+          error: DEBUG_LOGGING ? verifyError.message : undefined,
         });
       }
     } catch (error: any) {
-      console.error("[/api/auth/login] Server error during authentication:", error);
-      res.status(500).json({ 
+      console.error(
+        "[/api/auth/login] Server error during authentication:",
+        error,
+      );
+      res.status(500).json({
         message: "Server error during authentication",
-        error: process.env.DEBUG_LOGGING === "true" ? error.message : undefined
+        error: process.env.DEBUG_LOGGING === "true" ? error.message : undefined,
       });
     }
   });
@@ -196,34 +179,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(200).json({ message: "Logged out successfully" });
     });
   });
-  
-  // Get current user data
-  app.get("/api/user", authenticate, async (req: Request, res: Response) => {
-    try {
-      const userId = req.session!.userId;
-      const user = await storage.getUser(userId!);
-      
-      if (!user) {
-        return res.status(404).json({ message: "User not found" });
-      }
-      
-      res.status(200).json(user);
-    } catch (error) {
-      console.error("Error fetching user:", error);
-      res.status(500).json({ message: "Server error" });
-    }
-  });
 
   // Get current user data
   app.get("/api/user", authenticate, async (req: Request, res: Response) => {
     try {
       const userId = req.session!.userId;
       const user = await storage.getUser(userId!);
-      
+
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
-      
+
       res.status(200).json(user);
     } catch (error) {
       console.error("Error fetching user:", error);

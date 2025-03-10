@@ -15,11 +15,16 @@ import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { z } from "zod";
 import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient"; // [ADDED]
+import { useAuth } from "@/contexts/AuthContext"; // [ADDED]
 
 // Form schema
 const formSchema = z.object({
   name: z.string().min(1, "Name is required"),
-  age: z.coerce.number().min(1, "Age must be at least 1").max(15, "Age must be at most 15"),
+  age: z.coerce
+    .number()
+    .min(1, "Age must be at least 1")
+    .max(15, "Age must be at most 15"),
   gender: z.enum(["boy", "girl", "other"], {
     required_error: "Please select a gender",
   }),
@@ -27,10 +32,11 @@ const formSchema = z.object({
 
 interface CustomCharacterProps {
   onSubmit: (character: {
+    id: string;
     name: string;
     age: number;
     gender: string;
-    type: 'custom';
+    type: "custom";
     imageUrls: string[];
   }) => void;
 }
@@ -38,7 +44,8 @@ interface CustomCharacterProps {
 export function CustomCharacter({ onSubmit }: CustomCharacterProps) {
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
   const { toast } = useToast();
-  
+  const { user } = useAuth(); // to include current user's uid
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -51,8 +58,6 @@ export function CustomCharacter({ onSubmit }: CustomCharacterProps) {
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
-
-    // Check max 10 images
     if (uploadedImages.length + files.length > 10) {
       toast({
         title: "Maximum images reached",
@@ -61,15 +66,10 @@ export function CustomCharacter({ onSubmit }: CustomCharacterProps) {
       });
       return;
     }
-
-    // Create mock image URLs (in a real app, these would be uploaded to a server)
     const newImages = Array.from(files).map((file) => {
-      // In a real app, we would upload the file and get a URL
-      // For this demo, we'll use a placeholder
       const imageSource = URL.createObjectURL(file);
       return imageSource;
     });
-
     setUploadedImages([...uploadedImages, ...newImages]);
   };
 
@@ -77,7 +77,8 @@ export function CustomCharacter({ onSubmit }: CustomCharacterProps) {
     setUploadedImages(uploadedImages.filter((_, i) => i !== index));
   };
 
-  const handleSubmitForm = (values: z.infer<typeof formSchema>) => {
+  // When the form is submitted, we send the character to the API and then pass the returned character (with its id) to onSubmit.
+  const handleSubmitForm = async (values: z.infer<typeof formSchema>) => {
     if (uploadedImages.length === 0) {
       toast({
         title: "Images required",
@@ -86,22 +87,43 @@ export function CustomCharacter({ onSubmit }: CustomCharacterProps) {
       });
       return;
     }
-
-    onSubmit({
+    const payload = {
       ...values,
-      type: 'custom',
+      type: "custom",
       imageUrls: uploadedImages,
-    });
+      userId: user?.uid, // persist under user's account
+    };
+    try {
+      const createdCharacter = await apiRequest(
+        "POST",
+        "/api/characters",
+        payload,
+      );
+      // onSubmit returns an object with the created character details, including its generated id,
+      // in the same shape as predefinedCharacter sends.
+      onSubmit(createdCharacter);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to create custom character.",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
     <div className="mb-8">
       <Card className="max-w-2xl mx-auto minimal-card">
         <CardContent className="p-6">
-          <h3 className="text-xl font-heading font-bold mb-4">Create Your Custom Character</h3>
-          
+          <h3 className="text-xl font-heading font-bold mb-4">
+            Create Your Custom Character
+          </h3>
+
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(handleSubmitForm)} className="space-y-6">
+            <form
+              onSubmit={form.handleSubmit(handleSubmitForm)}
+              className="space-y-6"
+            >
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <FormField
                   control={form.control}
@@ -110,13 +132,17 @@ export function CustomCharacter({ onSubmit }: CustomCharacterProps) {
                     <FormItem>
                       <FormLabel>Character Name</FormLabel>
                       <FormControl>
-                        <Input placeholder="Enter character name" className="minimal-input" {...field} />
+                        <Input
+                          placeholder="Enter character name"
+                          className="minimal-input"
+                          {...field}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-                
+
                 <FormField
                   control={form.control}
                   name="age"
@@ -124,13 +150,13 @@ export function CustomCharacter({ onSubmit }: CustomCharacterProps) {
                     <FormItem>
                       <FormLabel>Age</FormLabel>
                       <FormControl>
-                        <Input 
-                          type="number" 
-                          placeholder="Enter age" 
-                          min={1} 
+                        <Input
+                          type="number"
+                          placeholder="Enter age"
+                          min={1}
                           max={15}
                           className="minimal-input"
-                          {...field} 
+                          {...field}
                         />
                       </FormControl>
                       <FormMessage />
@@ -138,7 +164,7 @@ export function CustomCharacter({ onSubmit }: CustomCharacterProps) {
                   )}
                 />
               </div>
-              
+
               <FormField
                 control={form.control}
                 name="gender"
@@ -175,45 +201,54 @@ export function CustomCharacter({ onSubmit }: CustomCharacterProps) {
                   </FormItem>
                 )}
               />
-              
+
               <div>
-                <FormLabel className="block mb-1">Upload Photos (up to 10)</FormLabel>
+                <FormLabel className="block mb-1">
+                  Upload Photos (up to 10)
+                </FormLabel>
                 <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
                   <div className="space-y-2">
                     <div className="flex justify-center">
                       <i className="fas fa-cloud-upload-alt text-4xl text-gray-400"></i>
                     </div>
                     <div className="text-sm text-gray-500">
-                      <label htmlFor="file-upload" className="relative cursor-pointer bg-white rounded-md font-medium text-primary hover:text-primary/90">
+                      <label
+                        htmlFor="file-upload"
+                        className="relative cursor-pointer bg-white rounded-md font-medium text-primary hover:text-primary/90"
+                      >
                         <span>Upload photos</span>
-                        <input 
-                          id="file-upload" 
-                          name="file-upload" 
-                          type="file" 
-                          className="sr-only" 
-                          multiple 
-                          accept="image/*" 
+                        <input
+                          id="file-upload"
+                          name="file-upload"
+                          type="file"
+                          className="sr-only"
+                          multiple
+                          accept="image/*"
                           onChange={handleImageUpload}
                         />
                       </label>
                       <p>or drag and drop</p>
                     </div>
-                    <p className="text-xs text-gray-500">PNG, JPG, GIF up to 5MB</p>
+                    <p className="text-xs text-gray-500">
+                      PNG, JPG, GIF up to 5MB
+                    </p>
                   </div>
                 </div>
               </div>
-              
-              {/* Preview Photos Grid */}
+
               {uploadedImages.length > 0 && (
                 <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
                   {uploadedImages.map((image, index) => (
-                    <div key={index} className="relative h-24 bg-gray-100 rounded-md overflow-hidden">
-                      <img 
-                        src={image} 
-                        className="w-full h-full object-cover" 
-                        alt={`Uploaded photo ${index + 1}`} 
+                    <div
+                      key={index}
+                      className="relative h-24 bg-gray-100 rounded-md overflow-hidden"
+                    >
+                      <img
+                        src={image}
+                        className="w-full h-full object-cover"
+                        alt={`Uploaded photo ${index + 1}`}
                       />
-                      <button 
+                      <button
                         type="button"
                         className="absolute top-1 right-1 bg-white rounded-full p-1 shadow-sm"
                         onClick={() => removeImage(index)}
@@ -224,14 +259,17 @@ export function CustomCharacter({ onSubmit }: CustomCharacterProps) {
                   ))}
                   {uploadedImages.length < 10 && (
                     <div className="h-24 border-2 border-dashed border-gray-300 rounded-md flex items-center justify-center">
-                      <label htmlFor="add-more-photos" className="cursor-pointer w-full h-full flex items-center justify-center">
+                      <label
+                        htmlFor="add-more-photos"
+                        className="cursor-pointer w-full h-full flex items-center justify-center"
+                      >
                         <i className="fas fa-plus text-gray-400"></i>
-                        <input 
-                          id="add-more-photos" 
-                          type="file" 
-                          className="sr-only" 
-                          multiple 
-                          accept="image/*" 
+                        <input
+                          id="add-more-photos"
+                          type="file"
+                          className="sr-only"
+                          multiple
+                          accept="image/*"
                           onChange={handleImageUpload}
                         />
                       </label>
@@ -239,9 +277,9 @@ export function CustomCharacter({ onSubmit }: CustomCharacterProps) {
                   )}
                 </div>
               )}
-              
-              <Button 
-                type="submit" 
+
+              <Button
+                type="submit"
                 className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-3 px-8 rounded-md shadow-sm hover:shadow-md transition-all"
               >
                 Continue to Story Selection

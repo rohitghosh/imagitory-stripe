@@ -22,6 +22,8 @@ import {
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { z } from "zod";
+import { apiRequest } from "@/lib/queryClient"; // [ADDED] for API calls
+// (Assuming useAuth isn't needed here since it's similar to predefinedStory)
 
 // Form schema
 const formSchema = z.object({
@@ -33,6 +35,7 @@ const formSchema = z.object({
 
 interface CustomStoryProps {
   onSubmit: (story: {
+    id: string;
     title: string;
     genre: string;
     instructions: string;
@@ -76,13 +79,21 @@ export function CustomStory({ onSubmit }: CustomStoryProps) {
     );
   };
 
-  const handleSubmitForm = (values: z.infer<typeof formSchema>) => {
-    onSubmit({
+  // [MODIFIED]: Handle submit asynchronously to store the custom story in DB
+  const handleSubmitForm = async (values: z.infer<typeof formSchema>) => {
+    const payload = {
       ...values,
       elements: selectedElements,
       type: "custom",
-      moral: "",
-    });
+      moral: "", // if you want to store a moral field, set it here (empty for now)
+    };
+    try {
+      const createdStory = await apiRequest("POST", "/api/stories", payload);
+      onSubmit(createdStory);
+    } catch (error) {
+      console.error("Failed to create custom story", error);
+      // Optionally add a toast for error notification here if desired.
+    }
   };
 
   return (

@@ -1,98 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-
-// Predefined story data by age group
-const PREDEFINED_STORIES = {
-  "3-5": [
-    {
-      id: "magical-forest",
-      title: "The Magical Forest",
-      instructions:
-        "An adventure through an enchanted forest where animals talk and trees whisper secrets.",
-      moral: "Kindness and friendship",
-      imageUrl:
-        "https://images.unsplash.com/photo-1566140967404-b8b3932483f5?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&h=250&q=80",
-    },
-    {
-      id: "underwater-kingdom",
-      title: "Underwater Kingdom",
-      instructions:
-        "Dive deep into the ocean to help merfolk save their coral reef from pollution.",
-      moral: "Environmental care",
-      imageUrl:
-        "https://images.unsplash.com/photo-1551950627-023ad5589333?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&h=250&q=80",
-    },
-    {
-      id: "friendly-dragon",
-      title: "The Friendly Dragon",
-      instructions:
-        "Meet a friendly dragon who just wants to make new friends in the village.",
-      moral: "Don't judge by appearances",
-      imageUrl:
-        "https://images.unsplash.com/photo-1518164147695-46c988603571?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&h=250&q=80",
-    },
-  ],
-  "6-8": [
-    {
-      id: "space-explorer",
-      title: "Space Explorer",
-      instructions:
-        "A journey through the stars where your child discovers new planets and makes alien friends.",
-      moral: "Courage and curiosity",
-      imageUrl:
-        "https://images.unsplash.com/photo-1446776811953-b23d57bd21aa?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&h=250&q=80",
-    },
-    {
-      id: "dragon-rescue",
-      title: "Dragon Rescue",
-      instructions:
-        "Help a lost baby dragon find its family while learning valuable lessons.",
-      moral: "Compassion and responsibility",
-      imageUrl:
-        "https://images.unsplash.com/photo-1518164147695-46c988603571?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&h=250&q=80",
-    },
-    {
-      id: "treasure-hunters",
-      title: "Treasure Hunters",
-      instructions:
-        "Find a mysterious map and go on a treasure hunt with unexpected results.",
-      moral: "Teamwork and sharing",
-      imageUrl:
-        "https://images.unsplash.com/photo-1630343710506-89f8b9f21d31?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&h=250&q=80",
-    },
-  ],
-  "9-12": [
-    {
-      id: "time-traveler",
-      title: "The Time Traveler",
-      instructions:
-        "Travel through time to witness historical events and learn about different eras.",
-      moral: "Learning from history",
-      imageUrl:
-        "https://images.unsplash.com/photo-1620428268482-cf1851a383b0?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&h=250&q=80",
-    },
-    {
-      id: "robot-friend",
-      title: "The Robot Friend",
-      instructions:
-        "Build a robot friend who helps solve problems in unexpected ways.",
-      moral: "Innovation and creativity",
-      imageUrl:
-        "https://images.unsplash.com/photo-1535378273068-9bb67d5b90d4?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&h=250&q=80",
-    },
-    {
-      id: "detective-case",
-      title: "The Detective Case",
-      instructions:
-        "Solve a neighborhood mystery using clues and detective skills.",
-      moral: "Critical thinking and observation",
-      imageUrl:
-        "https://images.unsplash.com/photo-1591267990532-e5bdb1b0ceb8?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&h=250&q=80",
-    },
-  ],
-};
+import { useToast } from "@/hooks/use-toast";
 
 type AgeGroup = "3-5" | "6-8" | "9-12";
 
@@ -102,6 +12,14 @@ interface Story {
   instructions: string;
   moral: string;
   imageUrl: string;
+  description: string;
+  ageGroup: AgeGroup;
+}
+
+interface PredefinedStoriesData {
+  "3-5": Story[];
+  "6-8": Story[];
+  "9-12": Story[];
 }
 
 interface PredefinedStoriesProps {
@@ -111,16 +29,42 @@ interface PredefinedStoriesProps {
     type: "predefined";
     predefinedId: string;
     moral: string;
+    instructions: string;
     elements: [];
   }) => void;
 }
 
 export function PredefinedStories({ onSelectStory }: PredefinedStoriesProps) {
+  const [predefinedStories, setPredefinedStories] =
+    useState<PredefinedStoriesData>({
+      "3-5": [],
+      "6-8": [],
+      "9-12": [],
+    });
   const [selectedAgeGroup, setSelectedAgeGroup] = useState<AgeGroup>("3-5");
   const [selectedStory, setSelectedStory] = useState<string | null>(null);
   const [carouselIndex, setCarouselIndex] = useState(0);
+  const { toast } = useToast();
 
-  const currentStories = PREDEFINED_STORIES[selectedAgeGroup];
+  useEffect(() => {
+    async function fetchStories() {
+      try {
+        // Fetch the predefined stories grouped by age
+        const response = await fetch("/api/stories?type=predefined");
+        const data: PredefinedStoriesData = await response.json();
+        setPredefinedStories(data);
+      } catch (error) {
+        toast({
+          title: "Error",
+          description: "Failed to load predefined stories.",
+          variant: "destructive",
+        });
+      }
+    }
+    fetchStories();
+  }, [toast]);
+
+  const currentStories = predefinedStories[selectedAgeGroup];
 
   const handleSelectStory = (storyId: string) => {
     setSelectedStory(storyId);

@@ -1,9 +1,5 @@
+// storage.ts (Modified for Firestore-based storage)
 import {
-  users,
-  characters,
-  stories,
-  books,
-  orders,
   type User,
   type Character,
   type Story,
@@ -13,176 +9,177 @@ import {
   type InsertCharacter,
   type InsertStory,
   type InsertBook,
-  type InsertOrder
+  type InsertOrder,
 } from "@shared/schema";
+import admin from "./firebaseAdmin";
+import { getFirestore } from "firebase-admin/firestore"; // [MODIFIED FOR FIRESTORE]
+
+// Explicitly initialize Firebase app (if not already done)
+if (!admin.apps.length) {
+  throw new Error("Firebase app initialization failed.");
+}
+// Initialize Firestore (firebase-admin should be already configured)
+const db = getFirestore();
 
 export interface IStorage {
   // User operations
-  getUser(id: number): Promise<User | undefined>;
+  getUser(id: string): Promise<User | undefined>;
   getUserByUid(uid: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
-  
+
   // Character operations
-  getCharacter(id: number): Promise<Character | undefined>;
-  getCharactersByUserId(userId: number): Promise<Character[]>;
+  getCharacter(id: string): Promise<Character | undefined>;
+  getCharactersByUserId(userId: string): Promise<Character[]>;
   createCharacter(character: InsertCharacter): Promise<Character>;
-  
-  // Story operations
-  getStory(id: number): Promise<Story | undefined>;
-  getStoriesByUserId(userId: number): Promise<Story[]>;
+
+  // Story operations (for predefined/custom stories)
+  getStory(id: string): Promise<Story | undefined>;
+  getStoriesByUserId(userId: string): Promise<Story[]>;
   createStory(story: InsertStory): Promise<Story>;
-  
-  // Book operations
-  getBook(id: number): Promise<Book | undefined>;
-  getBooksByUserId(userId: number): Promise<Book[]>;
+
+  // Book operations (generated books that reference a character and a story)
+  getBook(id: string): Promise<Book | undefined>;
+  getBooksByUserId(userId: string): Promise<Book[]>;
   createBook(book: InsertBook): Promise<Book>;
-  
+
   // Order operations
-  getOrder(id: number): Promise<Order | undefined>;
-  getOrdersByUserId(userId: number): Promise<Order[]>;
+  getOrder(id: string): Promise<Order | undefined>;
+  getOrdersByUserId(userId: string): Promise<Order[]>;
   createOrder(order: InsertOrder): Promise<Order>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<number, User>;
-  private characters: Map<number, Character>;
-  private stories: Map<number, Story>;
-  private books: Map<number, Book>;
-  private orders: Map<number, Order>;
-  
-  private userId = 1;
-  private characterId = 1;
-  private storyId = 1;
-  private bookId = 1;
-  private orderId = 1;
-
-  constructor() {
-    this.users = new Map();
-    this.characters = new Map();
-    this.stories = new Map();
-    this.books = new Map();
-    this.orders = new Map();
+export class FirestoreStorage implements IStorage {
+  // ---------- User operations -----------
+  async getUser(id: string): Promise<User | undefined> {
+    const doc = await db.collection("users").doc(id).get();
+    return doc.exists ? ({ id: doc.id, ...doc.data() } as User) : undefined;
   }
-
-  // User operations
-  async getUser(id: number): Promise<User | undefined> {
-    return this.users.get(id);
-  }
-
   async getUserByUid(uid: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(user => user.uid === uid);
+    const snapshot = await db.collection("users").where("uid", "==", uid).get();
+    if (snapshot.empty) return undefined;
+    const doc = snapshot.docs[0];
+    return { id: doc.id, ...doc.data() } as User;
   }
-
   async createUser(insertUser: InsertUser): Promise<User> {
-    const id = this.userId++;
-    const createdAt = new Date();
-    // Ensure all required fields are present
-    const user: User = { 
-      ...insertUser, 
-      id, 
-      createdAt,
+    const data = {
+      ...insertUser,
+      createdAt: new Date().toISOString(),
       displayName: insertUser.displayName || null,
-      photoURL: insertUser.photoURL || null 
+      photoURL: insertUser.photoURL || null,
     };
-    this.users.set(id, user);
-    return user;
+    const docRef = await db.collection("users").add(data);
+    return { id: docRef.id, ...data } as User;
   }
-  
-  // Character operations
-  async getCharacter(id: number): Promise<Character | undefined> {
-    return this.characters.get(id);
+  // ---------- Character operations -----------
+  async getCharacter(id: string): Promise<Character | undefined> {
+    const doc = await db.collection("characters").doc(id).get();
+    return doc.exists
+      ? ({ id: doc.id, ...doc.data() } as Character)
+      : undefined;
   }
-
-  async getCharactersByUserId(userId: number | undefined): Promise<Character[]> {
-    if (!userId) return [];
-    return Array.from(this.characters.values()).filter(
-      character => character.userId === userId
+  async getCharactersByUserId(userId: string): Promise<Character[]> {
+    const snapshot = await db
+      .collection("characters")
+      .where("userId", "==", userId)
+      .get();
+    const results: Character[] = [];
+    snapshot.forEach((doc) =>
+      results.push({ id: doc.id, ...doc.data() } as Character),
     );
+    return results;
   }
-
   async createCharacter(insertCharacter: InsertCharacter): Promise<Character> {
-    const id = this.characterId++;
-    const createdAt = new Date();
-    // Ensure all required fields are present with proper null handling
-    const character: Character = { 
-      ...insertCharacter, 
-      id, 
-      createdAt,
+    const data = {
+      ...insertCharacter,
+      createdAt: new Date().toISOString(),
       age: insertCharacter.age || null,
       gender: insertCharacter.gender || null,
       predefinedId: insertCharacter.predefinedId || null,
       description: insertCharacter.description || null,
-      imageUrls: insertCharacter.imageUrls || null
+      imageUrls: insertCharacter.imageUrls || [],
+      type: insertCharacter.type || "custom",
     };
-    this.characters.set(id, character);
-    return character;
+    const docRef = await db.collection("characters").add(data);
+    return { id: docRef.id, ...data } as Character;
   }
-  
-  // Story operations
-  async getStory(id: number): Promise<Story | undefined> {
-    return this.stories.get(id);
+  // ---------- Story operations -----------
+  async getStory(id: string): Promise<Story | undefined> {
+    const doc = await db.collection("stories").doc(id).get();
+    return doc.exists ? ({ id: doc.id, ...doc.data() } as Story) : undefined;
   }
-
-  async getStoriesByUserId(userId: number): Promise<Story[]> {
-    return Array.from(this.stories.values()).filter(
-      story => story.userId === userId
+  async getStoriesByUserId(userId: string): Promise<Story[]> {
+    const snapshot = await db
+      .collection("stories")
+      .where("userId", "==", userId)
+      .get();
+    const results: Story[] = [];
+    snapshot.forEach((doc) =>
+      results.push({ id: doc.id, ...doc.data() } as Story),
     );
+    return results;
   }
-
   async createStory(insertStory: InsertStory): Promise<Story> {
-    const id = this.storyId++;
-    const createdAt = new Date();
-    // Ensure all required fields are present with proper null handling
-    const story: Story = { 
-      ...insertStory, 
-      id, 
-      createdAt,
+    const data = {
+      ...insertStory,
+      createdAt: new Date().toISOString(),
       predefinedId: insertStory.predefinedId || null,
       genre: insertStory.genre || null,
       instructions: insertStory.instructions || null,
-      elements: insertStory.elements || null
+      elements: insertStory.elements || null,
+      type: insertStory.type || "custom",
     };
-    this.stories.set(id, story);
-    return story;
+    const docRef = await db.collection("stories").add(data);
+    return { id: docRef.id, ...data } as Story;
   }
-  
-  // Book operations
-  async getBook(id: number): Promise<Book | undefined> {
-    return this.books.get(id);
+  // ---------- Book operations -----------
+  async getBook(id: string): Promise<Book | undefined> {
+    const doc = await db.collection("books").doc(id).get();
+    return doc.exists ? ({ id: doc.id, ...doc.data() } as Book) : undefined;
   }
-
-  async getBooksByUserId(userId: number): Promise<Book[]> {
-    return Array.from(this.books.values()).filter(
-      book => book.userId === userId
+  async getBooksByUserId(userId: string): Promise<Book[]> {
+    const snapshot = await db
+      .collection("books")
+      .where("userId", "==", userId)
+      .get();
+    const results: Book[] = [];
+    snapshot.forEach((doc) =>
+      results.push({ id: doc.id, ...doc.data() } as Book),
     );
+    return results;
   }
-
   async createBook(insertBook: InsertBook): Promise<Book> {
-    const id = this.bookId++;
-    const createdAt = new Date();
-    const book: Book = { ...insertBook, id, createdAt };
-    this.books.set(id, book);
-    return book;
+    const data = {
+      ...insertBook,
+      createdAt: new Date().toISOString(),
+    };
+    const docRef = await db.collection("books").add(data);
+    return { id: docRef.id, ...data } as Book;
   }
-  
-  // Order operations
-  async getOrder(id: number): Promise<Order | undefined> {
-    return this.orders.get(id);
+  // ---------- Order operations -----------
+  async getOrder(id: string): Promise<Order | undefined> {
+    const doc = await db.collection("orders").doc(id).get();
+    return doc.exists ? ({ id: doc.id, ...doc.data() } as Order) : undefined;
   }
-
-  async getOrdersByUserId(userId: number): Promise<Order[]> {
-    return Array.from(this.orders.values()).filter(
-      order => order.userId === userId
+  async getOrdersByUserId(userId: string): Promise<Order[]> {
+    const snapshot = await db
+      .collection("orders")
+      .where("userId", "==", userId)
+      .get();
+    const results: Order[] = [];
+    snapshot.forEach((doc) =>
+      results.push({ id: doc.id, ...doc.data() } as Order),
     );
+    return results;
   }
-
   async createOrder(insertOrder: InsertOrder): Promise<Order> {
-    const id = this.orderId++;
-    const createdAt = new Date();
-    const order: Order = { ...insertOrder, id, status: "pending", createdAt };
-    this.orders.set(id, order);
-    return order;
+    const data = {
+      ...insertOrder,
+      createdAt: new Date().toISOString(),
+      status: "pending",
+    };
+    const docRef = await db.collection("orders").add(data);
+    return { id: docRef.id, ...data } as Order;
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new FirestoreStorage();

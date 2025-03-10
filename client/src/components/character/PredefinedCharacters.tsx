@@ -4,54 +4,15 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
-// Predefined character data
-const PREDEFINED_CHARACTERS = [
-  {
-    id: "adventure-alex",
-    name: "Adventure Alex",
-    age: 5,
-    gender: "male",
-    description: "Brave and curious explorer",
-    imageUrl:
-      "https://firebasestorage.googleapis.com/v0/b/swarmskill.firebasestorage.app/o/kids-photos%2F1737897318360-albedobase_xl_a_consistent_soft_3d_cartoon_boy_aged_3_years_wi_0_5e6df365-f4e4-4b65-8db7-a962e9015160.jpg?alt=media&token=4f7ab96d-dc05-493e-a57b-31c888dbabcc&ixlib=rb-1.2.1&auto=format&fit=crop&w=300&h=300&q=80",
-  },
-  {
-    id: "caring-chloe",
-    name: "Caring Chloe ",
-    age: 5,
-    gender: "female",
-    description: "Kind and courageous friend",
-    imageUrl:
-      "https://firebasestorage.googleapis.com/v0/b/swarmskill.firebasestorage.app/o/kids-photos%2Fprofile_Anaya_266b3909-923d-441b-ac5b-5b4ae8d06c79.jpeg?alt=media&token=096f3ae2-9a58-4b70-baec-fa3fb2e6fa74&ixlib=rb-1.2.1&auto=format&fit=crop&w=300&h=300&q=80",
-  },
-  {
-    id: "friendly-farhan",
-    name: "Friendly Farhan",
-    age: 7,
-    gender: "male",
-    description: "Smart and resourceful",
-    imageUrl:
-      "https://firebasestorage.googleapis.com/v0/b/swarmskill.firebasestorage.app/o/kids-photos%2Fprofile_Ravi_a5a58fed-7212-4168-b6ca-a89f72e2c743.jpeg?alt=media&token=6d1d2cc2-0861-4aa0-9756-1733d23bb558",
-  },
-  {
-    id: "magical-mia",
-    name: "Magical Mia",
-    age: 8,
-    gender: "female",
-    description: "Creative and imaginative",
-    imageUrl:
-      "https://firebasestorage.googleapis.com/v0/b/swarmskill.firebasestorage.app/o/kids-photos%2Fprofile_Nia_9220a4f6-28e4-4674-ba71-2fb315c0ed3e.jpeg?alt=media&token=d0b97698-e650-4cba-9b2a-9dd12caa2a99&ixlib=rb-1.2.1&auto=format&fit=crop&w=300&h=300&q=80",
-  },
-  {
-    id: "strong-sam",
-    name: "Strong Sam",
-    age: 6,
-    gender: "male",
-    description: "Determined and loyal",
-    imageUrl:
-      "https://firebasestorage.googleapis.com/v0/b/swarmskill.firebasestorage.app/o/kids-photos%2Fprofile_Arjun_32d9d9ac-99c7-4395-8b4f-a8bcb3a99cb8.jpeg?alt=media&token=12ac9ee7-c8aa-4d4d-96be-9181b2d84476&ixlib=rb-1.2.1&auto=format&fit=crop&w=300&h=300&q=80",
-  },
-];
+
+interface PredefinedCharacter {
+  id: string;
+  name: string;
+  age: number;
+  gender: string;
+  description: string;
+  imageUrl: string;
+}
 
 interface PredefinedCharactersProps {
   onSelectCharacter: (character: {
@@ -68,11 +29,36 @@ interface PredefinedCharactersProps {
 export function PredefinedCharacters({
   onSelectCharacter,
 }: PredefinedCharactersProps) {
+  const [characters, setCharacters] = useState<PredefinedCharacter[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
   const [selectedCharacter, setSelectedCharacter] = useState<string | null>(
     null,
   );
   const [customName, setCustomName] = useState("");
   const [carouselIndex, setCarouselIndex] = useState(0);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    async function fetchCharacters() {
+      setLoading(true);
+      try {
+        // Fetch predefined characters from Firestore via your API endpoint.
+        const response = await fetch("/api/characters?type=predefined");
+        const data = await response.json();
+        setCharacters(data);
+      } catch (error) {
+        toast({
+          title: "Error",
+          description: "Failed to load predefined characters.",
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchCharacters();
+  }, [toast]);
+
 
   const handleSelectCharacter = (charId: string) => {
     setSelectedCharacter(charId);
@@ -114,7 +100,9 @@ export function PredefinedCharacters({
       Math.min(PREDEFINED_CHARACTERS.length - 3, carouselIndex + 1),
     );
   };
-
+  
+  if (loading) return <div>Loading predefined characters...</div>;
+  
   return (
     <div className="mb-8">
       <div className="relative">
