@@ -19,12 +19,23 @@ export default function ProfilePage() {
     useQuery({
       queryKey: ["/api/characters", "custom", user?.uid],
       queryFn: async () => {
-        const response = await fetch(
-          "/api/characters?type=custom&userId=" + user?.uid,
-          { credentials: "include" },
-        );
-        console.log(response);
-        return response.json();
+        try {
+          const response = await fetch(
+            "/api/characters?type=custom&userId=" + user?.uid,
+            { credentials: "include" },
+          );
+          console.log("Characters API response:", response);
+          if (!response.ok) {
+            console.error("Failed to fetch characters:", response.statusText);
+            return [];
+          }
+          const data = await response.json();
+          console.log("Characters data received:", data);
+          return Array.isArray(data) ? data : [];
+        } catch (error) {
+          console.error("Error fetching characters:", error);
+          return [];
+        }
       },
       enabled: !!user,
     }) as { data: Character[]; isLoading: boolean };
@@ -34,11 +45,23 @@ export default function ProfilePage() {
     useQuery({
       queryKey: ["/api/stories", "custom", user?.uid],
       queryFn: async () => {
-        const response = await fetch(
-          "/api/stories?type=custom&userId=" + user?.uid,
-          { credentials: "include" },
-        );
-        return response.json();
+        try {
+          const response = await fetch(
+            "/api/stories?type=custom&userId=" + user?.uid,
+            { credentials: "include" },
+          );
+          console.log("Stories API response:", response);
+          if (!response.ok) {
+            console.error("Failed to fetch stories:", response.statusText);
+            return [];
+          }
+          const data = await response.json();
+          console.log("Stories data received:", data);
+          return Array.isArray(data) ? data : [];
+        } catch (error) {
+          console.error("Error fetching stories:", error);
+          return [];
+        }
       },
       enabled: !!user,
     }) as { data: Story[]; isLoading: boolean };
@@ -47,11 +70,22 @@ export default function ProfilePage() {
   const { data: books = [], isLoading: loadingBooks } = useQuery({
     queryKey: ["/api/books", user?.uid],
     queryFn: async () => {
-      const response = await fetch("/api/books?userId=" + user?.uid, {
-        credentials: "include",
-      });
-      console.log(response);
-      return response.json();
+      try {
+        const response = await fetch("/api/books?userId=" + user?.uid, {
+          credentials: "include",
+        });
+        console.log("Books API response:", response);
+        if (!response.ok) {
+          console.error("Failed to fetch books:", response.statusText);
+          return [];
+        }
+        const data = await response.json();
+        console.log("Books data received:", data);
+        return Array.isArray(data) ? data : [];
+      } catch (error) {
+        console.error("Error fetching books:", error);
+        return [];
+      }
     },
     enabled: !!user,
   }) as { data: Book[]; isLoading: boolean };
@@ -60,11 +94,22 @@ export default function ProfilePage() {
   const { data: orders = [], isLoading: loadingOrders } = useQuery({
     queryKey: ["/api/orders", user?.uid],
     queryFn: async () => {
-      const response = await fetch("/api/orders?userId=" + user?.uid, {
-        credentials: "include",
-      });
-      console.log(response);
-      return response.json();
+      try {
+        const response = await fetch("/api/orders?userId=" + user?.uid, {
+          credentials: "include",
+        });
+        console.log("Orders API response:", response);
+        if (!response.ok) {
+          console.error("Failed to fetch orders:", response.statusText);
+          return [];
+        }
+        const data = await response.json();
+        console.log("Orders data received:", data);
+        return Array.isArray(data) ? data : [];
+      } catch (error) {
+        console.error("Error fetching orders:", error);
+        return [];
+      }
     },
     enabled: !!user,
   }) as { data: Order[]; isLoading: boolean };
@@ -244,9 +289,9 @@ export default function ProfilePage() {
                         <p className="text-sm text-gray-500 mb-2">
                           {new Date(book.createdAt).toLocaleDateString()}
                         </p>
-                        {book.imageUrls && book.imageUrls.length > 0 && (
+                        {book.pages && Array.isArray(book.pages) && book.pages.length > 0 && (
                           <img
-                            src={book.imageUrls[0]}
+                            src={typeof book.pages[0] === 'object' && book.pages[0].imageUrl ? book.pages[0].imageUrl : ''}
                             alt={book.title}
                             className="w-full h-40 object-cover my-2 rounded"
                           />
