@@ -39,21 +39,35 @@ declare module "express-session" {
 export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
 
-  // Configure session middleware
+  // Configure session middleware with improved settings
   app.use(
     session({
       secret: process.env.SESSION_SECRET || "your-secret-key",
-      resave: false,
-      saveUninitialized: true, // Changed to true to ensure session is created
+      resave: true, // Changed to true to ensure session changes are always saved
+      saveUninitialized: true, // Keep as true to ensure session is created for all visitors
       cookie: {
-        secure: process.env.NODE_ENV === "production",
-        httpOnly: true,
+        secure: process.env.NODE_ENV === "production", // Only use secure cookies in production
+        httpOnly: true, 
         maxAge: 24 * 60 * 60 * 1000, // 24 hours
-        sameSite: 'lax'
+        sameSite: 'lax',
+        path: '/' // Ensure cookies apply to all paths
       },
-      name: 'storyteller.sid' // Named session for better identification
+      name: 'storyteller.sid', // Named session for better identification
+      rolling: true // Resets the cookie expiration on every response
     })
   );
+    
+  // Middleware to ensure session is properly established for all routes
+  app.use((req, res, next) => {
+    // Force session initialization for all requests
+    if (!req.session) {
+      console.error('Session middleware failed to initialize session');
+    } else if (DEBUG_LOGGING && req.url.startsWith('/api/') && req.url !== '/api/auth/login') {
+      // Only log for API routes that aren't the login endpoint to avoid excessive logging
+      console.log(`[Session Init] ${req.method} ${req.url} has session: ${!!req.session}, ID: ${req.sessionID}, userId: ${req.session.userId || 'none'}`);
+    }
+    next();
+  });
   
   // Debug middleware to log session information on every request
   if (DEBUG_LOGGING) {
@@ -94,22 +108,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Authentication routes
   app.post("/api/auth/login", async (req: Request, res: Response) => {
     try {
-      const DEBUG_LOGGING = process.env.DEBUG_LOGGING === "true";
       const { idToken } = req.body;
-
+      
       if (DEBUG_LOGGING) {
         console.log("[/api/auth/login] Received authentication request");
       }
 
       if (!idToken) {
-        if (DEBUG_LOGGING) {
-          console.error("[/api/auth/login] Missing ID token in request");
-        }
+        console.error("[/api/auth/login] Missing ID token in request");
         return res.status(400).json({ message: "ID token is required" });
       }
 
       try {
-        // Verify the ID token
+        // Step 1: Verify the Firebase ID token
         if (DEBUG_LOGGING) {
           console.log("[/api/auth/login] Verifying Firebase ID token");
         }
@@ -118,84 +129,86 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const uid = decodedToken.uid;
 
         if (DEBUG_LOGGING) {
-          console.log(
-            `[/api/auth/login] Token verified for user: ${decodedToken.email}`,
-          );
+          console.log(`[/api/auth/login] Token verified for user: ${decodedToken.email}`);
+          console.log(`[/api/auth/login] Firebase UID: ${uid}`);
         }
 
-        // Find or create user in your database
+        // Step 2: Find or create user in our storage
         if (DEBUG_LOGGING) {
-          console.log(`[/api/auth/login] Looking up user with UID: ${uid}`);
+          console.log(`[/api/auth/login] Finding user with UID: ${uid}`);
         }
 
         let user = await storage.getUserByUid(uid);
 
         if (!user) {
           if (DEBUG_LOGGING) {
-            console.log(
-              `[/api/auth/login] Creating new user for: ${decodedToken.email}`,
-            );
+            console.log(`[/api/auth/login] Creating new user for: ${decodedToken.email}`);
           }
 
+          // Create a new user
           user = await storage.createUser({
             uid,
             email: decodedToken.email || "",
-            displayName:
-              decodedToken.name || decodedToken.email?.split("@")[0] || "User",
+            displayName: decodedToken.name || decodedToken.email?.split("@")[0] || "User",
             photoURL: decodedToken.picture || "",
           });
-
+          
           if (DEBUG_LOGGING) {
-            console.log(`[/api/auth/login] User created with ID: ${user.id}`);
+            console.log(`[/api/auth/login] New user created with ID: ${user.id}`);
           }
         } else if (DEBUG_LOGGING) {
-          console.log(
-            `[/api/auth/login] Found existing user with ID: ${user.id}`,
-          );
+          console.log(`[/api/auth/login] Found existing user with ID: ${user.id}`);
         }
 
-        // Set session data
+        // Step 3: Store user ID in session
+        if (!req.session) {
+          console.error('[/api/auth/login] Session object not available');
+          return res.status(500).json({ message: "Session initialization failed" });
+        }
+        
         if (DEBUG_LOGGING) {
-          console.log('[/api/auth/login] User data:', {
-            id: user.id,
-            uid: user.uid,
-            email: user.email,
+          console.log('[/api/auth/login] Current session state before modification:', {
+            sessionID: req.sessionID,
+            sessionData: req.session
           });
         }
-
-        // Make sure to store userId as string
-        req.session!.userId = String(user.id);
-
-        // Debug - before save
+        
+        // Set the userId directly on the session
+        req.session.userId = String(user.id);
+        
         if (DEBUG_LOGGING) {
-          console.log('[/api/auth/login] Session before save:', {
-            userId: req.session!.userId,
+          console.log('[/api/auth/login] Session after setting userId:', {
+            userId: req.session.userId,
             sessionID: req.sessionID
           });
         }
         
-        // Save the session explicitly to ensure it's stored
-        await new Promise<void>((resolve, reject) => {
-          req.session!.save((err) => {
-            if (err) {
-              console.error('[/api/auth/login] Error saving session:', err);
-              reject(err);
-            } else {
-              if (DEBUG_LOGGING) {
-                console.log(
-                  `[/api/auth/login] Session saved successfully for user ID: ${req.session!.userId}, Session ID: ${req.sessionID}`,
-                );
+        // Step 4: Save the session with a promise to ensure it completes
+        try {
+          await new Promise<void>((resolve, reject) => {
+            req.session.save((err) => {
+              if (err) {
+                console.error('[/api/auth/login] Session save error:', err);
+                reject(err);
+              } else {
+                if (DEBUG_LOGGING) {
+                  console.log('[/api/auth/login] Session saved successfully');
+                }
+                resolve();
               }
-              resolve();
-            }
+            });
           });
-        });
-
-        // Debug - after save to verify session data
+        } catch (saveError) {
+          console.error('[/api/auth/login] Failed to save session:', saveError);
+          return res.status(500).json({ message: "Failed to save session" });
+        }
+        
+        // Step 5: Double-check the session was properly saved
         if (DEBUG_LOGGING) {
-          console.log('[/api/auth/login] Session after save:', {
-            userId: req.session!.userId,
-            sessionID: req.sessionID
+          console.log('[/api/auth/login] Final session state:', {
+            userId: req.session.userId,
+            sessionID: req.sessionID,
+            cookie: req.session.cookie
           });
         }
 
