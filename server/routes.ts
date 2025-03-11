@@ -155,23 +155,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         // Set session data
-        req.session!.userId = user.id.toString();
+        if (DEBUG_LOGGING) {
+          console.log('[/api/auth/login] User data:', {
+            id: user.id,
+            uid: user.uid,
+            email: user.email,
+          });
+        }
+
+        // Make sure to store userId as string
+        req.session!.userId = String(user.id);
+
+        // Debug - before save
+        if (DEBUG_LOGGING) {
+          console.log('[/api/auth/login] Session before save:', {
+            userId: req.session!.userId,
+            sessionID: req.sessionID
+          });
+        }
         
         // Save the session explicitly to ensure it's stored
-        req.session!.save((err) => {
-          if (err) {
-            console.error('[/api/auth/login] Error saving session:', err);
-          } else if (DEBUG_LOGGING) {
-            console.log(
-              `[/api/auth/login] Session saved successfully for user ID: ${user.id}, Session ID: ${req.sessionID}`,
-            );
-          }
+        await new Promise<void>((resolve, reject) => {
+          req.session!.save((err) => {
+            if (err) {
+              console.error('[/api/auth/login] Error saving session:', err);
+              reject(err);
+            } else {
+              if (DEBUG_LOGGING) {
+                console.log(
+                  `[/api/auth/login] Session saved successfully for user ID: ${req.session!.userId}, Session ID: ${req.sessionID}`,
+                );
+              }
+              resolve();
+            }
+          });
         });
 
+        // Debug - after save to verify session data
         if (DEBUG_LOGGING) {
-          console.log(
-            `[/api/auth/login] Session created for user ID: ${user.id}, Session ID: ${req.sessionID}`,
-          );
+          console.log('[/api/auth/login] Session after save:', {
+            userId: req.session!.userId,
+            sessionID: req.sessionID
+          });
         }
 
         res.status(200).json({
@@ -544,8 +569,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Order routes with optional authentication
   app.post("/api/orders", async (req: Request, res: Response) => {
     try {
-      // Use session userId if authenticated, otherwise use default
-      const userId = req.session!.userId.toString();
+      // Check authentication
+      if (!req.session || !req.session.userId) {
+        if (DEBUG_LOGGING) {
+          console.log('[/api/orders POST] No auth session:', { 
+            hasSession: !!req.session, 
+            sessionID: req.sessionID 
+          });
+        }
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      // Use session userId if authenticated
+      const userId = req.session.userId.toString();
+      
+      if (DEBUG_LOGGING) {
+        console.log('[/api/orders POST] Auth validated, userId:', userId);
+        console.log('[/api/orders POST] Request body:', req.body);
+      }
 
       const validatedData = insertOrderSchema.parse({
         ...req.body,
@@ -553,9 +594,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       const order = await storage.createOrder(validatedData);
+      
+      if (DEBUG_LOGGING) {
+        console.log('[/api/orders POST] Order created:', order);
+      }
+      
       res.status(201).json(order);
-    } catch (error) {
-      res.status(400).json({ message: "Invalid order data", error });
+    } catch (error: any) {
+      console.error('[/api/orders POST] Error:', error);
+      res.status(400).json({ 
+        message: "Invalid order data", 
+        error: error.errors || error.message || {} 
+      });
     }
   });
 
