@@ -44,19 +44,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
     session({
       secret: process.env.SESSION_SECRET || "your-secret-key",
       resave: false,
-      saveUninitialized: false,
+      saveUninitialized: true, // Changed to true to ensure session is created
       cookie: {
         secure: process.env.NODE_ENV === "production",
+        httpOnly: true,
         maxAge: 24 * 60 * 60 * 1000, // 24 hours
-      }
+        sameSite: 'lax'
+      },
+      name: 'storyteller.sid' // Named session for better identification
     })
   );
+  
+  // Debug middleware to log session information on every request
+  if (DEBUG_LOGGING) {
+    app.use((req, res, next) => {
+      if (req.url.startsWith('/api/')) {
+        console.log('[Session Debug] Request to:', req.url, {
+          hasSession: !!req.session,
+          sessionID: req.sessionID,
+          userId: req.session?.userId 
+        });
+      }
+      next();
+    });
+  }
 
   // Authentication middleware
   const authenticate = (req: Request, res: Response, next: NextFunction) => {
+    if (DEBUG_LOGGING) {
+      console.log('[authenticate] Session check:', { 
+        hasSession: !!req.session,
+        sessionID: req.sessionID,
+        userId: req.session?.userId,
+        url: req.url
+      });
+    }
+    
     if (!req.session || !req.session.userId) {
       return res.status(401).json({ message: "Unauthorized" });
     }
+    
+    if (DEBUG_LOGGING) {
+      console.log(`[authenticate] User authorized: ${req.session.userId}`);
+    }
+    
     next();
   };
 
@@ -125,10 +156,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         // Set session data
         req.session!.userId = user.id.toString();
+        
+        // Save the session explicitly to ensure it's stored
+        req.session!.save((err) => {
+          if (err) {
+            console.error('[/api/auth/login] Error saving session:', err);
+          } else if (DEBUG_LOGGING) {
+            console.log(
+              `[/api/auth/login] Session saved successfully for user ID: ${user.id}, Session ID: ${req.sessionID}`,
+            );
+          }
+        });
 
         if (DEBUG_LOGGING) {
           console.log(
-            `[/api/auth/login] Session created for user ID: ${user.id}`,
+            `[/api/auth/login] Session created for user ID: ${user.id}, Session ID: ${req.sessionID}`,
           );
         }
 
