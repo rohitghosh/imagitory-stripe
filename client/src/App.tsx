@@ -8,6 +8,7 @@ import HomePage from "@/pages/HomePage";
 import CreateStoryPage from "@/pages/CreateStoryPage";
 import LoginPage from "@/pages/LoginPage";
 import BookDetailPage from "@/pages/BookDetailPage";
+import { DevAutoLogin } from "@/components/DevAutoLogin";
 import React, { Suspense, useEffect } from "react";
 
 const ProfilePage = React.lazy(() => import("./pages/ProfilePage"));
@@ -68,13 +69,24 @@ function Router() {
   );
 }
 
+// Development components section
+
 function App() {
+  const isDev = import.meta.env.DEV;
+  
   return (
     <div className="min-h-screen bg-background">
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <Router />
           <Toaster />
+          
+          {/* Development tools */}
+          {isDev && (
+            <div className="fixed bottom-4 right-4 z-50 p-2 bg-background border rounded-md shadow-md">
+              <DevAutoLogin />
+            </div>
+          )}
         </AuthProvider>
       </QueryClientProvider>
     </div>

@@ -82,6 +82,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
       next();
     });
   }
+  
+  // TEMPORARY TEST ROUTE: Auto-login endpoint to bypass Firebase auth while testing
+  app.get('/api/auto-login', (req, res) => {
+    console.log('[/api/auto-login] Setting test user ID in session');
+    
+    if (!req.session) {
+      return res.status(500).json({ message: 'Session not available' });
+    }
+    
+    // Set a default user ID for testing
+    req.session.userId = 'test-user-123';
+    
+    req.session.save((err) => {
+      if (err) {
+        console.error('[/api/auto-login] Failed to save session:', err);
+        return res.status(500).json({ message: 'Failed to save session' });
+      }
+      
+      console.log('[/api/auto-login] Session saved successfully:', {
+        sessionID: req.sessionID,
+        userId: req.session.userId
+      });
+      
+      res.status(200).json({ 
+        message: 'Test user logged in successfully',
+        sessionId: req.sessionID,
+        userId: req.session.userId
+      });
+    });
+  });
 
   // Authentication middleware
   const authenticate = (req: Request, res: Response, next: NextFunction) => {
