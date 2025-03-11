@@ -39,6 +39,19 @@ declare module "express-session" {
 export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
 
+  // Configure session middleware
+  app.use(
+    session({
+      secret: process.env.SESSION_SECRET || "your-secret-key",
+      resave: false,
+      saveUninitialized: false,
+      cookie: {
+        secure: process.env.NODE_ENV === "production",
+        maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      }
+    })
+  );
+
   // Authentication middleware
   const authenticate = (req: Request, res: Response, next: NextFunction) => {
     if (!req.session || !req.session.userId) {
@@ -111,7 +124,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         // Set session data
-        req.session!.userId = user.id;
+        req.session!.userId = user.id.toString();
 
         if (DEBUG_LOGGING) {
           console.log(
