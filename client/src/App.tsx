@@ -19,12 +19,6 @@ const ProfilePageWrapper = () => (
   </Suspense>
 );
 
-// Dynamically import ProfilePage to avoid TypeScript errors
-// const ProfilePage = () => {
-//   const ProfileComp = require("./pages/ProfilePage").default;
-//   return <ProfileComp />;
-// };
-
 interface ProtectedRouteProps {
   component: React.ComponentType<any>;
   path?: string;
@@ -68,8 +62,6 @@ function Router() {
     </Switch>
   );
 }
-
-// Development components section
 
 function App() {
   const isDev = import.meta.env.DEV;
