@@ -7,6 +7,7 @@ import NotFound from "@/pages/not-found";
 import HomePage from "@/pages/HomePage";
 import CreateStoryPage from "@/pages/CreateStoryPage";
 import LoginPage from "@/pages/LoginPage";
+import BookDetailPage from "@/pages/BookDetailPage";
 import React, { Suspense, useEffect } from "react";
 
 const ProfilePage = React.lazy(() => import("./pages/ProfilePage"));
@@ -61,6 +62,7 @@ function Router() {
           <ProtectedRoute component={ProfilePageWrapper} {...params} />
         )}
       </Route>
+      <Route path="/book/:id">{() => <BookDetailPage />}</Route>
       <Route component={NotFound} />
     </Switch>
   );

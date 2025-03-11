@@ -6,7 +6,9 @@ if (!admin.apps.length) {
   // You can use environment variables for the credentials.
   const serviceAccount = {
     type: "service_account",
-    project_id: process.env.VITE_FIREBASE_PROJECT_ID || "kids-story-5eb1b",
+    project_id: (
+      process.env.VITE_FIREBASE_PROJECT_ID || "kids-story-5eb1b"
+    ).trim(),
     private_key_id: process.env.FIREBASE_PRIVATE_KEY_ID,
     private_key: process.env.FIREBASE_PRIVATE_KEY
       ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n")

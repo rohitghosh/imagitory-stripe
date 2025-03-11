@@ -5,14 +5,13 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
-
 interface PredefinedCharacter {
   id: string;
   name: string;
   age: number;
   gender: string;
   description: string;
-  imageUrl: string;
+  imageUrls: string[];
 }
 
 interface PredefinedCharactersProps {
@@ -21,7 +20,7 @@ interface PredefinedCharactersProps {
     name: string;
     type: "predefined";
     predefinedId: string;
-    imageUrl: string[];
+    imageUrls: string[];
     age: number;
     gender: string;
   }) => void;
@@ -46,6 +45,7 @@ export function PredefinedCharacters({
         // Fetch predefined characters from Firestore via your API endpoint.
         const response = await fetch("/api/characters?type=predefined");
         const data = await response.json();
+        console.log("[fetchCharacters] API response data:", data);
         setCharacters(data);
       } catch (error) {
         toast({
@@ -59,7 +59,6 @@ export function PredefinedCharacters({
     }
     fetchCharacters();
   }, [toast]);
-
 
   const handleSelectCharacter = (charId: string) => {
     setSelectedCharacter(charId);
@@ -75,16 +74,14 @@ export function PredefinedCharacters({
 
   const handleNextClick = () => {
     if (selectedCharacter) {
-      const character = characters.find(
-        (c) => c.id === selectedCharacter,
-      );
+      const character = characters.find((c) => c.id === selectedCharacter);
       if (character) {
         onSelectCharacter({
           id: selectedCharacter,
           name: customName || character.name,
           type: "predefined",
           predefinedId: character.id,
-          imageUrl: [character.imageUrl],
+          imageUrls: character.imageUrls,
           age: character.age,
           gender: character.gender,
         });
@@ -97,13 +94,11 @@ export function PredefinedCharacters({
   };
 
   const handleNextCarousel = () => {
-    setCarouselIndex(
-      Math.min(characters.length - 3, carouselIndex + 1),
-    );
+    setCarouselIndex(Math.min(characters.length - 3, carouselIndex + 1));
   };
-  
+
   if (loading) return <div>Loading predefined characters...</div>;
-  
+
   return (
     <div className="mb-8">
       <div className="relative">
@@ -119,8 +114,9 @@ export function PredefinedCharacters({
 
         <div className="carousel-container overflow-x-auto hide-scrollbar py-4">
           <div className="flex space-x-6 px-12">
-            {characters.slice(carouselIndex, carouselIndex + 4).map(
-              (character) => (
+            {characters
+              .slice(carouselIndex, carouselIndex + 4)
+              .map((character) => (
                 <Card
                   key={character.id}
                   className={cn(
@@ -133,7 +129,7 @@ export function PredefinedCharacters({
                 >
                   <div className="w-full h-48 overflow-hidden">
                     <img
-                      src={character.imageUrl}
+                      src={character.imageUrls[0]}
                       className="w-full h-full object-cover"
                       alt={character.name}
                     />
@@ -145,8 +141,7 @@ export function PredefinedCharacters({
                     </p>
                   </CardContent>
                 </Card>
-              ),
-            )}
+              ))}
           </div>
         </div>
 

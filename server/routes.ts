@@ -32,7 +32,7 @@ const DEBUG_LOGGING = process.env.DEBUG_LOGGING === "true";
 // Extend Express Session type to include userId
 declare module "express-session" {
   interface SessionData {
-    userId?: number;
+    userId?: string;
   }
 }
 
@@ -331,7 +331,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/characters", async (req: Request, res: Response) => {
     try {
       // Use session userId if authenticated, otherwise use default
-      const userId = req.session?.userId || 1;
+      if (!req.session || !req.session.userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      const userId = req.session.userId.toString();
 
       const validatedData = insertCharacterSchema.parse({
         ...req.body,
@@ -347,9 +350,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/characters", async (req: Request, res: Response) => {
     try {
-      // Use session userId if authenticated, otherwise use default
-      const userId = req.session?.userId || 1;
-      const characters = await storage.getCharactersByUserId(userId);
+      const { type } = req.query;
+
+      let characters;
+
+      if (type === "predefined") {
+        characters = await storage.getCharactersByType("predefined");
+      } else {
+        if (!req.session || !req.session.userId) {
+          return res.status(401).json({ message: "Unauthorized" });
+        }
+        const userId = req.session.userId.toString();
+        characters = await storage.getCharactersByUserId(userId);
+      }
+
       res.status(200).json(characters);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch characters", error });
@@ -360,7 +374,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/stories", async (req: Request, res: Response) => {
     try {
       // Use session userId if authenticated, otherwise use default
-      const userId = req.session?.userId || 1;
+      if (!req.session || !req.session.userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      const userId = req.session.userId.toString();
 
       const validatedData = insertStorySchema.parse({
         ...req.body,
@@ -376,20 +393,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/stories", async (req: Request, res: Response) => {
     try {
-      // Use session userId if authenticated, otherwise use default
-      const userId = req.session?.userId || 1;
-      const stories = await storage.getStoriesByUserId(userId);
-      res.status(200).json(stories);
+      const { type } = req.query;
+      let stories;
+
+      if (type === "predefined") {
+        stories = await storage.getStoriesByType("predefined");
+
+        const groupedStories = stories.reduce(
+          (acc, story) => {
+            const ageGroup = story.ageGroup || "3-5";
+            if (!acc[ageGroup]) acc[ageGroup] = [];
+            acc[ageGroup].push(story);
+            return acc;
+          },
+          { "3-5": [], "6-8": [], "9-12": [] },
+        );
+
+        return res.status(200).json(groupedStories);
+      } else {
+        if (!req.session || !req.session.userId) {
+          return res.status(401).json({ message: "Unauthorized" });
+        }
+        const userId = req.session.userId.toString();
+        stories = await storage.getStoriesByUserId(userId);
+        res.status(200).json(stories);
+      }
     } catch (error) {
+      console.error("[/api/stories] error:", error);
       res.status(500).json({ message: "Failed to fetch stories", error });
     }
   });
-
   // Book routes with optional authentication
   app.post("/api/books", async (req: Request, res: Response) => {
     try {
       // Use session userId if authenticated, otherwise use default
-      const userId = req.session?.userId || 1;
+      if (!req.session || !req.session.userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      const userId = req.session.userId.toString();
+      console.log("[/api/books] Received new book data:", {
+        ...req.body,
+        userId,
+      });
 
       const validatedData = insertBookSchema.parse({
         ...req.body,
@@ -397,8 +442,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       const book = await storage.createBook(validatedData);
+      console.log("[/api/books] Book created successfully:", book);
+
       res.status(201).json(book);
     } catch (error) {
+      console.error("[/api/books] Error creating book:", error);
       res.status(400).json({ message: "Invalid book data", error });
     }
   });
@@ -406,7 +454,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/books", async (req: Request, res: Response) => {
     try {
       // Use session userId if authenticated, otherwise use default
-      const userId = req.session?.userId || 1;
+      if (!req.session || !req.session.userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      const userId = req.session.userId.toString();
       const books = await storage.getBooksByUserId(userId);
       res.status(200).json(books);
     } catch (error) {
@@ -414,11 +465,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/books/:id", async (req: Request, res: Response) => {
+    const { id } = req.params;
+    console.log("routes.ts - GET /api/books/:id called with id:", id);
+    try {
+      const book = await storage.getBookById(id);
+      if (!book) {
+        console.log("routes.ts - Book not found for id:", id);
+        return res.status(404).json({ error: "Book not found" });
+      }
+      console.log("routes.ts - Returning book for id:", id, book);
+      return res.status(200).json(book);
+    } catch (error) {
+      console.error(
+        "routes.ts - Error in GET /api/books/:id for id:",
+        id,
+        error,
+      );
+      return res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
   // Order routes with optional authentication
   app.post("/api/orders", async (req: Request, res: Response) => {
     try {
       // Use session userId if authenticated, otherwise use default
-      const userId = req.session?.userId || 1;
+      const userId = req.session!.userId.toString();
 
       const validatedData = insertOrderSchema.parse({
         ...req.body,
@@ -431,6 +503,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(400).json({ message: "Invalid order data", error });
     }
   });
+
+  // app.get("/api/orders", async (req: Request, res: Response) => {
+  //   try {
+  //     // Use session userId if authenticated; default to "1" if not (convert to string)
+  //       if (!req.session || !req.session.userId) {
+  //   return res.status(401).json({ message: "Unauthorized" });
+  // }
+  // const userId = req.session.userId.toString();
+  //     const orders = await storage.getOrdersByUserId(userId);
+  //     res.status(200).json(orders);
+  //   } catch (error) {
+  //     res.status(500).json({ message: "Failed to fetch orders", error });
+  //   }
+  // });
 
   // PDF generation - no authentication required
   app.post("/api/pdf/generate", async (req: Request, res: Response) => {

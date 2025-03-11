@@ -88,6 +88,17 @@ export class FirestoreStorage implements IStorage {
     );
     return results;
   }
+  async getCharactersByType(type: string): Promise<Character[]> {
+    const snapshot = await db
+      .collection("characters")
+      .where("type", "==", type)
+      .get();
+    const results: Character[] = [];
+    snapshot.forEach((doc) =>
+      results.push({ id: doc.id, ...doc.data() } as Character),
+    );
+    return results;
+  }
   async createCharacter(insertCharacter: InsertCharacter): Promise<Character> {
     const data = {
       ...insertCharacter,
@@ -118,6 +129,18 @@ export class FirestoreStorage implements IStorage {
     );
     return results;
   }
+  async getStoriesByType(type: string): Promise<Story[]> {
+    const snapshot = await db
+      .collection("stories")
+      .where("type", "==", type)
+      .get();
+    const results: Story[] = [];
+    snapshot.forEach((doc) =>
+      results.push({ id: doc.id, ...doc.data() } as Story),
+    );
+    return results;
+  }
+
   async createStory(insertStory: InsertStory): Promise<Story> {
     const data = {
       ...insertStory,
@@ -154,6 +177,22 @@ export class FirestoreStorage implements IStorage {
     };
     const docRef = await db.collection("books").add(data);
     return { id: docRef.id, ...data } as Book;
+  }
+  async getBookById(id: string): Promise<Book | null> {
+    console.log("storage.ts - getBookById called with id:", id);
+    try {
+      const bookDoc = await db.collection("books").doc(id).get();
+      if (!bookDoc.exists) {
+        console.log("storage.ts - Book not found for id:", id);
+        return null;
+      }
+      const bookData = bookDoc.data() as Book;
+      console.log("storage.ts - Book found for id:", id, bookData);
+      return bookData;
+    } catch (error) {
+      console.error("storage.ts - Error fetching book with id:", id, error);
+      throw error;
+    }
   }
   // ---------- Order operations -----------
   async getOrder(id: string): Promise<Order | undefined> {

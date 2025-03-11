@@ -14,6 +14,7 @@ interface Story {
   imageUrl: string;
   description: string;
   ageGroup: AgeGroup;
+  characterName: string;
 }
 
 interface PredefinedStoriesData {
@@ -32,9 +33,13 @@ interface PredefinedStoriesProps {
     instructions: string;
     elements: [];
   }) => void;
+  characterName: string;
 }
 
-export function PredefinedStories({ onSelectStory }: PredefinedStoriesProps) {
+export function PredefinedStories({
+  onSelectStory,
+  characterName,
+}: PredefinedStoriesProps) {
   const [predefinedStories, setPredefinedStories] =
     useState<PredefinedStoriesData>({
       "3-5": [],
@@ -52,6 +57,7 @@ export function PredefinedStories({ onSelectStory }: PredefinedStoriesProps) {
         // Fetch the predefined stories grouped by age
         const response = await fetch("/api/stories?type=predefined");
         const data: PredefinedStoriesData = await response.json();
+        console.log("[fetchStories] API response data:", data);
         setPredefinedStories(data);
       } catch (error) {
         toast({
@@ -187,7 +193,11 @@ export function PredefinedStories({ onSelectStory }: PredefinedStoriesProps) {
                     />
                   </div>
                   <CardContent className="p-5">
-                    <h3 className="font-bold text-xl mb-2">{story.title}</h3>
+                    <h3 className="font-bold text-xl mb-2">
+                      {characterName
+                        ? `${characterName} and ${story.title}`
+                        : story.title}
+                    </h3>
                     <p className="text-sm text-gray-600 mb-3 line-clamp-2">
                       {story.description}
                     </p>

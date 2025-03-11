@@ -21,7 +21,9 @@ export default function ProfilePage() {
       queryFn: async () => {
         const response = await fetch(
           "/api/characters?type=custom&userId=" + user?.uid,
+          { credentials: "include" },
         );
+        console.log(response);
         return response.json();
       },
       enabled: !!user,
@@ -34,6 +36,7 @@ export default function ProfilePage() {
       queryFn: async () => {
         const response = await fetch(
           "/api/stories?type=custom&userId=" + user?.uid,
+          { credentials: "include" },
         );
         return response.json();
       },
@@ -44,7 +47,10 @@ export default function ProfilePage() {
   const { data: books = [], isLoading: loadingBooks } = useQuery({
     queryKey: ["/api/books", user?.uid],
     queryFn: async () => {
-      const response = await fetch("/api/books?userId=" + user?.uid);
+      const response = await fetch("/api/books?userId=" + user?.uid, {
+        credentials: "include",
+      });
+      console.log(response);
       return response.json();
     },
     enabled: !!user,
@@ -54,7 +60,10 @@ export default function ProfilePage() {
   const { data: orders = [], isLoading: loadingOrders } = useQuery({
     queryKey: ["/api/orders", user?.uid],
     queryFn: async () => {
-      const response = await fetch("/api/orders?userId=" + user?.uid);
+      const response = await fetch("/api/orders?userId=" + user?.uid, {
+        credentials: "include",
+      });
+      console.log(response);
       return response.json();
     },
     enabled: !!user,

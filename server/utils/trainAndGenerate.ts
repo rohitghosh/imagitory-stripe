@@ -163,21 +163,29 @@ export async function trainCustomModel(
  * Generate a single image using fal.ai and the custom-trained model.
  */
 
-export async function generateImage(prompt: string, modelId: string): Promise<string> {
-  console.log("[generateImage] Generating image with prompt:", prompt, "using lora path:", modelId);
+export async function generateImage(
+  prompt: string,
+  modelId: string,
+): Promise<string> {
+  console.log(
+    "[generateImage] Generating image with prompt:",
+    prompt,
+    "using lora path:",
+    modelId,
+  );
 
   // Build payload matching the API docs
   const payload = {
     loras: [
       {
         path: modelId, // This is the URL returned from training.
-        scale: 1
-      }
+        scale: 1,
+      },
     ],
-    prompt,               // The generation prompt.
-    embeddings: [],       // No extra embeddings.
-    model_name: null,     // As required.
-    enable_safety_checker: true
+    prompt, // The generation prompt.
+    embeddings: [], // No extra embeddings.
+    model_name: null, // As required.
+    enable_safety_checker: true,
   };
 
   console.log("[generateImage] Payload:", JSON.stringify(payload, null, 2));
@@ -188,7 +196,9 @@ export async function generateImage(prompt: string, modelId: string): Promise<st
     logs: true,
     onQueueUpdate: (update) => {
       if (update.status === "IN_PROGRESS") {
-        update.logs.map((log) => console.log("[generateImage] Queue update:", log.message));
+        update.logs.map((log) =>
+          console.log("[generateImage] Queue update:", log.message),
+        );
       }
     },
   });
@@ -285,22 +295,47 @@ export async function generateStoryImages(
       moral,
     });
   }
-  const scenePrompts = await generateScenePromptsLLM(
-    kidName,
-    baseStoryPrompt,
-    moral,
-  );
-  if (scenePrompts.length < 10) {
-    throw new Error("LLM did not return enough scene prompts.");
-  }
-  if (DEBUG_LOGGING)
-    console.log("[generateStoryImages] Final scene prompts:", scenePrompts);
-  const imagePromises = scenePrompts.map(async (scene) => {
-    const fullPrompt = createImagePrompt(scene);
-    return await generateImage(fullPrompt, modelId);
-  });
-  const images = await Promise.all(imagePromises);
-  if (DEBUG_LOGGING)
-    console.log("[generateStoryImages] Generated images:", images);
-  return { images, sceneTexts: scenePrompts };
+  //   const scenePrompts = await generateScenePromptsLLM(
+  //     kidName,
+  //     baseStoryPrompt,
+  //     moral,
+  //   );
+  //   if (scenePrompts.length < 10) {
+  //     throw new Error("LLM did not return enough scene prompts.");
+  //   }
+  //   if (DEBUG_LOGGING)
+  //     console.log("[generateStoryImages] Final scene prompts:", scenePrompts);
+  //   const imagePromises = scenePrompts.map(async (scene) => {
+  //     const fullPrompt = createImagePrompt(scene);
+  //     return await generateImage(fullPrompt, modelId);
+  //   });
+  //   const images = await Promise.all(imagePromises);
+  //   if (DEBUG_LOGGING)
+  //     console.log("[generateStoryImages] Generated images:", images);
+  //   return { images, sceneTexts: scenePrompts };
+  const images = [
+    "https://v3.fal.media/files/lion/BYulTnmCMtjoCWVxUo7xT_e6e032ba64ec4b39b11ce0449a6b7349.jpg",
+    "https://v3.fal.media/files/tiger/J5lzVpM_BqVbIhbUz2Hne_fe22e58aff3d4162af677c24bcd9bf1d.jpg",
+    "https://v3.fal.media/files/tiger/j9MS5iglRS18iSq98pG4g_d7187c2696b54619a7afa8e8f5547325.jpg",
+    "https://v3.fal.media/files/koala/wLuAkk35LqRsr3nh5J_KA_1b586234ad7142f097bcfe0f5f178ac5.jpg",
+    "https://v3.fal.media/files/lion/NBazttn8soarZVbGiTv_x_04fe3fa5b55843fb803014c40d26fe36.jpg",
+    "https://v3.fal.media/files/lion/X96gJElSTzsHbXLmULxCL_3702e907195e488092ce080a268cdcb5.jpg",
+    "https://v3.fal.media/files/lion/aDjdirA6IgoHqcIriUbZQ_aad543a4bd78401fb2ada69bb5decae6.jpg",
+    "https://v3.fal.media/files/kangaroo/-G8vLjMeKkosA1KoAfgAN_e114abaa9b1e43ccbcc62771f2c8a8da.jpg",
+    "https://v3.fal.media/files/tiger/8cqtxgKY_pEr7N--wddiH_d44b2b548ba84d049d6280e9367d970c.jpg",
+    "https://v3.fal.media/files/penguin/7kHX_XxdYG8-qi94ChSyg_74127af0e7ee4e97ad8d80fbb556a5bf.jpg",
+  ];
+  const sceneTexts = [
+    "1. As Adventure Alex entered the village, he spotted a dragon with colorful scales and a big smile, eagerly greeting everyone.",
+    "2. The dragon, named Spark, playfully chased after children, blowing bubbles from his nostrils as they giggled and ran around him.",
+    "3. Despite their initial fear, the villagers soon realized that Spark was gentle and kind, just looking for companionship.",
+    "4. Spark led Adventure Alex to a hidden cave filled with sparkling crystals, where he liked to spend his time painting colorful murals on the walls.",
+    "5. Curious village cats and dogs approached Spark tentatively, only to end up curling around his massive paws, enjoying his warmth.",
+    "6. One day, a mischievous goblin tried to stir up trouble by spreading rumors about Spark being a dangerous monster, but the villagers defended their new friend.",
+    "7. Adventure Alex and Spark went on a quest together, traversing lush forests and crossing bubbling streams, forming an unbreakable bond along the way.",
+    "8. When a sudden storm hit the village, it was Spark who shielded the villagers with his massive wings, proving his loyalty and bravery.",
+    "9. As the sun set on the horizon, the villagers gathered around a bonfire, sharing stories and laughter with Spark, grateful for the lesson they had learned.",
+    "10. The next time a stranger arrived in the village, the villagers welcomed them with open arms, remembering not to judge by appearances but to seek the kindness within.",
+  ];
+  return { images, sceneTexts };
 }

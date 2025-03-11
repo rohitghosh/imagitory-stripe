@@ -18,7 +18,6 @@ import { generatePDF } from "@/utils/pdf";
 import { db } from "@/lib/firebase";
 import { collection, addDoc } from "firebase/firestore";
 import { useAuth } from "@/contexts/AuthContext";
-const { user } = useAuth();
 
 const STEPS = [
   { id: 1, name: "Choose Character" },
@@ -30,6 +29,7 @@ const DEBUG_LOGGING = true;
 
 export default function CreateStoryPage() {
   // Global flow state
+  const { user } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
   const [characterType, setCharacterType] = useState<"predefined" | "custom">(
     "predefined",
@@ -59,6 +59,7 @@ export default function CreateStoryPage() {
 
   const { toast } = useToast();
   const [, navigate] = useLocation();
+  const [bookId, setBookId] = useState<number | null>(null);
 
   // Logging helper
   const log = (...args: any[]) => {
@@ -154,8 +155,9 @@ export default function CreateStoryPage() {
       prompt,
       moralValue,
     });
+
     try {
-      // Optionally wait for modelId to be ready using your polling function.
+      // Wait for model training to finish
       await waitForModelId();
     } catch (err) {
       toast({
@@ -166,6 +168,8 @@ export default function CreateStoryPage() {
       log("Model training timeout:", err);
       return;
     }
+
+    // Validate necessary data before proceeding
     if (!kidName || !modelId || !prompt || !moralValue) {
       toast({
         title: "Incomplete Data",
@@ -180,23 +184,67 @@ export default function CreateStoryPage() {
       });
       return;
     }
+
     const payload = {
       kidName,
       modelId,
       baseStoryPrompt: prompt,
       moral: moralValue,
     };
-    log("handleGenerateStoryWithData: Payload:", payload);
+
     try {
       setLoading(true);
+
+      // Generate the story
       const response = await fetch("/api/generateStory", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
       const data = await response.json();
+
       log("handleGenerateStoryWithData: Response received:", data);
       setStoryResult(data);
+
+      // Immediately save the generated story as a book
+      if (user) {
+        const pagesCombined = data.pages.map((url: string, index: number) => ({
+          imageUrl: url,
+          content: data.sceneTexts[index] || "",
+        }));
+
+        const newBook = {
+          title:
+            selectedCharacter && selectedStory
+              ? `${selectedCharacter.name} and ${selectedStory.title}`
+              : "Your Story",
+          pages: pagesCombined, // Use the combined array here
+          createdAt: new Date().toISOString(),
+          userId: String(user.uid), // Convert numeric user.id to string
+          userName: user.displayName,
+          characterId: String(selectedCharacter?.id), // Ensure it's a string
+          storyId: String(selectedStory?.id), // Ensure it's a string
+        };
+
+        try {
+          log("Sending newBook to /api/books:", newBook); // extra logging for debugging
+          const savedBook = await apiRequest("POST", "/api/books", newBook);
+          setBookId(savedBook.id);
+          console.log(bookId);
+          log("Book saved via API to Firestore successfully.");
+          toast({
+            title: "Book saved!",
+            description: "Your story has been successfully saved.",
+          });
+        } catch (error) {
+          log("Error saving book via API:", error);
+          toast({
+            title: "Save Error",
+            description: "Failed to save your book.",
+            variant: "destructive",
+          });
+        }
+      }
     } catch (err: any) {
       log("handleGenerateStoryWithData: Generation error:", err);
       toast({
@@ -270,94 +318,13 @@ export default function CreateStoryPage() {
     }
   };
 
-  const handleGenerateStory = async () => {
-    log("handleGenerateStory triggered");
-    try {
-      // Wait until modelId is available.
-      await waitForModelId();
-    } catch (err) {
-      toast({
-        title: "Model Training Delay",
-        description: "Your model is still training. Please wait and try again.",
-        variant: "destructive",
-      });
-      log("handleGenerateStory: Model training timeout", err);
-      return;
-    }
-
-    if (!kidName || !modelId || !baseStoryPrompt || !moral) {
-      toast({
-        title: "Incomplete Data",
-        description:
-          "Ensure kid name, trained model, story prompt, and moral are provided.",
-        variant: "destructive",
-      });
-      log("handleGenerateStory: Missing data after waiting", {
-        kidName,
-        modelId,
-        baseStoryPrompt,
-        moral,
-      });
-      return;
-    }
-    const payload = { kidName, modelId, baseStoryPrompt, moral };
-    log("handleGenerateStory: Payload:", payload);
-    try {
-      setLoading(true);
-      const response = await fetch("/api/generateStory", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const data = await response.json();
-      log("handleGenerateStory: Response received:", data);
-      setStoryResult(data);
-      // Save the generated story to Firestore
-      if (user) {
-        const newBook = {
-          title:
-            data.sceneTexts && data.sceneTexts[0]
-              ? data.sceneTexts[0]
-              : "Your Story",
-          content: data.sceneTexts,
-          imageUrls: data.pages,
-          createdAt: new Date().toISOString(),
-          userId: user.uid,
-          userName: user.displayName,
-          characterId: selectedCharacter?.id,
-          storyId: selectedStory?.id,
-        };
-        try {
-          await apiRequest("POST", "/api/books", newBook);
-          log("Book saved via API to Firestore successfully.");
-        } catch (error) {
-          log("Error saving book via API:", error);
-          toast({
-            title: "Save Error",
-            description: "Failed to save your book.",
-            variant: "destructive",
-          });
-        }
-      }
-    } catch (err: any) {
-      log("handleGenerateStory: Generation error:", err);
-      toast({
-        title: "Generation Error",
-        description: err.message,
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
   // Update preview when storyResult is updated.
   useEffect(() => {
     log("useEffect: storyResult changed:", storyResult);
     if (storyResult) {
       const title =
-        storyResult.sceneTexts && storyResult.sceneTexts[0]
-          ? storyResult.sceneTexts[0]
+        selectedCharacter && selectedStory
+          ? `${selectedCharacter.name} and ${selectedStory.title}`
           : "Your Story";
       setBookTitle(title);
       const pages = storyResult.pages.map((url: string, index: number) => ({
@@ -409,19 +376,31 @@ export default function CreateStoryPage() {
   };
 
   const handleDownloadPDF = async () => {
-    log("handleDownloadPDF: Downloading PDF with", { bookTitle, bookPages });
     try {
-      await generatePDF(bookTitle, bookPages);
-      await apiRequest("POST", "/api/books", {
-        title: bookTitle,
-        pages: bookPages,
-        characterId: selectedCharacter.id,
-        storyId: selectedStory.id,
+      const response = await fetch("/api/pdf/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: bookTitle, pages: bookPages }),
       });
+      if (!response.ok) {
+        throw new Error("Failed to generate PDF");
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${bookTitle}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
     } catch (error) {
-      log("handleDownloadPDF: Error generating PDF:", error);
       console.error("Error generating PDF:", error);
-      throw error;
+      toast({
+        title: "Download Error",
+        description: "Failed to generate PDF.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -433,18 +412,21 @@ export default function CreateStoryPage() {
   const handleShippingSubmit = async (formData: any) => {
     log("handleShippingSubmit: Submitting shipping form", formData);
     try {
-      await apiRequest("POST", "/api/orders", {
-        ...formData,
-        bookTitle,
-        characterId: selectedCharacter.id,
-        storyId: selectedStory.id,
-      });
-      setOrderCompleted(true);
-      setShowShippingForm(false);
-      toast({
-        title: "Order placed successfully!",
-        description: "Your book will be delivered soon.",
-      });
+      if (user) {
+        await apiRequest("POST", "/api/orders", {
+          ...formData,
+          bookId: bookId,
+          characterId: selectedCharacter.id,
+          storyId: selectedStory.id,
+          userId: user.uid,
+        });
+        setOrderCompleted(true);
+        setShowShippingForm(false);
+        toast({
+          title: "Order placed successfully!",
+          description: "Your book will be delivered soon.",
+        });
+      }
     } catch (error) {
       log("handleShippingSubmit: Order submission error:", error);
       toast({
@@ -520,7 +502,10 @@ export default function CreateStoryPage() {
               </div>
               <StoryToggle type={storyType} onToggle={setStoryType} />
               {storyType === "predefined" ? (
-                <PredefinedStories onSelectStory={handleSelectStory} />
+                <PredefinedStories
+                  onSelectStory={handleSelectStory}
+                  characterName={selectedCharacter?.name}
+                />
               ) : (
                 <CustomStory onSubmit={handleSelectStory} />
               )}

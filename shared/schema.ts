@@ -1,4 +1,12 @@
-import { pgTable, text, serial, integer, boolean, timestamp, jsonb } from "drizzle-orm/pg-core";
+import {
+  pgTable,
+  text,
+  serial,
+  integer,
+  boolean,
+  timestamp,
+  jsonb,
+} from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -13,7 +21,7 @@ export const users = pgTable("users", {
 
 export const characters = pgTable("characters", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull(),
+  userId: text("user_id").notNull(),
   name: text("name").notNull(),
   type: text("type").notNull(), // 'predefined' or 'custom'
   age: integer("age"),
@@ -26,7 +34,7 @@ export const characters = pgTable("characters", {
 
 export const stories = pgTable("stories", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull(),
+  userId: text("user_id").notNull(),
   title: text("title").notNull(),
   type: text("type").notNull(), // 'predefined' or 'custom'
   predefinedId: text("predefined_id"), // Only for predefined stories
@@ -38,9 +46,9 @@ export const stories = pgTable("stories", {
 
 export const books = pgTable("books", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull(),
-  characterId: integer("character_id").notNull(),
-  storyId: integer("story_id").notNull(),
+  userId: text("user_id").notNull(),
+  characterId: text("character_id").notNull(),
+  storyId: text("story_id").notNull(),
   title: text("title").notNull(),
   pages: jsonb("pages").notNull(), // Array of { imageUrl, content }
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -48,8 +56,8 @@ export const books = pgTable("books", {
 
 export const orders = pgTable("orders", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull(),
-  bookId: integer("book_id").notNull(),
+  userId: text("user_id").notNull(),
+  bookId: text("book_id").notNull(),
   firstName: text("first_name").notNull(),
   lastName: text("last_name").notNull(),
   address: text("address").notNull(),
@@ -62,11 +70,27 @@ export const orders = pgTable("orders", {
 });
 
 // Insert schemas
-export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true });
-export const insertCharacterSchema = createInsertSchema(characters).omit({ id: true, createdAt: true });
-export const insertStorySchema = createInsertSchema(stories).omit({ id: true, createdAt: true });
-export const insertBookSchema = createInsertSchema(books).omit({ id: true, createdAt: true });
-export const insertOrderSchema = createInsertSchema(orders).omit({ id: true, createdAt: true, status: true });
+export const insertUserSchema = createInsertSchema(users).omit({
+  id: true,
+  createdAt: true,
+});
+export const insertCharacterSchema = createInsertSchema(characters).omit({
+  id: true,
+  createdAt: true,
+});
+export const insertStorySchema = createInsertSchema(stories).omit({
+  id: true,
+  createdAt: true,
+});
+export const insertBookSchema = createInsertSchema(books).omit({
+  id: true,
+  createdAt: true,
+});
+export const insertOrderSchema = createInsertSchema(orders).omit({
+  id: true,
+  createdAt: true,
+  status: true,
+});
 
 // Select types
 export type User = typeof users.$inferSelect;
@@ -85,9 +109,16 @@ export type InsertOrder = z.infer<typeof insertOrderSchema>;
 // Additional schemas for frontend forms
 export const customCharacterSchema = z.object({
   name: z.string().min(1, "Name is required"),
-  age: z.number().min(1, "Age must be at least 1").max(15, "Age must be at most 15").optional(),
+  age: z
+    .number()
+    .min(1, "Age must be at least 1")
+    .max(15, "Age must be at most 15")
+    .optional(),
   gender: z.enum(["boy", "girl", "other"]),
-  imageUrls: z.array(z.string()).min(1, "At least one image is required").max(10, "Maximum 10 images allowed"),
+  imageUrls: z
+    .array(z.string())
+    .min(1, "At least one image is required")
+    .max(10, "Maximum 10 images allowed"),
 });
 
 export const customStorySchema = z.object({
