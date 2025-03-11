@@ -24,8 +24,11 @@ import {
   generateStoryImages,
 } from "./utils/trainAndGenerate";
 import admin from "./firebaseAdmin";
+import createMemoryStore from "memorystore";
 
 import { fal } from "@fal-ai/client";
+
+const MemoryStore = createMemoryStore(session);
 
 const DEBUG_LOGGING = process.env.DEBUG_LOGGING === "true";
 
@@ -39,12 +42,15 @@ declare module "express-session" {
 export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
 
-  // Configure session middleware with improved settings
+  // Configure session middleware with memory store for persistence
   app.use(
     session({
       secret: process.env.SESSION_SECRET || "your-secret-key",
-      resave: true, // Changed to true to ensure session changes are always saved
-      saveUninitialized: true, // Keep as true to ensure session is created for all visitors
+      resave: true, 
+      saveUninitialized: true,
+      store: new MemoryStore({
+        checkPeriod: 86400000 // prune expired entries every 24h
+      }),
       cookie: {
         secure: process.env.NODE_ENV === "production", // Only use secure cookies in production
         httpOnly: true, 
