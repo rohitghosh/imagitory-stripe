@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
@@ -8,16 +8,16 @@ import { cn } from "@/lib/utils";
 import { CustomCharacterForm } from "./CustomCharacterForm";
 
 interface CustomCharactersProps {
-   onSubmit: (character: {
-      id: string;
-      name: string;
-      age: number;
-      gender: string;
-      imageUrls: string[];
-      type: string;
-      modelId?: string;
-    }) => void;
-  }
+  onSubmit: (character: {
+    id: string;
+    name: string;
+    age: number;
+    gender: string;
+    imageUrls: string[];
+    type: string;
+    modelId?: string;
+  }) => void;
+}
 export function CustomCharacter({ onSubmit }: CustomCharactersProps) {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -35,14 +35,21 @@ export function CustomCharacter({ onSubmit }: CustomCharactersProps) {
 
   // Carousel navigation
   const [carouselIndex, setCarouselIndex] = useState<number>(0);
+  const [visibleCount, setVisibleCount] = useState(5);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // Fetch existing custom characters for this user
   useEffect(() => {
     if (!user) return;
+
     setLoading(true);
     apiRequest("GET", `/api/characters?type=custom&userId=${user.uid}`)
       .then((data) => {
-        setCharacters(Array.isArray(data) ? data : []);
+        const sortedCharacters = data.sort(
+          (a: CustomCharacter, b: CustomCharacter) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+        );
+        setCharacters(Array.isArray(sortedCharacters) ? sortedCharacters : []);
       })
       .catch(() => {
         toast({
@@ -53,6 +60,22 @@ export function CustomCharacter({ onSubmit }: CustomCharactersProps) {
       })
       .finally(() => setLoading(false));
   }, [user, toast]);
+
+  useEffect(() => {
+    const updateVisibleCount = () => {
+      if (containerRef.current) {
+        const width = containerRef.current.offsetWidth;
+        const cardTotalWidth = 192 + 24;
+        const count = Math.floor(width / cardTotalWidth) || 1;
+        console.log("count", count);
+        setVisibleCount(count);
+      }
+    };
+
+    updateVisibleCount();
+    window.addEventListener("resize", updateVisibleCount);
+    return () => window.removeEventListener("resize", updateVisibleCount);
+  }, []);
 
   // When the user successfully creates a new character via the form
   const handleFormSubmit = (newCharacter: any) => {
@@ -129,7 +152,10 @@ export function CustomCharacter({ onSubmit }: CustomCharactersProps) {
         </div>
 
         {/* Carousel with "Add Character" + existing characters */}
-        <div className="carousel-container overflow-x-auto hide-scrollbar py-4">
+        <div
+          ref={containerRef}
+          className="carousel-container overflow-x-auto hide-scrollbar py-4"
+        >
           <div className="flex space-x-6 px-12">
             {/* Add Character card */}
             <Card
@@ -145,41 +171,43 @@ export function CustomCharacter({ onSubmit }: CustomCharactersProps) {
             </Card>
 
             {/* Existing characters */}
-            {characters.slice(carouselIndex, carouselIndex + 3).map((char) => {
-              const isSelected = char.id === selectedCharacterId;
-              return (
-                <Card
-                  key={char.id}
-                  className={cn(
-                    "flex-shrink-0 w-48 overflow-hidden transition-all cursor-pointer relative",
-                    isSelected
-                      ? "border-2 border-primary"
-                      : "border border-transparent hover:border-gray-200",
-                  )}
-                  onClick={() => handleSelectCharacter(char.id)}
-                >
-                  <div className="w-full h-48 overflow-hidden">
-                    <img
-                      src={
-                        char.imageUrls && char.imageUrls.length
-                          ? char.imageUrls[0]
-                          : "https://via.placeholder.com/300"
-                      }
-                      alt={char.name}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                  <CardContent className="p-4">
-                    <h4 className="font-semibold text-lg">{char.name}</h4>
-                  </CardContent>
-                  {isSelected && (
-                    <div className="absolute top-2 right-2 bg-primary text-white rounded-full p-1">
-                      <i className="fas fa-check"></i>
+            {characters
+              .slice(carouselIndex, carouselIndex + visibleCount)
+              .map((char) => {
+                const isSelected = char.id === selectedCharacterId;
+                return (
+                  <Card
+                    key={char.id}
+                    className={cn(
+                      "flex-shrink-0 w-48 overflow-hidden transition-all cursor-pointer relative",
+                      isSelected
+                        ? "border-2 border-primary"
+                        : "border border-transparent hover:border-gray-200",
+                    )}
+                    onClick={() => handleSelectCharacter(char.id)}
+                  >
+                    <div className="w-full h-48 overflow-hidden">
+                      <img
+                        src={
+                          char.imageUrls && char.imageUrls.length
+                            ? char.imageUrls[0]
+                            : "https://via.placeholder.com/300"
+                        }
+                        alt={char.name}
+                        className="w-full h-full object-cover"
+                      />
                     </div>
-                  )}
-                </Card>
-              );
-            })}
+                    <CardContent className="p-4">
+                      <h4 className="font-semibold text-lg">{char.name}</h4>
+                    </CardContent>
+                    {isSelected && (
+                      <div className="absolute top-2 right-2 bg-primary text-white rounded-full p-1">
+                        <i className="fas fa-check"></i>
+                      </div>
+                    )}
+                  </Card>
+                );
+              })}
           </div>
         </div>
 
@@ -188,7 +216,7 @@ export function CustomCharacter({ onSubmit }: CustomCharactersProps) {
           <button
             onClick={handleNextCarousel}
             className="bg-white rounded-full p-2 shadow-md hover:bg-gray-50 disabled:opacity-50"
-            disabled={carouselIndex >= characters.length - 2}
+            disabled={carouselIndex >= characters.length - visibleCount}
           >
             <i className="fas fa-chevron-right text-gray-600"></i>
           </button>

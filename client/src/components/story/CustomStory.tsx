@@ -117,7 +117,7 @@ export function CustomStory({ onSubmit }: CustomStoryProps) {
                     <FormLabel>Story Title</FormLabel>
                     <FormControl>
                       <Input
-                        placeholder="Enter a title for your story"
+                        placeholder="Enter a title for the story. The book would be titled <Character Name> And <Story Title>"
                         {...field}
                       />
                     </FormControl>

@@ -1,20 +1,20 @@
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "../contexts/AuthContext";
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuGroup, 
-  DropdownMenuItem, 
-  DropdownMenuLabel, 
-  DropdownMenuSeparator, 
-  DropdownMenuTrigger 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 
 export function Header() {
   const { user, signOut } = useAuth();
-  
+
   const handleSignOut = async () => {
     await signOut();
     window.location.href = "/";
@@ -24,7 +24,7 @@ export function Header() {
     if (!name) return "U";
     return name
       .split(" ")
-      .map(part => part[0])
+      .map((part) => part[0])
       .join("")
       .toUpperCase()
       .slice(0, 2);
@@ -49,21 +49,28 @@ export function Header() {
           <Link href="/create">
             <Button>Create Story</Button>
           </Link>
-          
+
           {user ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Avatar className="cursor-pointer">
                   {user.photoURL ? (
-                    <AvatarImage src={user.photoURL} alt={user.displayName || "User"} />
+                    <AvatarImage
+                      src={user.photoURL}
+                      alt={user.displayName || "User"}
+                    />
                   ) : null}
-                  <AvatarFallback>{getInitials(user.displayName)}</AvatarFallback>
+                  <AvatarFallback>
+                    {getInitials(user.displayName)}
+                  </AvatarFallback>
                 </Avatar>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuLabel>
                   <div className="font-normal">Signed in as</div>
-                  <div className="font-medium truncate">{user.displayName || user.email}</div>
+                  <div className="font-medium truncate">
+                    {user.displayName || user.email}
+                  </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuGroup>
@@ -77,19 +84,22 @@ export function Header() {
                       <span>My Custom Characters</span>
                     </DropdownMenuItem>
                   </Link>
-                  <Link href="/profile?tab=stories">
+                  <Link href="/profile?tab=books">
                     <DropdownMenuItem className="cursor-pointer">
-                      <span>My Stories</span>
+                      <span>My Books</span>
                     </DropdownMenuItem>
                   </Link>
-                  <Link href="/profile?tab=deliveries">
+                  <Link href="/profile?tab=orders">
                     <DropdownMenuItem className="cursor-pointer">
-                      <span>My Deliveries</span>
+                      <span>My Orders</span>
                     </DropdownMenuItem>
                   </Link>
                 </DropdownMenuGroup>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem className="cursor-pointer" onClick={handleSignOut}>
+                <DropdownMenuItem
+                  className="cursor-pointer"
+                  onClick={handleSignOut}
+                >
                   <span>Sign Out</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>

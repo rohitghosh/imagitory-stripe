@@ -83,7 +83,7 @@ export default function CreateStoryPage() {
       modelId &&
       baseStoryPrompt &&
       moral &&
-      selecetedCharacter &&
+      selectedCharacter &&
       selectedStory &&
       !storyResult
     ) {
@@ -99,7 +99,7 @@ export default function CreateStoryPage() {
         modelId,
         baseStoryPrompt,
         moral,
-        `${selectedCharacter.name} and ${selectedStory.title}`
+        `${selectedCharacter.name} and ${selectedStory.title}`,
       )
         .then(() => setGeneratingStory(false))
         .catch((err) => {
@@ -396,8 +396,8 @@ export default function CreateStoryPage() {
       // Use the edited title from the first page content if available.
       const currentTitle = bookPages[0]?.content || bookTitle;
       payload.prompt = page.isCover
-        ? `<kidStyle> A captivating cover photo for the title: ${currentTitle}`
-        : `<kidStyle> A creative back cover image for the book`;
+        ? `<kidStyle> A captivating cover photo for the showing the title: ${title} It should clearly display the text "${currentTitle}" on top of the photo in a bold and colourful font. It should also include a photo of the character ${selectedCharacter.name} if possible`
+        : `<kidStyle> A generic minimal portrait back cover photo for the story of ${currentTitle}`;
       payload.isCover = true;
       log(
         `handleRegenerate: Regenerating ${page.isCover ? "cover" : "back cover"} for page ${pageId} using prompt: ${payload.prompt}`,

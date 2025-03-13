@@ -95,10 +95,19 @@ export function CustomCharacterForm({
       // Upload each file and update its corresponding object in state
       await Promise.all(
         filesArray.map(async (file, index) => {
+          const timestamp = Date.now();
+          const fileExtension = file.name.split(".").pop(); // extract file extension
+          const fileNameWithoutExt = file.name.replace(/\.[^/.]+$/, ""); // remove existing extension
+
           const fileRef = ref(
             storage,
-            `customCharacters/${file.name}-${Date.now()}`,
+            `customCharacters/${fileNameWithoutExt}-${timestamp}.${fileExtension}`,
           );
+
+          // const fileRef = ref(
+          //   storage,
+          //   `customCharacters/${file.name}-${Date.now()}`,
+          // );
           await uploadBytes(fileRef, file);
           const finalUrl = await getDownloadURL(fileRef);
 
@@ -142,11 +151,16 @@ export function CustomCharacterForm({
       return;
     }
 
+    // Filter images to ensure all uploads are complete and URLs exist
+    const validImageUrls = uploadedImages
+      .filter((img) => !img.uploading && img.finalUrl)
+      .map((img) => img.finalUrl) as string[];
+
     // Prepare payload for POST /api/characters
     const payload = {
       ...values,
       type: "custom",
-      imageUrls: uploadedImages,
+      imageUrls: validImageUrls,
       userId: user?.uid || null,
       createdAt: new Date().toISOString(),
     };
@@ -165,7 +179,7 @@ export function CustomCharacterForm({
     }
   };
 
-  const isUploading = uploadedImages.some(image => image.uploading);
+  const isUploading = uploadedImages.some((image) => image.uploading);
 
   return (
     <Card className="max-w-2xl mx-auto minimal-card">

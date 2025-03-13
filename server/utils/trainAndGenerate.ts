@@ -118,7 +118,7 @@ export async function trainCustomModel(
     custom_token: "<kidStyle>",
     model_name: modelName,
     fast_training: true,
-    steps: 5,
+    steps: 1000,
     create_masks: true,
   };
   if (DEBUG_LOGGING) {
@@ -128,36 +128,36 @@ export async function trainCustomModel(
     );
   }
 
-  // const result = await fal.subscribe("fal-ai/flux-lora-fast-training", {
-  //   input,
-  //   logs: true,
-  //   onQueueUpdate: (update) => {
-  //     if (DEBUG_LOGGING && update.status === "IN_PROGRESS") {
-  //       update.logs
-  //         .map((log) => log.message)
-  //         .forEach((msg) =>
-  //           console.log("[trainCustomModel] Queue update:", msg),
-  //         );
-  //     }
-  //   },
-  // });
+  const result = await fal.subscribe("fal-ai/flux-lora-fast-training", {
+    input,
+    logs: true,
+    onQueueUpdate: (update) => {
+      if (DEBUG_LOGGING && update.status === "IN_PROGRESS") {
+        update.logs
+          .map((log) => log.message)
+          .forEach((msg) =>
+            console.log("[trainCustomModel] Queue update:", msg),
+          );
+      }
+    },
+  });
 
-  // if (DEBUG_LOGGING) {
-  //   console.log("[trainCustomModel] Training result data:", result.data);
-  //   console.log("[trainCustomModel] Request ID:", result.requestId);
-  // }
+  if (DEBUG_LOGGING) {
+    console.log("[trainCustomModel] Training result data:", result.data);
+    console.log("[trainCustomModel] Request ID:", result.requestId);
+  }
 
-  // // Assume result.data contains the modelId.
-  // return {
-  //   modelId: result.data.diffusers_lora_file.url,
-  //   requestId: result.requestId,
-  // };
-  await new Promise((resolve) => setTimeout(resolve, 10000));
+  // Assume result.data contains the modelId.
   return {
-    modelId:
-      "https://v3.fal.media/files/rabbit/Q2UqOqEdJzLM1dZfJuBsV_pytorch_lora_weights.safetensors",
-    requestId: "66115f6e-7f18-459a-abbb-184253c769e8",
+    modelId: result.data.diffusers_lora_file.url,
+    requestId: result.requestId,
   };
+  // await new Promise((resolve) => setTimeout(resolve, 10000));
+  //   return {
+  //     modelId:
+  //       "https://v3.fal.media/files/rabbit/Q2UqOqEdJzLM1dZfJuBsV_pytorch_lora_weights.safetensors",
+  //     requestId: "66115f6e-7f18-459a-abbb-184253c769e8",
+  //   };
 }
 
 /**
@@ -362,39 +362,39 @@ export async function generateStoryImages(
   if (scenePrompts.length < 9) {
     throw new Error("LLM did not return enough scene prompts.");
   }
-  // if (DEBUG_LOGGING)
-  //   console.log("[generateStoryImages] Final scene prompts:", scenePrompts);
-  // const imagePromises = scenePrompts.map(async (scene) => {
-  //   const fullPrompt = createImagePrompt(scene);
-  //   return await generateImage(fullPrompt, modelId);
-  // });
-  // const images = await Promise.all(imagePromises);
-  // if (DEBUG_LOGGING)
-  //   console.log("[generateStoryImages] Generated images:", images);
+  if (DEBUG_LOGGING)
+    console.log("[generateStoryImages] Final scene prompts:", scenePrompts);
+  const imagePromises = scenePrompts.map(async (scene) => {
+    const fullPrompt = createImagePrompt(scene);
+    return await generateImage(fullPrompt, modelId);
+  });
+  const images = await Promise.all(imagePromises);
+  if (DEBUG_LOGGING)
+    console.log("[generateStoryImages] Generated images:", images);
 
-  const coverPrompt = `<kidStyle> A captivating cover photo for the showing the title: ${title} It should clearly display the text ${title} on top of the photo in a bold and colourful font. It should also include a photo of the character ${kidName}`;
-  // const backcoverPrompt = `<kidStyle> A generic minimal portrait back cover photo for the story of ${kidName}}`;
+  const coverPrompt = `<kidStyle> A captivating cover photo for the showing the title: ${title} It should clearly display the text "${title}" on top of the photo in a bold and colourful font. It should also include a photo of the character ${kidName}`;
+  const backcoverPrompt = `<kidStyle> A generic minimal portrait back cover photo for the story of ${title}`;
   const coverUrl = await generateCoverImage(coverPrompt, modelId);
-  // const backCoverUrl = await generateCoverImage(backcoverPrompt, modelId);
-  // if (DEBUG_LOGGING) {
-  //   console.log(
-  //     "[generateStoryImages] Generated cover image:",
-  //     coverUrl,
-  //     backCoverUrl,
-  //   );
-  // }
-  // // return { images, sceneTexts: scenePrompts, coverUrl, backCoverUrl };
-  const images = [
-    "https://v3.fal.media/files/lion/BYulTnmCMtjoCWVxUo7xT_e6e032ba64ec4b39b11ce0449a6b7349.jpg",
-    "https://v3.fal.media/files/tiger/J5lzVpM_BqVbIhbUz2Hne_fe22e58aff3d4162af677c24bcd9bf1d.jpg",
-    "https://v3.fal.media/files/tiger/j9MS5iglRS18iSq98pG4g_d7187c2696b54619a7afa8e8f5547325.jpg",
-    "https://v3.fal.media/files/koala/wLuAkk35LqRsr3nh5J_KA_1b586234ad7142f097bcfe0f5f178ac5.jpg",
-    "https://v3.fal.media/files/lion/NBazttn8soarZVbGiTv_x_04fe3fa5b55843fb803014c40d26fe36.jpg",
-    "https://v3.fal.media/files/lion/X96gJElSTzsHbXLmULxCL_3702e907195e488092ce080a268cdcb5.jpg",
-    "https://v3.fal.media/files/lion/aDjdirA6IgoHqcIriUbZQ_aad543a4bd78401fb2ada69bb5decae6.jpg",
-    "https://v3.fal.media/files/kangaroo/-G8vLjMeKkosA1KoAfgAN_e114abaa9b1e43ccbcc62771f2c8a8da.jpg",
-    "https://v3.fal.media/files/tiger/8cqtxgKY_pEr7N--wddiH_d44b2b548ba84d049d6280e9367d970c.jpg",
-  ];
+  const backCoverUrl = await generateCoverImage(backcoverPrompt, modelId);
+  if (DEBUG_LOGGING) {
+    console.log(
+      "[generateStoryImages] Generated cover image:",
+      coverUrl,
+      backCoverUrl,
+    );
+  }
+  return { images, sceneTexts: scenePrompts, coverUrl, backCoverUrl };
+  // const images = [
+  //   "https://v3.fal.media/files/lion/BYulTnmCMtjoCWVxUo7xT_e6e032ba64ec4b39b11ce0449a6b7349.jpg",
+  //   "https://v3.fal.media/files/tiger/J5lzVpM_BqVbIhbUz2Hne_fe22e58aff3d4162af677c24bcd9bf1d.jpg",
+  //   "https://v3.fal.media/files/tiger/j9MS5iglRS18iSq98pG4g_d7187c2696b54619a7afa8e8f5547325.jpg",
+  //   "https://v3.fal.media/files/koala/wLuAkk35LqRsr3nh5J_KA_1b586234ad7142f097bcfe0f5f178ac5.jpg",
+  //   "https://v3.fal.media/files/lion/NBazttn8soarZVbGiTv_x_04fe3fa5b55843fb803014c40d26fe36.jpg",
+  //   "https://v3.fal.media/files/lion/X96gJElSTzsHbXLmULxCL_3702e907195e488092ce080a268cdcb5.jpg",
+  //   "https://v3.fal.media/files/lion/aDjdirA6IgoHqcIriUbZQ_aad543a4bd78401fb2ada69bb5decae6.jpg",
+  //   "https://v3.fal.media/files/kangaroo/-G8vLjMeKkosA1KoAfgAN_e114abaa9b1e43ccbcc62771f2c8a8da.jpg",
+  //   "https://v3.fal.media/files/tiger/8cqtxgKY_pEr7N--wddiH_d44b2b548ba84d049d6280e9367d970c.jpg",
+  // ];
   // const scenePrompts = [
   //   "1. As Adventure Alex entered the village, he spotted a dragon with colorful scales and a big smile, eagerly greeting everyone.",
   //   "2. The dragon, named Spark, playfully chased after children, blowing bubbles from his nostrils as they giggled and ran around him.",
@@ -407,9 +407,9 @@ export async function generateStoryImages(
   //   "9. As the sun set on the horizon, the villagers gathered around a bonfire, sharing stories and laughter with Spark, grateful for the lesson they had learned.",
   //   "10. The next time a stranger arrived in the village, the villagers welcomed them with open arms, remembering not to judge by appearances but to seek the kindness within.",
   // ];
-  const backCoverUrl =
-    "https://v3.fal.media/files/koala/PtOeBiekDUU8eJ-z9cjFZ_d1a6e15d77464e5291b4bf6d7cf4424b.jpg";
+  // const backCoverUrl =
+  //   "https://v3.fal.media/files/koala/PtOeBiekDUU8eJ-z9cjFZ_d1a6e15d77464e5291b4bf6d7cf4424b.jpg";
   // const coverUrl =
   //   "https://v3.fal.media/files/zebra/Ut7N9_NMY_xuRk1JddLog_006730264e5b40e784b80c543558d601.jpg";
-  return { images, sceneTexts: scenePrompts, coverUrl, backCoverUrl };
+  // return { images, sceneTexts: scenePrompts, coverUrl, backCoverUrl };
 }
