@@ -1,5 +1,5 @@
 import { initializeApp, getApp, getApps } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
+import { getFirestore, Firestore } from "firebase/firestore";
 import {
   getAuth,
   GoogleAuthProvider,
@@ -76,11 +76,13 @@ debugLog("Firebase Config (without sensitive data):", {
   storageBucket: firebaseConfig.storageBucket,
 });
 
-// Initialize Firebase
-let app;
+// Initialize Firebase - declare variables
+let app: any;
 let auth: Auth;
 let provider: GoogleAuthProvider;
+let db: Firestore;
 
+// Initialize Firebase configuration
 try {
   // Validate Firebase configuration
   validateFirebaseConfig();
@@ -96,7 +98,8 @@ try {
     debugLog("Using existing Firebase app");
   }
 
-  const db = getFirestore(app);
+  // Initialize Firestore
+  db = getFirestore(app);
 
   // Initialize Auth
   auth = getAuth(app);
@@ -129,39 +132,6 @@ try {
   debugError("Error initializing Firebase", error);
   throw new Error("Failed to initialize Firebase authentication");
 }
-
-export const signInWithGoogle = async (): Promise<User> => {
-  try {
-    debugLog("Attempting to sign in with Google...");
-
-    // Try using popup first (better UX when it works)
-    try {
-      const result = await signInWithPopup(auth, provider);
-      debugLog("Sign in with popup successful", { email: result.user.email });
-      return await processAuthResult(result.user);
-    } catch (popupError: any) {
-      // If popup fails (common on mobile or when popups are blocked), try redirect
-      debugError("Popup sign-in failed, attempting redirect", popupError);
-
-      if (
-        popupError.code === "auth/popup-blocked" ||
-        popupError.code === "auth/popup-closed-by-user" ||
-        popupError.code === "auth/cancelled-popup-request"
-      ) {
-        debugLog("Using redirect method instead...");
-        await signInWithRedirect(auth, provider);
-        // Control will transfer to the redirect, then return via getRedirectResult
-        throw new Error("Redirecting to Google login...");
-      } else {
-        // It's another type of error, rethrow
-        throw popupError;
-      }
-    }
-  } catch (error) {
-    debugError("Error signing in with Google", error);
-    throw error;
-  }
-};
 
 // Helper function to process authenticated user
 const processAuthResult = async (user: User): Promise<User> => {
@@ -235,6 +205,39 @@ const processAuthResult = async (user: User): Promise<User> => {
   }
 };
 
+export const signInWithGoogle = async (): Promise<User> => {
+  try {
+    debugLog("Attempting to sign in with Google...");
+
+    // Try using popup first (better UX when it works)
+    try {
+      const result = await signInWithPopup(auth, provider);
+      debugLog("Sign in with popup successful", { email: result.user.email });
+      return await processAuthResult(result.user);
+    } catch (popupError: any) {
+      // If popup fails (common on mobile or when popups are blocked), try redirect
+      debugError("Popup sign-in failed, attempting redirect", popupError);
+
+      if (
+        popupError.code === "auth/popup-blocked" ||
+        popupError.code === "auth/popup-closed-by-user" ||
+        popupError.code === "auth/cancelled-popup-request"
+      ) {
+        debugLog("Using redirect method instead...");
+        await signInWithRedirect(auth, provider);
+        // Control will transfer to the redirect, then return via getRedirectResult
+        throw new Error("Redirecting to Google login...");
+      } else {
+        // It's another type of error, rethrow
+        throw popupError;
+      }
+    }
+  } catch (error) {
+    debugError("Error signing in with Google", error);
+    throw error;
+  }
+};
+
 export const logOut = async (): Promise<void> => {
   try {
     await signOut(auth);
@@ -295,6 +298,5 @@ export const logOut = async (): Promise<void> => {
   }
 };
 
-// Export Firestore db and auth
-export const db = getFirestore(app);
-export { auth };
+// Export Firebase instances
+export { auth, db };

@@ -54,11 +54,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         checkPeriod: 86400000, // prune expired entries every 24h
       }),
       cookie: {
-        secure: false, // Must be false for non-HTTPS Replit deployments
+        secure: process.env.NODE_ENV === "production", // True in production, false in development
         httpOnly: false, // Allow JavaScript access to cookies
         maxAge: 24 * 60 * 60 * 1000, // 24 hours
         sameSite: "none", // Allow cross-site cookie setting
         path: "/", // Ensure cookies apply to all paths
+        domain: process.env.NODE_ENV === "production" ? process.env.COOKIE_DOMAIN || undefined : undefined,
       },
       name: "storyteller.sid", // Named session for better identification
       rolling: true, // Resets the cookie expiration on every response
