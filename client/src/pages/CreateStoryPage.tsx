@@ -99,7 +99,7 @@ export default function CreateStoryPage() {
         modelId,
         baseStoryPrompt,
         moral,
-        currentBookTitle: `${selecetedCharacter.name} and ${selectedStory.title}`,
+        `${selectedCharacter.name} and ${selectedStory.title}`
       )
         .then(() => setGeneratingStory(false))
         .catch((err) => {
