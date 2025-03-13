@@ -22,6 +22,8 @@ import path from "path";
 import {
   trainCustomModel,
   generateStoryImages,
+  generateImage,
+  generateCoverImage,
 } from "./utils/trainAndGenerate";
 import admin from "./firebaseAdmin";
 import createMemoryStore from "memorystore";
@@ -46,75 +48,81 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(
     session({
       secret: process.env.SESSION_SECRET || "your-secret-key",
-      resave: true, 
+      resave: true,
       saveUninitialized: true,
       store: new MemoryStore({
-        checkPeriod: 86400000 // prune expired entries every 24h
+        checkPeriod: 86400000, // prune expired entries every 24h
       }),
       cookie: {
         secure: process.env.NODE_ENV === "production", // Only use secure cookies in production
-        httpOnly: true, 
+        httpOnly: true,
         maxAge: 24 * 60 * 60 * 1000, // 24 hours
-        sameSite: 'lax',
-        path: '/' // Ensure cookies apply to all paths
+        sameSite: "lax",
+        path: "/", // Ensure cookies apply to all paths
       },
-      name: 'storyteller.sid', // Named session for better identification
-      rolling: true // Resets the cookie expiration on every response
-    })
+      name: "storyteller.sid", // Named session for better identification
+      rolling: true, // Resets the cookie expiration on every response
+    }),
   );
-    
+
   // Middleware to ensure session is properly established for all routes
   app.use((req, res, next) => {
     // Force session initialization for all requests
     if (!req.session) {
-      console.error('Session middleware failed to initialize session');
-    } else if (DEBUG_LOGGING && req.url.startsWith('/api/') && req.url !== '/api/auth/login') {
+      console.error("Session middleware failed to initialize session");
+    } else if (
+      DEBUG_LOGGING &&
+      req.url.startsWith("/api/") &&
+      req.url !== "/api/auth/login"
+    ) {
       // Only log for API routes that aren't the login endpoint to avoid excessive logging
-      console.log(`[Session Init] ${req.method} ${req.url} has session: ${!!req.session}, ID: ${req.sessionID}, userId: ${req.session.userId || 'none'}`);
+      console.log(
+        `[Session Init] ${req.method} ${req.url} has session: ${!!req.session}, ID: ${req.sessionID}, userId: ${req.session.userId || "none"}`,
+      );
     }
     next();
   });
-  
+
   // Debug middleware to log session information on every request
   if (DEBUG_LOGGING) {
     app.use((req, res, next) => {
-      if (req.url.startsWith('/api/')) {
-        console.log('[Session Debug] Request to:', req.url, {
+      if (req.url.startsWith("/api/")) {
+        console.log("[Session Debug] Request to:", req.url, {
           hasSession: !!req.session,
           sessionID: req.sessionID,
-          userId: req.session?.userId 
+          userId: req.session?.userId,
         });
       }
       next();
     });
   }
-  
+
   // TEMPORARY TEST ROUTE: Auto-login endpoint to bypass Firebase auth while testing
-  app.get('/api/auto-login', (req, res) => {
-    console.log('[/api/auto-login] Setting test user ID in session');
-    
+  app.get("/api/auto-login", (req, res) => {
+    console.log("[/api/auto-login] Setting test user ID in session");
+
     if (!req.session) {
-      return res.status(500).json({ message: 'Session not available' });
+      return res.status(500).json({ message: "Session not available" });
     }
-    
+
     // Set a default user ID for testing
-    req.session.userId = 'test-user-123';
-    
+    req.session.userId = "test-user-123";
+
     req.session.save((err) => {
       if (err) {
-        console.error('[/api/auto-login] Failed to save session:', err);
-        return res.status(500).json({ message: 'Failed to save session' });
+        console.error("[/api/auto-login] Failed to save session:", err);
+        return res.status(500).json({ message: "Failed to save session" });
       }
-      
-      console.log('[/api/auto-login] Session saved successfully:', {
+
+      console.log("[/api/auto-login] Session saved successfully:", {
         sessionID: req.sessionID,
-        userId: req.session.userId
+        userId: req.session.userId,
       });
-      
-      res.status(200).json({ 
-        message: 'Test user logged in successfully',
+
+      res.status(200).json({
+        message: "Test user logged in successfully",
         sessionId: req.sessionID,
-        userId: req.session.userId
+        userId: req.session.userId,
       });
     });
   });
@@ -122,22 +130,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Authentication middleware
   const authenticate = (req: Request, res: Response, next: NextFunction) => {
     if (DEBUG_LOGGING) {
-      console.log('[authenticate] Session check:', { 
+      console.log("[authenticate] Session check:", {
         hasSession: !!req.session,
         sessionID: req.sessionID,
         userId: req.session?.userId,
-        url: req.url
+        url: req.url,
       });
     }
-    
+
     if (!req.session || !req.session.userId) {
       return res.status(401).json({ message: "Unauthorized" });
     }
-    
+
     if (DEBUG_LOGGING) {
       console.log(`[authenticate] User authorized: ${req.session.userId}`);
     }
-    
+
     next();
   };
 
@@ -145,7 +153,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/auth/login", async (req: Request, res: Response) => {
     try {
       const { idToken } = req.body;
-      
+
       if (DEBUG_LOGGING) {
         console.log("[/api/auth/login] Received authentication request");
       }
@@ -165,7 +173,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const uid = decodedToken.uid;
 
         if (DEBUG_LOGGING) {
-          console.log(`[/api/auth/login] Token verified for user: ${decodedToken.email}`);
+          console.log(
+            `[/api/auth/login] Token verified for user: ${decodedToken.email}`,
+          );
           console.log(`[/api/auth/login] Firebase UID: ${uid}`);
         }
 
@@ -178,73 +188,85 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         if (!user) {
           if (DEBUG_LOGGING) {
-            console.log(`[/api/auth/login] Creating new user for: ${decodedToken.email}`);
+            console.log(
+              `[/api/auth/login] Creating new user for: ${decodedToken.email}`,
+            );
           }
 
           // Create a new user
           user = await storage.createUser({
             uid,
             email: decodedToken.email || "",
-            displayName: decodedToken.name || decodedToken.email?.split("@")[0] || "User",
+            displayName:
+              decodedToken.name || decodedToken.email?.split("@")[0] || "User",
             photoURL: decodedToken.picture || "",
           });
-          
+
           if (DEBUG_LOGGING) {
-            console.log(`[/api/auth/login] New user created with ID: ${user.id}`);
+            console.log(
+              `[/api/auth/login] New user created with ID: ${user.id}`,
+            );
           }
         } else if (DEBUG_LOGGING) {
-          console.log(`[/api/auth/login] Found existing user with ID: ${user.id}`);
+          console.log(
+            `[/api/auth/login] Found existing user with ID: ${user.id}`,
+          );
         }
 
         // Step 3: Store user ID in session
         if (!req.session) {
-          console.error('[/api/auth/login] Session object not available');
-          return res.status(500).json({ message: "Session initialization failed" });
+          console.error("[/api/auth/login] Session object not available");
+          return res
+            .status(500)
+            .json({ message: "Session initialization failed" });
         }
-        
+
         if (DEBUG_LOGGING) {
-          console.log('[/api/auth/login] Current session state before modification:', {
-            sessionID: req.sessionID,
-            sessionData: req.session
-          });
+          console.log(
+            "[/api/auth/login] Current session state before modification:",
+            {
+              sessionID: req.sessionID,
+              sessionData: req.session,
+            },
+          );
         }
-        
+
         // Set the userId directly on the session
         req.session.userId = String(user.id);
-        
+
         if (DEBUG_LOGGING) {
-          console.log('[/api/auth/login] Session after setting userId:', {
+          console.log("[/api/auth/login] Session after setting userId:", {
             userId: req.session.userId,
-            sessionID: req.sessionID
+            sessionID: req.sessionID,
           });
         }
-        
+
         // Step 4: Save the session with a promise to ensure it completes
         try {
           await new Promise<void>((resolve, reject) => {
             req.session.save((err) => {
               if (err) {
-                console.error('[/api/auth/login] Session save error:', err);
+                console.error("[/api/auth/login] Session save error:", err);
                 reject(err);
               } else {
                 if (DEBUG_LOGGING) {
-                  console.log('[/api/auth/login] Session saved successfully');
+                  console.log("[/api/auth/login] Session saved successfully");
                 }
                 resolve();
               }
             });
           });
         } catch (saveError) {
-          console.error('[/api/auth/login] Failed to save session:', saveError);
+          console.error("[/api/auth/login] Failed to save session:", saveError);
           return res.status(500).json({ message: "Failed to save session" });
         }
-        
+
         // Step 5: Double-check the session was properly saved
         if (DEBUG_LOGGING) {
-          console.log('[/api/auth/login] Final session state:', {
+          console.log("[/api/auth/login] Final session state:", {
             userId: req.session.userId,
             sessionID: req.sessionID,
-            cookie: req.session.cookie
+            cookie: req.session.cookie,
           });
         }
 
@@ -417,34 +439,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Expects kidName, modelId, baseStoryPrompt, and moral in the request body.
   app.post("/api/generateStory", async (req: Request, res: Response) => {
     try {
-      const { kidName, modelId, baseStoryPrompt, moral } = req.body;
+      const { kidName, modelId, baseStoryPrompt, moral, title } = req.body;
       if (DEBUG_LOGGING)
         console.log("[/api/generateStory] Request body:", {
           kidName,
           modelId,
           baseStoryPrompt,
           moral,
+          title,
         });
-      if (!kidName || !modelId || !baseStoryPrompt || !moral) {
+      if (!kidName || !modelId || !baseStoryPrompt || !moral || !title) {
         throw new Error(
-          "kidName, modelId, baseStoryPrompt, and moral are required.",
+          "kidName, modelId, baseStoryPrompt, title and moral are required.",
         );
       }
-      const { images, sceneTexts } = await generateStoryImages(
-        modelId,
-        kidName,
-        baseStoryPrompt,
-        moral,
-      );
+      const { images, sceneTexts, coverUrl, backCoverUrl } =
+        await generateStoryImages(
+          modelId,
+          kidName,
+          baseStoryPrompt,
+          moral,
+          title,
+        );
       if (DEBUG_LOGGING) {
         console.log("[/api/generateStory] Generated images and scene texts:", {
           images,
           sceneTexts,
+          coverUrl,
+          backCoverUrl,
         });
       }
       res.json({
-        cover: images[0],
-        pages: images.slice(1),
+        coverUrl: coverUrl,
+        backCoverUrl: backCoverUrl,
+        pages: images,
         sceneTexts,
       });
     } catch (error: any) {
@@ -456,25 +484,87 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/regenerateImage", async (req: Request, res: Response) => {
+    try {
+      const { modelId, prompt, isCover } = req.body;
+      // If the flag is true, use generateCoverImage, else generateImage.
+      const newUrl = isCover
+        ? await generateCoverImage(prompt, modelId)
+        : await generateImage(prompt, modelId);
+      res.status(200).json({ newUrl });
+    } catch (error: any) {
+      if (DEBUG_LOGGING)
+        console.error(
+          "[/api/regenerateImage] Image regeneration error:",
+          error,
+        );
+      res
+        .status(500)
+        .json({ error: error.message || "Image regeneration failed" });
+    }
+  });
+
+  app.put("/api/books/:id", async (req: Request, res: Response) => {
+    try {
+      // Ensure the user is authenticated.
+      if (!req.session || !req.session.userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      const userId = req.session.userId.toString();
+      const bookId = req.params.id;
+
+      // Validate the incoming data using insertBookSchema (or a dedicated update schema)
+      const updatedData = insertBookSchema.parse({
+        ...req.body,
+        userId,
+      });
+
+      // Update the book using a storage function.
+      // You need to implement storage.updateBook if not already available.
+      const updatedBook = await storage.updateBook(bookId, updatedData);
+      if (!updatedBook) {
+        return res.status(404).json({ message: "Book not found" });
+      }
+      res.status(200).json(updatedBook);
+    } catch (error: any) {
+      console.error("[/api/books PUT] Error updating book:", error);
+      res.status(400).json({
+        message: "Failed to update book",
+        error: error.message || error,
+      });
+    }
+  });
+
+  app.put("/api/characters/:id", async (req, res) => {
+    const { id } = req.params;
+    const payload = req.body; // This could include { modelId: 'newId', trainedAt: Date.now(), ... }
+    try {
+      const updatedCharacter = await storage.updateCharacter(id, payload);
+      res.status(200).json(updatedCharacter);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update character" });
+    }
+  });
+
   // Character routes with improved authentication
   app.post("/api/characters", async (req: Request, res: Response) => {
     try {
       // Check authentication with detailed logging
       if (!req.session || !req.session.userId) {
         if (DEBUG_LOGGING) {
-          console.log('[/api/characters POST] Authentication failed:', {
+          console.log("[/api/characters POST] Authentication failed:", {
             hasSession: !!req.session,
-            sessionID: req.sessionID
+            sessionID: req.sessionID,
           });
         }
         return res.status(401).json({ message: "Unauthorized" });
       }
-      
+
       const userId = req.session.userId.toString();
-      
+
       if (DEBUG_LOGGING) {
         console.log(`[/api/characters POST] User authenticated: ${userId}`);
-        console.log('[/api/characters POST] Request body:', req.body);
+        console.log("[/api/characters POST] Request body:", req.body);
       }
 
       const validatedData = insertCharacterSchema.parse({
@@ -483,25 +573,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       const character = await storage.createCharacter(validatedData);
-      
+
       if (DEBUG_LOGGING) {
-        console.log('[/api/characters POST] Character created:', character);
+        console.log("[/api/characters POST] Character created:", character);
       }
-      
+
       res.status(201).json(character);
     } catch (error: any) {
-      console.error('[/api/characters POST] Error:', error);
-      res.status(400).json({ 
-        message: "Invalid character data", 
-        error: error.errors || error.message || {} 
+      console.error("[/api/characters POST] Error:", error);
+      res.status(400).json({
+        message: "Invalid character data",
+        error: error.errors || error.message || {},
       });
+    }
+  });
+
+  app.get("/api/characters/:id", async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const character = await storage.getCharacter(id);
+      if (!character) {
+        return res.status(404).json({ message: "Character not found" });
+      }
+      res.status(200).json(character);
+    } catch (error: any) {
+      console.error("Error fetching character by id:", error);
+      res.status(500).json({ message: "Server error", error: error.message });
     }
   });
 
   app.get("/api/characters", async (req: Request, res: Response) => {
     try {
       const { type } = req.query;
-      
+
       if (DEBUG_LOGGING) {
         console.log(`[/api/characters GET] Query params:`, req.query);
       }
@@ -510,40 +614,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (type === "predefined") {
         if (DEBUG_LOGGING) {
-          console.log('[/api/characters GET] Fetching predefined characters');
+          console.log("[/api/characters GET] Fetching predefined characters");
         }
         characters = await storage.getCharactersByType("predefined");
       } else {
         // Check authentication for custom characters
         if (!req.session || !req.session.userId) {
           if (DEBUG_LOGGING) {
-            console.log('[/api/characters GET] Authentication failed for custom characters:', {
-              hasSession: !!req.session,
-              sessionID: req.sessionID
-            });
+            console.log(
+              "[/api/characters GET] Authentication failed for custom characters:",
+              {
+                hasSession: !!req.session,
+                sessionID: req.sessionID,
+              },
+            );
           }
           return res.status(401).json({ message: "Unauthorized" });
         }
-        
+
         const userId = req.session.userId.toString();
-        
+
         if (DEBUG_LOGGING) {
-          console.log(`[/api/characters GET] Fetching characters for user: ${userId}`);
+          console.log(
+            `[/api/characters GET] Fetching characters for user: ${userId}`,
+          );
         }
-        
+
         characters = await storage.getCharactersByUserId(userId);
       }
-      
+
       if (DEBUG_LOGGING) {
-        console.log(`[/api/characters GET] Found ${characters.length} characters`);
+        console.log(
+          `[/api/characters GET] Found ${characters.length} characters`,
+        );
       }
 
       res.status(200).json(characters);
     } catch (error: any) {
-      console.error('[/api/characters GET] Error:', error);
-      res.status(500).json({ 
-        message: "Failed to fetch characters", 
-        error: error.message || {} 
+      console.error("[/api/characters GET] Error:", error);
+      res.status(500).json({
+        message: "Failed to fetch characters",
+        error: error.message || {},
       });
     }
   });
@@ -554,19 +665,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Check authentication with detailed logging
       if (!req.session || !req.session.userId) {
         if (DEBUG_LOGGING) {
-          console.log('[/api/stories POST] Authentication failed:', {
+          console.log("[/api/stories POST] Authentication failed:", {
             hasSession: !!req.session,
-            sessionID: req.sessionID
+            sessionID: req.sessionID,
           });
         }
         return res.status(401).json({ message: "Unauthorized" });
       }
-      
+
       const userId = req.session.userId.toString();
-      
+
       if (DEBUG_LOGGING) {
         console.log(`[/api/stories POST] User authenticated: ${userId}`);
-        console.log('[/api/stories POST] Request body:', req.body);
+        console.log("[/api/stories POST] Request body:", req.body);
       }
 
       const validatedData = insertStorySchema.parse({
@@ -575,17 +686,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       const story = await storage.createStory(validatedData);
-      
+
       if (DEBUG_LOGGING) {
-        console.log('[/api/stories POST] Story created:', story);
+        console.log("[/api/stories POST] Story created:", story);
       }
-      
+
       res.status(201).json(story);
     } catch (error: any) {
-      console.error('[/api/stories POST] Error:', error);
-      res.status(400).json({ 
-        message: "Invalid story data", 
-        error: error.errors || error.message || {} 
+      console.error("[/api/stories POST] Error:", error);
+      res.status(400).json({
+        message: "Invalid story data",
+        error: error.errors || error.message || {},
       });
     }
   });
@@ -593,41 +704,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/stories", async (req: Request, res: Response) => {
     try {
       const { type } = req.query;
-      
+
       if (DEBUG_LOGGING) {
         console.log(`[/api/stories GET] Query params:`, req.query);
       }
-      
+
       let stories;
 
       if (type === "predefined") {
         if (DEBUG_LOGGING) {
-          console.log('[/api/stories GET] Fetching predefined stories');
+          console.log("[/api/stories GET] Fetching predefined stories");
         }
-        
+
         stories = await storage.getStoriesByType("predefined");
-        
+
         // Type safety fix for the groupedStories
         const groupedStories: Record<string, any[]> = {
           "3-5": [],
           "6-8": [],
-          "9-12": []
+          "9-12": [],
         };
-        
-        stories.forEach(story => {
+
+        stories.forEach((story) => {
           // Use a safe fallback if ageGroup is not present
           const ageGroup = (story as any).ageGroup || "3-5";
           groupedStories[ageGroup].push(story);
         });
-        
+
         if (DEBUG_LOGGING) {
-          console.log('[/api/stories GET] Grouped predefined stories by age:', {
+          console.log("[/api/stories GET] Grouped predefined stories by age:", {
             total: stories.length,
             byAge: {
               "3-5": groupedStories["3-5"].length,
               "6-8": groupedStories["6-8"].length,
-              "9-12": groupedStories["9-12"].length
-            }
+              "9-12": groupedStories["9-12"].length,
+            },
           });
         }
 
@@ -636,33 +747,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Check authentication for user's stories
         if (!req.session || !req.session.userId) {
           if (DEBUG_LOGGING) {
-            console.log('[/api/stories GET] Authentication failed for user stories:', {
-              hasSession: !!req.session,
-              sessionID: req.sessionID
-            });
+            console.log(
+              "[/api/stories GET] Authentication failed for user stories:",
+              {
+                hasSession: !!req.session,
+                sessionID: req.sessionID,
+              },
+            );
           }
           return res.status(401).json({ message: "Unauthorized" });
         }
-        
+
         const userId = req.session.userId.toString();
-        
+
         if (DEBUG_LOGGING) {
-          console.log(`[/api/stories GET] Fetching stories for user: ${userId}`);
+          console.log(
+            `[/api/stories GET] Fetching stories for user: ${userId}`,
+          );
         }
-        
+
         stories = await storage.getStoriesByUserId(userId);
-        
+
         if (DEBUG_LOGGING) {
-          console.log(`[/api/stories GET] Found ${stories.length} stories for user ${userId}`);
+          console.log(
+            `[/api/stories GET] Found ${stories.length} stories for user ${userId}`,
+          );
         }
-        
+
         res.status(200).json(stories);
       }
     } catch (error: any) {
       console.error("[/api/stories GET] Error:", error);
-      res.status(500).json({ 
-        message: "Failed to fetch stories", 
-        error: error.message || {} 
+      res.status(500).json({
+        message: "Failed to fetch stories",
+        error: error.message || {},
       });
     }
   });
@@ -672,16 +790,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Check authentication with detailed logging
       if (!req.session || !req.session.userId) {
         if (DEBUG_LOGGING) {
-          console.log('[/api/books POST] Authentication failed:', {
+          console.log("[/api/books POST] Authentication failed:", {
             hasSession: !!req.session,
-            sessionID: req.sessionID
+            sessionID: req.sessionID,
           });
         }
         return res.status(401).json({ message: "Unauthorized" });
       }
 
       const userId = req.session.userId.toString();
-      
+
       if (DEBUG_LOGGING) {
         console.log(`[/api/books POST] User authenticated: ${userId}`);
         console.log("[/api/books POST] Received book data:", {
@@ -696,7 +814,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       const book = await storage.createBook(validatedData);
-      
+
       if (DEBUG_LOGGING) {
         console.log("[/api/books POST] Book created successfully:", book);
       }
@@ -704,9 +822,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(201).json(book);
     } catch (error: any) {
       console.error("[/api/books POST] Error creating book:", error);
-      res.status(400).json({ 
-        message: "Invalid book data", 
-        error: error.errors || error.message || {}
+      res.status(400).json({
+        message: "Invalid book data",
+        error: error.errors || error.message || {},
       });
     }
   });
@@ -716,32 +834,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Check authentication with detailed logging
       if (!req.session || !req.session.userId) {
         if (DEBUG_LOGGING) {
-          console.log('[/api/books GET] Authentication failed:', {
+          console.log("[/api/books GET] Authentication failed:", {
             hasSession: !!req.session,
-            sessionID: req.sessionID
+            sessionID: req.sessionID,
           });
         }
         return res.status(401).json({ message: "Unauthorized" });
       }
-      
+
       const userId = req.session.userId.toString();
-      
+
       if (DEBUG_LOGGING) {
         console.log(`[/api/books GET] User authenticated: ${userId}`);
       }
-      
+
       const books = await storage.getBooksByUserId(userId);
-      
+
       if (DEBUG_LOGGING) {
-        console.log(`[/api/books GET] Found ${books.length} books for user ${userId}`);
+        console.log(
+          `[/api/books GET] Found ${books.length} books for user ${userId}`,
+        );
       }
-      
+
       res.status(200).json(books);
     } catch (error: any) {
-      console.error('[/api/books GET] Error:', error);
-      res.status(500).json({ 
-        message: "Failed to fetch books", 
-        error: error.message || {}
+      console.error("[/api/books GET] Error:", error);
+      res.status(500).json({
+        message: "Failed to fetch books",
+        error: error.message || {},
       });
     }
   });
@@ -773,20 +893,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Check authentication
       if (!req.session || !req.session.userId) {
         if (DEBUG_LOGGING) {
-          console.log('[/api/orders POST] No auth session:', { 
-            hasSession: !!req.session, 
-            sessionID: req.sessionID 
+          console.log("[/api/orders POST] No auth session:", {
+            hasSession: !!req.session,
+            sessionID: req.sessionID,
           });
         }
         return res.status(401).json({ message: "Unauthorized" });
       }
-      
+
       // Use session userId if authenticated
       const userId = req.session.userId.toString();
-      
+
       if (DEBUG_LOGGING) {
-        console.log('[/api/orders POST] Auth validated, userId:', userId);
-        console.log('[/api/orders POST] Request body:', req.body);
+        console.log("[/api/orders POST] Auth validated, userId:", userId);
+        console.log("[/api/orders POST] Request body:", req.body);
       }
 
       const validatedData = insertOrderSchema.parse({
@@ -795,41 +915,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       const order = await storage.createOrder(validatedData);
-      
+
       if (DEBUG_LOGGING) {
-        console.log('[/api/orders POST] Order created:', order);
+        console.log("[/api/orders POST] Order created:", order);
       }
-      
+
       res.status(201).json(order);
     } catch (error: any) {
-      console.error('[/api/orders POST] Error:', error);
-      res.status(400).json({ 
-        message: "Invalid order data", 
-        error: error.errors || error.message || {} 
+      console.error("[/api/orders POST] Error:", error);
+      res.status(400).json({
+        message: "Invalid order data",
+        error: error.errors || error.message || {},
       });
     }
   });
 
-  // app.get("/api/orders", async (req: Request, res: Response) => {
-  //   try {
-  //     // Use session userId if authenticated; default to "1" if not (convert to string)
-  //       if (!req.session || !req.session.userId) {
-  //   return res.status(401).json({ message: "Unauthorized" });
-  // }
-  // const userId = req.session.userId.toString();
-  //     const orders = await storage.getOrdersByUserId(userId);
-  //     res.status(200).json(orders);
-  //   } catch (error) {
-  //     res.status(500).json({ message: "Failed to fetch orders", error });
-  //   }
-  // });
+  app.get("/api/orders", async (req: Request, res: Response) => {
+    try {
+      // Check authentication
+      if (!req.session || !req.session.userId) {
+        if (DEBUG_LOGGING) {
+          console.log("[/api/orders POST] No auth session:", {
+            hasSession: !!req.session,
+            sessionID: req.sessionID,
+          });
+        }
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      const userId = req.session.userId.toString();
+
+      if (DEBUG_LOGGING) {
+        console.log("[/api/orders GET] Auth validated, userId:", userId);
+        console.log("[/api/orders GET] Request body:", req.body);
+      }
+
+      // const validatedData = insertOrderSchema.parse({
+      //   ...req.body,
+      //   userId,
+      // });
+      const orders = await storage.getOrdersByUserId(userId);
+
+      if (DEBUG_LOGGING) {
+        console.log("[/api/orders POST] Order created:", orders);
+      }
+
+      res.status(201).json(orders);
+    } catch (error: any) {
+      console.error("[/api/orders POST] Error:", error);
+      res.status(400).json({
+        message: "Invalid order data",
+        error: error.errors || error.message || {},
+      });
+    }
+  });
 
   // PDF generation - no authentication required
   app.post("/api/pdf/generate", async (req: Request, res: Response) => {
     try {
-      const { title, pages } = req.body;
+      const { title, pages, coverUrl, backCoverUrl } = req.body;
 
-      const buffer = await generatePDF(title, pages);
+      const buffer = await generatePDF(title, pages, coverUrl, backCoverUrl);
 
       res.setHeader("Content-Type", "application/pdf");
       res.setHeader(

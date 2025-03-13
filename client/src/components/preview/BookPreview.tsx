@@ -10,17 +10,21 @@ interface Page {
   id: number;
   imageUrl: string;
   content: string;
+  isCover: boolean;
+  isBackCover: boolean;
 }
 
 interface BookPreviewProps {
   bookTitle: string;
+
   pages: Page[];
   onUpdatePage: (id: number, content: string) => void;
   onRegenerate: (id: number) => void;
-  onResetAll: () => void;
   onRegenerateAll: () => void;
   onDownload: () => void;
   onPrint: () => void;
+  onSave: () => void;
+  isDirty: boolean;
 }
 
 export function BookPreview({
@@ -28,10 +32,11 @@ export function BookPreview({
   pages,
   onUpdatePage,
   onRegenerate,
-  onResetAll,
   onRegenerateAll,
   onDownload,
   onPrint,
+  onSave,
+  isDirty,
 }: BookPreviewProps) {
   const [carouselIndex, setCarouselIndex] = useState(0);
   const [activePage, setActivePage] = useState(0);
@@ -55,9 +60,9 @@ export function BookPreview({
         title: "Preparing your book",
         description: "Your book is being prepared for download...",
       });
-      
+
       await onDownload();
-      
+
       toast({
         title: "Book ready!",
         description: "Your book has been downloaded successfully.",
@@ -65,7 +70,8 @@ export function BookPreview({
     } catch (error) {
       toast({
         title: "Download failed",
-        description: "There was a problem generating your book. Please try again.",
+        description:
+          "There was a problem generating your book. Please try again.",
         variant: "destructive",
       });
     }
@@ -78,18 +84,35 @@ export function BookPreview({
         <div>
           <h3 className="text-2xl font-heading font-bold">{bookTitle}</h3>
           <p className="text-text-secondary">
-            {pages.length} pages • Created on {new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+            {pages.length} pages • Created on{" "}
+            {new Date().toLocaleDateString("en-US", {
+              month: "long",
+              day: "numeric",
+              year: "numeric",
+            })}
           </p>
         </div>
         <div className="flex items-center space-x-4 mt-4 md:mt-0">
-          <button 
+          {/* <button
             className="flex items-center text-text-secondary hover:text-text-primary"
             onClick={onResetAll}
           >
             <i className="fas fa-undo mr-2"></i>
             <span>Reset All</span>
-          </button>
-          <button 
+          </button> */}
+
+          <Button
+            variant="default" // Ensures same look as Download button (red fill, etc.)
+            size="lg"
+            className="w-full md:w-auto flex items-center justify-center"
+            onClick={onSave}
+            disabled={!isDirty} // Button becomes clickable only if isDirty is true
+          >
+            <i className="fas fa-save mr-2"></i>
+            <span>Save</span>
+          </Button>
+
+          <button
             className="flex items-center text-text-secondary hover:text-text-primary"
             onClick={onRegenerateAll}
           >
@@ -98,11 +121,11 @@ export function BookPreview({
           </button>
         </div>
       </div>
-      
+
       {/* Book Preview */}
       <div className="relative">
         <div className="absolute left-0 top-1/2 transform -translate-y-1/2 z-10">
-          <button 
+          <button
             onClick={handlePrevCarousel}
             className="bg-white rounded-full p-3 shadow-md hover:bg-gray-50 disabled:opacity-50"
             disabled={carouselIndex === 0}
@@ -110,24 +133,28 @@ export function BookPreview({
             <i className="fas fa-chevron-left text-gray-600"></i>
           </button>
         </div>
-        
+
         <div className="carousel-container overflow-x-auto hide-scrollbar py-4">
           <div className="flex space-x-6 px-12">
             {pages.slice(carouselIndex, carouselIndex + 5).map((page) => (
-              <Card 
+              <Card
                 key={page.id}
                 className="book-preview-page flex-shrink-0 w-64 overflow-hidden hover:shadow-lg transition-all"
               >
                 <div className="relative">
-                  <img 
-                    src={page.imageUrl} 
-                    className="w-full h-40 object-cover" 
-                    alt={`Page ${page.id}`} 
+                  <img
+                    src={page.imageUrl}
+                    className="w-full h-40 object-cover"
+                    alt={`Page ${page.id}`}
                   />
                   <div className="absolute top-2 left-2 bg-white/80 rounded-full py-1 px-3 text-xs font-medium">
-                    {page.id === 1 ? "Page 1 - Cover" : `Page ${page.id}`}
+                    {page.isCover
+                      ? bookTitle
+                      : page.isBackCover
+                        ? ""
+                        : `Page ${page.id}`}
                   </div>
-                  <button 
+                  <button
                     className="absolute bottom-2 right-2 bg-white rounded-full p-1 shadow-sm hover:bg-gray-100"
                     onClick={() => onRegenerate(page.id)}
                   >
@@ -139,16 +166,18 @@ export function BookPreview({
                     rows={3}
                     className="w-full text-sm border border-gray-200 rounded-md p-2 focus:ring-primary focus:border-primary"
                     value={page.content}
-                    onChange={(e) => handleContentChange(page.id, e.target.value)}
+                    onChange={(e) =>
+                      handleContentChange(page.id, e.target.value)
+                    }
                   />
                 </div>
               </Card>
             ))}
           </div>
         </div>
-        
+
         <div className="absolute right-0 top-1/2 transform -translate-y-1/2 z-10">
-          <button 
+          <button
             onClick={handleNextCarousel}
             className="bg-white rounded-full p-3 shadow-md hover:bg-gray-50 disabled:opacity-50"
             disabled={carouselIndex >= pages.length - 4}
@@ -157,13 +186,13 @@ export function BookPreview({
           </button>
         </div>
       </div>
-      
+
       {/* Page Indicators */}
       <div className="flex justify-center mt-6 space-x-1">
         {pages.map((page, i) => (
-          <button 
+          <button
             key={page.id}
-            className={`h-2 w-2 rounded-full ${i === activePage ? 'bg-primary opacity-100' : 'bg-gray-300 opacity-60'}`}
+            className={`h-2 w-2 rounded-full ${i === activePage ? "bg-primary opacity-100" : "bg-gray-300 opacity-60"}`}
             onClick={() => {
               setActivePage(i);
               if (i < carouselIndex) {
@@ -175,11 +204,11 @@ export function BookPreview({
           />
         ))}
       </div>
-      
+
       {/* Download and Print Options */}
       <div className="flex flex-col md:flex-row justify-center items-center space-y-4 md:space-y-0 md:space-x-6 mt-12">
-        <Button 
-          variant="default" 
+        <Button
+          variant="default"
           size="lg"
           className="w-full md:w-auto flex items-center justify-center"
           onClick={handleDownload}
@@ -187,9 +216,9 @@ export function BookPreview({
           <i className="fas fa-download mr-2"></i>
           <span>Download PDF</span>
         </Button>
-        
-        <Button 
-          variant="outline" 
+
+        <Button
+          variant="outline"
           size="lg"
           className="w-full md:w-auto flex items-center justify-center border-2 border-primary text-primary"
           onClick={onPrint}

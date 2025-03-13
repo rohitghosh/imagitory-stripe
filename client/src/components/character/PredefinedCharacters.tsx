@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,6 +12,7 @@ interface PredefinedCharacter {
   gender: string;
   description: string;
   imageUrls: string[];
+  modelId?: string;
 }
 
 interface PredefinedCharactersProps {
@@ -23,6 +24,7 @@ interface PredefinedCharactersProps {
     imageUrls: string[];
     age: number;
     gender: string;
+    modelId?: string;
   }) => void;
 }
 
@@ -36,6 +38,8 @@ export function PredefinedCharacters({
   );
   const [customName, setCustomName] = useState("");
   const [carouselIndex, setCarouselIndex] = useState(0);
+  const [visibleCount, setVisibleCount] = useState(5);
+  const containerRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -59,6 +63,25 @@ export function PredefinedCharacters({
     }
     fetchCharacters();
   }, [toast]);
+
+  // Dynamically update the number of visible cards based on container width.
+  useEffect(() => {
+    const updateVisibleCount = () => {
+      if (containerRef.current) {
+        const width = containerRef.current.offsetWidth;
+        // Estimate each card's total width.
+        // In this example, w-48 corresponds to about 192px, plus an estimated 24px for the gap.
+        const cardTotalWidth = 192 + 24;
+        const count = Math.floor(width / cardTotalWidth) || 1;
+        // console.log("visiblecount", count);
+        setVisibleCount(count);
+      }
+    };
+
+    updateVisibleCount();
+    window.addEventListener("resize", updateVisibleCount);
+    return () => window.removeEventListener("resize", updateVisibleCount);
+  }, []);
 
   const handleSelectCharacter = (charId: string) => {
     setSelectedCharacter(charId);
@@ -84,6 +107,7 @@ export function PredefinedCharacters({
           imageUrls: character.imageUrls,
           age: character.age,
           gender: character.gender,
+          modelId: character.modelId,
         });
       }
     }
@@ -112,10 +136,13 @@ export function PredefinedCharacters({
           </button>
         </div>
 
-        <div className="carousel-container overflow-x-auto hide-scrollbar py-4">
+        <div
+          ref={containerRef}
+          className="carousel-container overflow-x-auto hide-scrollbar py-4"
+        >
           <div className="flex space-x-6 px-12">
             {characters
-              .slice(carouselIndex, carouselIndex + 4)
+              .slice(carouselIndex, carouselIndex + visibleCount)
               .map((character) => (
                 <Card
                   key={character.id}
@@ -129,6 +156,7 @@ export function PredefinedCharacters({
                 >
                   <div className="w-full h-48 overflow-hidden">
                     <img
+                      loading="lazy"
                       src={character.imageUrls[0]}
                       className="w-full h-full object-cover"
                       alt={character.name}
@@ -149,7 +177,7 @@ export function PredefinedCharacters({
           <button
             onClick={handleNextCarousel}
             className="bg-white rounded-full p-2 shadow-md hover:bg-gray-50 disabled:opacity-50"
-            disabled={carouselIndex >= characters.length - 3}
+            disabled={carouselIndex >= characters.length - visibleCount}
           >
             <i className="fas fa-chevron-right text-gray-600"></i>
           </button>

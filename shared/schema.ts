@@ -30,6 +30,7 @@ export const characters = pgTable("characters", {
   description: text("description"),
   imageUrls: text("image_urls").array(), // For custom characters
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  modelId: text("model_id"),
 });
 
 export const stories = pgTable("stories", {
@@ -50,6 +51,8 @@ export const books = pgTable("books", {
   characterId: text("character_id").notNull(),
   storyId: text("story_id").notNull(),
   title: text("title").notNull(),
+  coverUrl: text("coverUrl").notNull(),
+  backCoverUrl: text("backCoverUrl").notNull(),
   pages: jsonb("pages").notNull(), // Array of { imageUrl, content }
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

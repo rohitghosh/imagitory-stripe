@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
@@ -13,6 +14,46 @@ import { Character, Story, Order, Book } from "@shared/schema";
 export default function ProfilePage() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState("characters");
+  const [location] = useLocation();
+
+  // Update activeTab based on URL query parameter
+  useEffect(() => {
+    const queryString = location.split("?")[1];
+    if (queryString) {
+      const params = new URLSearchParams(queryString);
+      const tab = params.get("tab");
+      if (tab) {
+        setActiveTab(tab);
+      }
+    }
+  }, [location]);
+
+  const {
+    data: predefinedCharacters = [],
+    isLoading: loadingPredefinedCharacters,
+  } = useQuery({
+    queryKey: ["/api/characters", "predefined"],
+    queryFn: async () => {
+      try {
+        const response = await fetch("/api/characters?type=predefined", {
+          credentials: "include",
+        });
+        if (!response.ok) {
+          console.error(
+            "Failed to fetch predefined characters:",
+            response.statusText,
+          );
+          return [];
+        }
+        const data = await response.json();
+        return Array.isArray(data) ? data : [];
+      } catch (error) {
+        console.error("Error fetching predefined characters:", error);
+        return [];
+      }
+    },
+    enabled: !!user,
+  });
 
   // Query for custom characters only
   const { data: customCharacters = [], isLoading: loadingCustomCharacters } =
@@ -40,31 +81,33 @@ export default function ProfilePage() {
       enabled: !!user,
     }) as { data: Character[]; isLoading: boolean };
 
+  const allCharacters = [...customCharacters, ...predefinedCharacters];
+
   // Query for custom stories only
-  const { data: customStories = [], isLoading: loadingCustomStories } =
-    useQuery({
-      queryKey: ["/api/stories", "custom", user?.uid],
-      queryFn: async () => {
-        try {
-          const response = await fetch(
-            "/api/stories?type=custom&userId=" + user?.uid,
-            { credentials: "include" },
-          );
-          console.log("Stories API response:", response);
-          if (!response.ok) {
-            console.error("Failed to fetch stories:", response.statusText);
-            return [];
-          }
-          const data = await response.json();
-          console.log("Stories data received:", data);
-          return Array.isArray(data) ? data : [];
-        } catch (error) {
-          console.error("Error fetching stories:", error);
-          return [];
-        }
-      },
-      enabled: !!user,
-    }) as { data: Story[]; isLoading: boolean };
+  // const { data: customStories = [], isLoading: loadingCustomStories } =
+  //   useQuery({
+  //     queryKey: ["/api/stories", "custom", user?.uid],
+  //     queryFn: async () => {
+  //       try {
+  //         const response = await fetch(
+  //           "/api/stories?type=custom&userId=" + user?.uid,
+  //           { credentials: "include" },
+  //         );
+  //         console.log("Stories API response:", response);
+  //         if (!response.ok) {
+  //           console.error("Failed to fetch stories:", response.statusText);
+  //           return [];
+  //         }
+  //         const data = await response.json();
+  //         console.log("Stories data received:", data);
+  //         return Array.isArray(data) ? data : [];
+  //       } catch (error) {
+  //         console.error("Error fetching stories:", error);
+  //         return [];
+  //       }
+  //     },
+  //     enabled: !!user,
+  //   }) as { data: Story[]; isLoading: boolean };
 
   // Query for books (generated books)
   const { data: books = [], isLoading: loadingBooks } = useQuery({
@@ -142,9 +185,8 @@ export default function ProfilePage() {
             className="w-full"
           >
             {/* Changed grid-cols-3 to grid-cols-4 */}
-            <TabsList className="grid grid-cols-4 mb-8">
+            <TabsList className="grid grid-cols-3 mb-8">
               <TabsTrigger value="characters">My Custom Characters</TabsTrigger>
-              <TabsTrigger value="stories">My Custom Story Line</TabsTrigger>
               <TabsTrigger value="books">My Books</TabsTrigger>
               <TabsTrigger value="orders">My Orders</TabsTrigger>
             </TabsList>
@@ -170,45 +212,52 @@ export default function ProfilePage() {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {customCharacters.map((character) => (
-                    <Card key={character.id} className="overflow-hidden">
-                      <div className="aspect-square overflow-hidden">
-                        <img
-                          src={
-                            character.imageUrls &&
-                            character.imageUrls.length > 0
-                              ? character.imageUrls[0]
-                              : "https://via.placeholder.com/300"
-                          }
-                          alt={character.name}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                      <CardContent className="p-4">
-                        <h4 className="font-semibold text-lg mb-1">
-                          {character.name}
-                        </h4>
-                        <p className="text-sm text-gray-500 mb-2">
-                          {character.gender}, {character.age} years old
-                        </p>
-                        <Link href={`/create?character=${character.id}`}>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="w-full"
-                          >
-                            Create Story with {character.name}
-                          </Button>
-                        </Link>
-                      </CardContent>
-                    </Card>
-                  ))}
+                  {customCharacters
+                    .slice()
+                    .sort(
+                      (a, b) =>
+                        new Date(b.createdAt).getTime() -
+                        new Date(a.createdAt).getTime(),
+                    )
+                    .map((character) => (
+                      <Card key={character.id} className="overflow-hidden">
+                        <div className="aspect-square overflow-hidden">
+                          <img
+                            src={
+                              character.imageUrls &&
+                              character.imageUrls.length > 0
+                                ? character.imageUrls[0]
+                                : "https://via.placeholder.com/300"
+                            }
+                            alt={character.name}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                        <CardContent className="p-4">
+                          <h4 className="font-semibold text-lg mb-1">
+                            {character.name}
+                          </h4>
+                          <p className="text-sm text-gray-500 mb-2">
+                            {character.gender}, {character.age} years old
+                          </p>
+                          <Link href={`/create?character=${character.id}`}>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="w-full"
+                            >
+                              Create Story with {character.name}
+                            </Button>
+                          </Link>
+                        </CardContent>
+                      </Card>
+                    ))}
                 </div>
               )}
             </TabsContent>
 
             {/* Custom Stories Tab */}
-            <TabsContent value="stories">
+            {/* <TabsContent value="stories">
               <div className="mb-4 flex justify-between items-center">
                 <h3 className="text-xl font-semibold">My Custom Story Line</h3>
                 <Link href="/create">
@@ -257,7 +306,7 @@ export default function ProfilePage() {
                   ))}
                 </div>
               )}
-            </TabsContent>
+            </TabsContent> */}
 
             {/* Books Tab */}
             <TabsContent value="books">
@@ -279,31 +328,69 @@ export default function ProfilePage() {
                   </Link>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {books.map((book) => (
-                    <Card key={book.id} className="overflow-hidden">
-                      <CardContent className="p-4">
-                        <h4 className="font-semibold text-lg mb-1">
-                          {book.title}
-                        </h4>
-                        <p className="text-sm text-gray-500 mb-2">
-                          {new Date(book.createdAt).toLocaleDateString()}
-                        </p>
-                        {book.pages && Array.isArray(book.pages) && book.pages.length > 0 && (
-                          <img
-                            src={typeof book.pages[0] === 'object' && book.pages[0].imageUrl ? book.pages[0].imageUrl : ''}
-                            alt={book.title}
-                            className="w-full h-40 object-cover my-2 rounded"
-                          />
-                        )}
-                        <Link href={`/book/${book.id}`}>
-                          <Button variant="outline" size="sm">
-                            View Book
-                          </Button>
-                        </Link>
-                      </CardContent>
-                    </Card>
-                  ))}
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Cover
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Title
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Character
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Action
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {books
+                        .slice() // create a shallow copy
+                        .sort(
+                          (a, b) =>
+                            new Date(b.createdAt).getTime() -
+                            new Date(a.createdAt).getTime(),
+                        )
+                        .map((book) => (
+                          <tr key={book.id}>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              {book.coverUrl ? (
+                                <img
+                                  src={book.coverUrl}
+                                  alt={book.title}
+                                  className="w-16 h-16 object-cover rounded"
+                                />
+                              ) : (
+                                <span>No Cover</span>
+                              )}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              {book.title}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              {
+                                // Look up character name from the combined array.
+                                allCharacters.find(
+                                  (c) => c.id === book.characterId,
+                                )?.name ||
+                                  book.characterId ||
+                                  "N/A"
+                              }
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <Link href={`/book/${book.id}`}>
+                                <Button variant="outline" size="sm">
+                                  View Book
+                                </Button>
+                              </Link>
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </TabsContent>

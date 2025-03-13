@@ -66,7 +66,7 @@ const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: `${projectId}.firebaseapp.com`,
   projectId: projectId,
-  storageBucket: `${projectId}.appspot.com`,
+  storageBucket: `${projectId}.firebasestorage.app`,
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 

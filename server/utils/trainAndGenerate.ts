@@ -7,6 +7,7 @@ import { getStorage } from "firebase-admin/storage";
 import { v4 as uuidv4 } from "uuid";
 import path from "path";
 import { URL } from "url";
+import { title } from "process";
 const DEBUG_LOGGING = process.env.DEBUG_LOGGING === "true";
 
 /**
@@ -21,7 +22,7 @@ async function createZipBuffer(imageUrls: string[]): Promise<Buffer> {
     });
 
     const archive = archiver("zip", { zlib: { level: 9 } });
-    archive.on("error", (err) => {
+    archive.on("error", (err: any) => {
       if (DEBUG_LOGGING) console.error("[createZipBuffer] Archive error:", err);
       reject(err);
     });
@@ -89,43 +90,43 @@ export async function trainCustomModel(
     throw new Error("Number of image URLs and captions must match.");
   }
 
-  // // Create a zip buffer from the provided image URLs.
-  // if (DEBUG_LOGGING)
-  //   console.log("[trainCustomModel] Creating zip from image URLs...");
-  // const zipBuffer = await createZipBuffer(imageUrls);
+  // Create a zip buffer from the provided image URLs.
+  if (DEBUG_LOGGING)
+    console.log("[trainCustomModel] Creating zip from image URLs...");
+  const zipBuffer = await createZipBuffer(imageUrls);
 
-  // // Upload the zip file to Firebase Storage.
-  // const bucket = getStorage().bucket();
-  // const zipFilename = `${uuidv4()}.zip`;
-  // const fileUpload = bucket.file(zipFilename);
-  // await fileUpload.save(zipBuffer, {
-  //   metadata: {
-  //     contentType: "application/zip",
-  //   },
-  // });
-  // const zipUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(
-  //   zipFilename,
-  // )}?alt=media`;
-  // if (DEBUG_LOGGING) {
-  //   console.log("[trainCustomModel] Zip uploaded. Public URL:", zipUrl);
-  // }
+  // Upload the zip file to Firebase Storage.
+  const bucket = getStorage().bucket();
+  const zipFilename = `${uuidv4()}.zip`;
+  const fileUpload = bucket.file(zipFilename);
+  await fileUpload.save(zipBuffer, {
+    metadata: {
+      contentType: "application/zip",
+    },
+  });
+  const zipUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(
+    zipFilename,
+  )}?alt=media`;
+  if (DEBUG_LOGGING) {
+    console.log("[trainCustomModel] Zip uploaded. Public URL:", zipUrl);
+  }
 
-  // // Build the payload per fal.ai API; note that image_urls is now a single string (zipUrl)
-  // const input = {
-  //   images_data_url: zipUrl, // Pass the zip file URL
-  //   captions, // Still pass the captions array as required (if API expects it)
-  //   custom_token: "<kidStyle>",
-  //   model_name: modelName,
-  //   fast_training: true,
-  //   steps: 5,
-  //   create_masks: true,
-  // };
-  // if (DEBUG_LOGGING) {
-  //   console.log(
-  //     "[trainCustomModel] Training input payload:",
-  //     JSON.stringify(input, null, 2),
-  //   );
-  // }
+  // Build the payload per fal.ai API; note that image_urls is now a single string (zipUrl)
+  const input = {
+    images_data_url: zipUrl, // Pass the zip file URL
+    captions, // Still pass the captions array as required (if API expects it)
+    custom_token: "<kidStyle>",
+    model_name: modelName,
+    fast_training: true,
+    steps: 5,
+    create_masks: true,
+  };
+  if (DEBUG_LOGGING) {
+    console.log(
+      "[trainCustomModel] Training input payload:",
+      JSON.stringify(input, null, 2),
+    );
+  }
 
   // const result = await fal.subscribe("fal-ai/flux-lora-fast-training", {
   //   input,
@@ -162,6 +163,57 @@ export async function trainCustomModel(
 /**
  * Generate a single image using fal.ai and the custom-trained model.
  */
+
+export async function generateCoverImage(
+  prompt: string,
+  modelId: string,
+): Promise<string> {
+  if (DEBUG_LOGGING)
+    console.log(
+      "[generateCoverImage] Generating cover image with prompt:",
+      prompt,
+      "using lora path:",
+      modelId,
+    );
+
+  const payload = {
+    loras: [
+      {
+        path: modelId,
+        scale: 1,
+      },
+    ],
+    prompt, // Use a prompt designed specifically for a cover image.
+    embeddings: [],
+    model_name: null,
+    enable_safety_checker: true,
+  };
+  if (DEBUG_LOGGING)
+    console.log(
+      "[generateCoverImage] Payload:",
+      JSON.stringify(payload, null, 2),
+    );
+
+  const result = await fal.subscribe("fal-ai/flux-lora", {
+    input: payload,
+    logs: true,
+    onQueueUpdate: (update) => {
+      if (update.status === "IN_PROGRESS") {
+        update.logs.map((log) =>
+          console.log("[generateCoverImage] Queue update:", log.message),
+        );
+      }
+    },
+  });
+  if (DEBUG_LOGGING)
+    console.log("[generateCoverImage] Generation result data:", result.data);
+
+  if (result.data && result.data.images && result.data.images.length > 0) {
+    return result.data.images[0].url;
+  } else {
+    throw new Error("No cover image returned from generation");
+  }
+}
 
 export async function generateImage(
   prompt: string,
@@ -222,7 +274,7 @@ export async function generateScenePromptsLLM(
   basePrompt: string,
   moral: string,
 ): Promise<string[]> {
-  const llmPrompt = `Generate a numbered list of 10 creative, one-sentence scene descriptions for a story about ${kidName} based on this prompt: "${basePrompt}". The story should clearly convey the moral: "${moral}".`;
+  const llmPrompt = `Generate a numbered list of 9 creative, one-sentence scene descriptions for a story where the hero is ${kidName} based on the storyline: "${basePrompt}". The story should clearly convey the moral: "${moral}". Story should ideally follow story arc format as defined in the instructions as closely possible`;
   if (DEBUG_LOGGING) {
     console.log("[generateScenePromptsLLM] LLM Prompt:", llmPrompt);
   }
@@ -239,7 +291,7 @@ export async function generateScenePromptsLLM(
         {
           role: "system",
           content:
-            "You are a creative assistant that helps generate engaging scene descriptions for children's stories.",
+            "You are a creative storywriter that helps generate engaging scene descriptions for children's stories. You know the arc of stories that involve the Pixar story arc of (Once upon a time... Every day.. One day… Because of that… Until finally…) of a hero winning against some challenges and learning something",
         },
         { role: "user", content: llmPrompt },
       ],
@@ -262,7 +314,7 @@ export async function generateScenePromptsLLM(
   // Split the text into individual scene prompts. Adjust the splitting logic if needed.
   const scenes = content
     .split("\n")
-    .map((line: string) => line.trim())
+    .map((line: string) => line.trim().replace(/^\d+\.\s*/, ""))
     .filter((line: string) => line.length > 0);
   if (DEBUG_LOGGING) {
     console.log("[generateScenePromptsLLM] Generated scene prompts:", scenes);
@@ -287,32 +339,51 @@ export async function generateStoryImages(
   kidName: string,
   baseStoryPrompt: string,
   moral: string,
-): Promise<{ images: string[]; sceneTexts: string[] }> {
+  title: string,
+): Promise<{
+  images: string[];
+  sceneTexts: string[];
+  coverUrl: string;
+  backCoverUrl: string;
+}> {
   if (DEBUG_LOGGING) {
     console.log("[generateStoryImages] Starting story generation for:", {
       kidName,
       baseStoryPrompt,
       moral,
+      title,
     });
   }
-  //   const scenePrompts = await generateScenePromptsLLM(
-  //     kidName,
-  //     baseStoryPrompt,
-  //     moral,
+  const scenePrompts = await generateScenePromptsLLM(
+    kidName,
+    baseStoryPrompt,
+    moral,
+  );
+  if (scenePrompts.length < 9) {
+    throw new Error("LLM did not return enough scene prompts.");
+  }
+  // if (DEBUG_LOGGING)
+  //   console.log("[generateStoryImages] Final scene prompts:", scenePrompts);
+  // const imagePromises = scenePrompts.map(async (scene) => {
+  //   const fullPrompt = createImagePrompt(scene);
+  //   return await generateImage(fullPrompt, modelId);
+  // });
+  // const images = await Promise.all(imagePromises);
+  // if (DEBUG_LOGGING)
+  //   console.log("[generateStoryImages] Generated images:", images);
+
+  const coverPrompt = `<kidStyle> A captivating cover photo for the showing the title: ${title} It should clearly display the text ${title} on top of the photo in a bold and colourful font. It should also include a photo of the character ${kidName}`;
+  // const backcoverPrompt = `<kidStyle> A generic minimal portrait back cover photo for the story of ${kidName}}`;
+  const coverUrl = await generateCoverImage(coverPrompt, modelId);
+  // const backCoverUrl = await generateCoverImage(backcoverPrompt, modelId);
+  // if (DEBUG_LOGGING) {
+  //   console.log(
+  //     "[generateStoryImages] Generated cover image:",
+  //     coverUrl,
+  //     backCoverUrl,
   //   );
-  //   if (scenePrompts.length < 10) {
-  //     throw new Error("LLM did not return enough scene prompts.");
-  //   }
-  //   if (DEBUG_LOGGING)
-  //     console.log("[generateStoryImages] Final scene prompts:", scenePrompts);
-  //   const imagePromises = scenePrompts.map(async (scene) => {
-  //     const fullPrompt = createImagePrompt(scene);
-  //     return await generateImage(fullPrompt, modelId);
-  //   });
-  //   const images = await Promise.all(imagePromises);
-  //   if (DEBUG_LOGGING)
-  //     console.log("[generateStoryImages] Generated images:", images);
-  //   return { images, sceneTexts: scenePrompts };
+  // }
+  // // return { images, sceneTexts: scenePrompts, coverUrl, backCoverUrl };
   const images = [
     "https://v3.fal.media/files/lion/BYulTnmCMtjoCWVxUo7xT_e6e032ba64ec4b39b11ce0449a6b7349.jpg",
     "https://v3.fal.media/files/tiger/J5lzVpM_BqVbIhbUz2Hne_fe22e58aff3d4162af677c24bcd9bf1d.jpg",
@@ -323,19 +394,22 @@ export async function generateStoryImages(
     "https://v3.fal.media/files/lion/aDjdirA6IgoHqcIriUbZQ_aad543a4bd78401fb2ada69bb5decae6.jpg",
     "https://v3.fal.media/files/kangaroo/-G8vLjMeKkosA1KoAfgAN_e114abaa9b1e43ccbcc62771f2c8a8da.jpg",
     "https://v3.fal.media/files/tiger/8cqtxgKY_pEr7N--wddiH_d44b2b548ba84d049d6280e9367d970c.jpg",
-    "https://v3.fal.media/files/penguin/7kHX_XxdYG8-qi94ChSyg_74127af0e7ee4e97ad8d80fbb556a5bf.jpg",
   ];
-  const sceneTexts = [
-    "1. As Adventure Alex entered the village, he spotted a dragon with colorful scales and a big smile, eagerly greeting everyone.",
-    "2. The dragon, named Spark, playfully chased after children, blowing bubbles from his nostrils as they giggled and ran around him.",
-    "3. Despite their initial fear, the villagers soon realized that Spark was gentle and kind, just looking for companionship.",
-    "4. Spark led Adventure Alex to a hidden cave filled with sparkling crystals, where he liked to spend his time painting colorful murals on the walls.",
-    "5. Curious village cats and dogs approached Spark tentatively, only to end up curling around his massive paws, enjoying his warmth.",
-    "6. One day, a mischievous goblin tried to stir up trouble by spreading rumors about Spark being a dangerous monster, but the villagers defended their new friend.",
-    "7. Adventure Alex and Spark went on a quest together, traversing lush forests and crossing bubbling streams, forming an unbreakable bond along the way.",
-    "8. When a sudden storm hit the village, it was Spark who shielded the villagers with his massive wings, proving his loyalty and bravery.",
-    "9. As the sun set on the horizon, the villagers gathered around a bonfire, sharing stories and laughter with Spark, grateful for the lesson they had learned.",
-    "10. The next time a stranger arrived in the village, the villagers welcomed them with open arms, remembering not to judge by appearances but to seek the kindness within.",
-  ];
-  return { images, sceneTexts };
+  // const scenePrompts = [
+  //   "1. As Adventure Alex entered the village, he spotted a dragon with colorful scales and a big smile, eagerly greeting everyone.",
+  //   "2. The dragon, named Spark, playfully chased after children, blowing bubbles from his nostrils as they giggled and ran around him.",
+  //   "3. Despite their initial fear, the villagers soon realized that Spark was gentle and kind, just looking for companionship.",
+  //   "4. Spark led Adventure Alex to a hidden cave filled with sparkling crystals, where he liked to spend his time painting colorful murals on the walls.",
+  //   "5. Curious village cats and dogs approached Spark tentatively, only to end up curling around his massive paws, enjoying his warmth.",
+  //   "6. One day, a mischievous goblin tried to stir up trouble by spreading rumors about Spark being a dangerous monster, but the villagers defended their new friend.",
+  //   "7. Adventure Alex and Spark went on a quest together, traversing lush forests and crossing bubbling streams, forming an unbreakable bond along the way.",
+  //   "8. When a sudden storm hit the village, it was Spark who shielded the villagers with his massive wings, proving his loyalty and bravery.",
+  //   "9. As the sun set on the horizon, the villagers gathered around a bonfire, sharing stories and laughter with Spark, grateful for the lesson they had learned.",
+  //   "10. The next time a stranger arrived in the village, the villagers welcomed them with open arms, remembering not to judge by appearances but to seek the kindness within.",
+  // ];
+  const backCoverUrl =
+    "https://v3.fal.media/files/koala/PtOeBiekDUU8eJ-z9cjFZ_d1a6e15d77464e5291b4bf6d7cf4424b.jpg";
+  // const coverUrl =
+  //   "https://v3.fal.media/files/zebra/Ut7N9_NMY_xuRk1JddLog_006730264e5b40e784b80c543558d601.jpg";
+  return { images, sceneTexts: scenePrompts, coverUrl, backCoverUrl };
 }

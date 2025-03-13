@@ -85,7 +85,7 @@ export function CustomStory({ onSubmit }: CustomStoryProps) {
       ...values,
       elements: selectedElements,
       type: "custom",
-      moral: "", // if you want to store a moral field, set it here (empty for now)
+      moral: selectedElements.join(", "),
     };
     try {
       const createdStory = await apiRequest("POST", "/api/stories", payload);

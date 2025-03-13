@@ -1,293 +1,220 @@
-import { useState } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { z } from "zod";
+import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient"; // [ADDED]
-import { useAuth } from "@/contexts/AuthContext"; // [ADDED]
+import { apiRequest } from "@/lib/queryClient";
+import { cn } from "@/lib/utils";
+import { CustomCharacterForm } from "./CustomCharacterForm";
 
-// Form schema
-const formSchema = z.object({
-  name: z.string().min(1, "Name is required"),
-  age: z.coerce
-    .number()
-    .min(1, "Age must be at least 1")
-    .max(15, "Age must be at most 15"),
-  gender: z.enum(["boy", "girl", "other"], {
-    required_error: "Please select a gender",
-  }),
-});
-
-interface CustomCharacterProps {
-  onSubmit: (character: {
-    id: string;
-    name: string;
-    age: number;
-    gender: string;
-    type: "custom";
-    imageUrls: string[];
-  }) => void;
-}
-
-export function CustomCharacter({ onSubmit }: CustomCharacterProps) {
-  const [uploadedImages, setUploadedImages] = useState<string[]>([]);
+interface CustomCharactersProps {
+   onSubmit: (character: {
+      id: string;
+      name: string;
+      age: number;
+      gender: string;
+      imageUrls: string[];
+      type: string;
+      modelId?: string;
+    }) => void;
+  }
+export function CustomCharacter({ onSubmit }: CustomCharactersProps) {
+  const { user } = useAuth();
   const { toast } = useToast();
-  const { user } = useAuth(); // to include current user's uid
 
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      name: "",
-      age: 5,
-      gender: "boy",
-    },
-  });
+  const [characters, setCharacters] = useState<any[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files) return;
-    if (uploadedImages.length + files.length > 10) {
+  // Whether to show the form below the carousel
+  const [showForm, setShowForm] = useState<boolean>(false);
+
+  // Track the currently selected character
+  const [selectedCharacterId, setSelectedCharacterId] = useState<string | null>(
+    null,
+  );
+
+  // Carousel navigation
+  const [carouselIndex, setCarouselIndex] = useState<number>(0);
+
+  // Fetch existing custom characters for this user
+  useEffect(() => {
+    if (!user) return;
+    setLoading(true);
+    apiRequest("GET", `/api/characters?type=custom&userId=${user.uid}`)
+      .then((data) => {
+        setCharacters(Array.isArray(data) ? data : []);
+      })
+      .catch(() => {
+        toast({
+          title: "Error",
+          description: "Failed to load custom characters.",
+          variant: "destructive",
+        });
+      })
+      .finally(() => setLoading(false));
+  }, [user, toast]);
+
+  // When the user successfully creates a new character via the form
+  const handleFormSubmit = (newCharacter: any) => {
+    // Add it to the local list
+    setCharacters((prev) => [...prev, newCharacter]);
+    // Select the newly created character
+    setSelectedCharacterId(newCharacter.id);
+    // Hide the form
+    setShowForm(false);
+  };
+
+  // Cancel form creation
+  const handleCancelForm = () => {
+    setShowForm(false);
+  };
+
+  // User clicks an existing character in the carousel
+  const handleSelectCharacter = (charId: string) => {
+    setSelectedCharacterId(charId);
+    // Hide the form if it was open
+    setShowForm(false);
+  };
+
+  // "Add Character" card in the carousel
+  const handleAddCharacterClick = () => {
+    setShowForm(true);
+    // You could also reset selectedCharacterId if you want
+    // setSelectedCharacterId(null);
+  };
+
+  // Continue to the next step (e.g. story selection)
+  const handleNextClick = () => {
+    if (!selectedCharacterId) {
       toast({
-        title: "Maximum images reached",
-        description: "You can upload a maximum of 10 images",
+        title: "No character selected",
+        description: "Please choose or create a character first.",
         variant: "destructive",
       });
       return;
     }
-    const newImages = Array.from(files).map((file) => {
-      const imageSource = URL.createObjectURL(file);
-      return imageSource;
-    });
-    setUploadedImages([...uploadedImages, ...newImages]);
-  };
-
-  const removeImage = (index: number) => {
-    setUploadedImages(uploadedImages.filter((_, i) => i !== index));
-  };
-
-  // When the form is submitted, we send the character to the API and then pass the returned character (with its id) to onSubmit.
-  const handleSubmitForm = async (values: z.infer<typeof formSchema>) => {
-    if (uploadedImages.length === 0) {
-      toast({
-        title: "Images required",
-        description: "Please upload at least one image of your character",
-        variant: "destructive",
-      });
-      return;
-    }
-    const payload = {
-      ...values,
-      type: "custom",
-      imageUrls: uploadedImages,
-      userId: user?.uid, // persist under user's account
-    };
-    try {
-      const createdCharacter = await apiRequest(
-        "POST",
-        "/api/characters",
-        payload,
-      );
-      // onSubmit returns an object with the created character details, including its generated id,
-      // in the same shape as predefinedCharacter sends.
-      onSubmit(createdCharacter);
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to create custom character.",
-        variant: "destructive",
-      });
+    const selectedCharacter = characters.find(
+      (c) => c.id === selectedCharacterId,
+    );
+    if (selectedCharacter) {
+      onSubmit(selectedCharacter);
     }
   };
+
+  // Carousel arrows
+  const handlePrevCarousel = () => {
+    setCarouselIndex(Math.max(0, carouselIndex - 1));
+  };
+  const handleNextCarousel = () => {
+    setCarouselIndex(Math.min(characters.length - 2, carouselIndex + 1));
+  };
+
+  if (loading) {
+    return <div>Loading custom characters...</div>;
+  }
 
   return (
     <div className="mb-8">
-      <Card className="max-w-2xl mx-auto minimal-card">
-        <CardContent className="p-6">
-          <h3 className="text-xl font-heading font-bold mb-4">
-            Create Your Custom Character
-          </h3>
+      {/* Carousel Container */}
+      <div className="relative px-8">
+        {/* Left arrow */}
+        <div className="absolute left-0 top-1/2 transform -translate-y-1/2 z-10">
+          <button
+            onClick={handlePrevCarousel}
+            className="bg-white rounded-full p-2 shadow-md hover:bg-gray-50 disabled:opacity-50"
+            disabled={carouselIndex === 0}
+          >
+            <i className="fas fa-chevron-left text-gray-600"></i>
+          </button>
+        </div>
 
-          <Form {...form}>
-            <form
-              onSubmit={form.handleSubmit(handleSubmitForm)}
-              className="space-y-6"
+        {/* Carousel with "Add Character" + existing characters */}
+        <div className="carousel-container overflow-x-auto hide-scrollbar py-4">
+          <div className="flex space-x-6 px-12">
+            {/* Add Character card */}
+            <Card
+              className="flex-shrink-0 w-48 overflow-hidden hover:shadow-lg transition-all cursor-pointer border-2 border-dashed border-gray-300"
+              onClick={handleAddCharacterClick}
             >
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Character Name</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="Enter character name"
-                          className="minimal-input"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
+              <CardContent className="h-48 flex items-center justify-center">
+                <div className="text-center text-gray-600">
+                  <i className="fas fa-plus mb-2 text-xl"></i>
+                  <p>Add Character</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Existing characters */}
+            {characters.slice(carouselIndex, carouselIndex + 3).map((char) => {
+              const isSelected = char.id === selectedCharacterId;
+              return (
+                <Card
+                  key={char.id}
+                  className={cn(
+                    "flex-shrink-0 w-48 overflow-hidden transition-all cursor-pointer relative",
+                    isSelected
+                      ? "border-2 border-primary"
+                      : "border border-transparent hover:border-gray-200",
                   )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="age"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Age</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          placeholder="Enter age"
-                          min={1}
-                          max={15}
-                          className="minimal-input"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <FormField
-                control={form.control}
-                name="gender"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Gender</FormLabel>
-                    <FormControl>
-                      <RadioGroup
-                        onValueChange={field.onChange}
-                        defaultValue={field.value}
-                        className="flex space-x-4"
-                      >
-                        <FormItem className="flex items-center space-x-2">
-                          <FormControl>
-                            <RadioGroupItem value="boy" />
-                          </FormControl>
-                          <FormLabel className="font-normal">Boy</FormLabel>
-                        </FormItem>
-                        <FormItem className="flex items-center space-x-2">
-                          <FormControl>
-                            <RadioGroupItem value="girl" />
-                          </FormControl>
-                          <FormLabel className="font-normal">Girl</FormLabel>
-                        </FormItem>
-                        <FormItem className="flex items-center space-x-2">
-                          <FormControl>
-                            <RadioGroupItem value="other" />
-                          </FormControl>
-                          <FormLabel className="font-normal">Other</FormLabel>
-                        </FormItem>
-                      </RadioGroup>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <div>
-                <FormLabel className="block mb-1">
-                  Upload Photos (up to 10)
-                </FormLabel>
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-                  <div className="space-y-2">
-                    <div className="flex justify-center">
-                      <i className="fas fa-cloud-upload-alt text-4xl text-gray-400"></i>
-                    </div>
-                    <div className="text-sm text-gray-500">
-                      <label
-                        htmlFor="file-upload"
-                        className="relative cursor-pointer bg-white rounded-md font-medium text-primary hover:text-primary/90"
-                      >
-                        <span>Upload photos</span>
-                        <input
-                          id="file-upload"
-                          name="file-upload"
-                          type="file"
-                          className="sr-only"
-                          multiple
-                          accept="image/*"
-                          onChange={handleImageUpload}
-                        />
-                      </label>
-                      <p>or drag and drop</p>
-                    </div>
-                    <p className="text-xs text-gray-500">
-                      PNG, JPG, GIF up to 5MB
-                    </p>
+                  onClick={() => handleSelectCharacter(char.id)}
+                >
+                  <div className="w-full h-48 overflow-hidden">
+                    <img
+                      src={
+                        char.imageUrls && char.imageUrls.length
+                          ? char.imageUrls[0]
+                          : "https://via.placeholder.com/300"
+                      }
+                      alt={char.name}
+                      className="w-full h-full object-cover"
+                    />
                   </div>
-                </div>
-              </div>
-
-              {uploadedImages.length > 0 && (
-                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
-                  {uploadedImages.map((image, index) => (
-                    <div
-                      key={index}
-                      className="relative h-24 bg-gray-100 rounded-md overflow-hidden"
-                    >
-                      <img
-                        src={image}
-                        className="w-full h-full object-cover"
-                        alt={`Uploaded photo ${index + 1}`}
-                      />
-                      <button
-                        type="button"
-                        className="absolute top-1 right-1 bg-white rounded-full p-1 shadow-sm"
-                        onClick={() => removeImage(index)}
-                      >
-                        <i className="fas fa-times text-xs text-gray-500"></i>
-                      </button>
-                    </div>
-                  ))}
-                  {uploadedImages.length < 10 && (
-                    <div className="h-24 border-2 border-dashed border-gray-300 rounded-md flex items-center justify-center">
-                      <label
-                        htmlFor="add-more-photos"
-                        className="cursor-pointer w-full h-full flex items-center justify-center"
-                      >
-                        <i className="fas fa-plus text-gray-400"></i>
-                        <input
-                          id="add-more-photos"
-                          type="file"
-                          className="sr-only"
-                          multiple
-                          accept="image/*"
-                          onChange={handleImageUpload}
-                        />
-                      </label>
+                  <CardContent className="p-4">
+                    <h4 className="font-semibold text-lg">{char.name}</h4>
+                  </CardContent>
+                  {isSelected && (
+                    <div className="absolute top-2 right-2 bg-primary text-white rounded-full p-1">
+                      <i className="fas fa-check"></i>
                     </div>
                   )}
-                </div>
-              )}
+                </Card>
+              );
+            })}
+          </div>
+        </div>
 
-              <Button
-                type="submit"
-                className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-3 px-8 rounded-md shadow-sm hover:shadow-md transition-all"
-              >
-                Continue to Story Selection
-              </Button>
-            </form>
-          </Form>
-        </CardContent>
-      </Card>
+        {/* Right arrow */}
+        <div className="absolute right-0 top-1/2 transform -translate-y-1/2 z-10">
+          <button
+            onClick={handleNextCarousel}
+            className="bg-white rounded-full p-2 shadow-md hover:bg-gray-50 disabled:opacity-50"
+            disabled={carouselIndex >= characters.length - 2}
+          >
+            <i className="fas fa-chevron-right text-gray-600"></i>
+          </button>
+        </div>
+      </div>
+
+      {/* If "Add Character" was clicked, show the form below the carousel */}
+      {showForm && (
+        <div className="mt-8">
+          <CustomCharacterForm
+            onSubmit={handleFormSubmit}
+            onCancel={handleCancelForm}
+          />
+        </div>
+      )}
+
+      {/* "Continue" button at the bottom */}
+      <div className="flex justify-center mt-8">
+        <Button
+          variant="default"
+          className="bg-primary text-white px-6 py-3 rounded-full"
+          onClick={handleNextClick}
+        >
+          Continue to Story Selection
+        </Button>
+      </div>
     </div>
   );
 }

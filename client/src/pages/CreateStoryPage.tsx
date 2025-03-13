@@ -52,6 +52,8 @@ export default function CreateStoryPage() {
   // Data for training / generation
   const [modelId, setModelId] = useState("");
   const [kidName, setKidName] = useState("");
+  const [coverUrl, setCoverUrl] = useState("");
+  const [backCoverUrl, setBackCoverUrl] = useState("");
   const [baseStoryPrompt, setBaseStoryPrompt] = useState("");
   const [moral, setMoral] = useState("");
   const [loading, setLoading] = useState(false);
@@ -60,6 +62,7 @@ export default function CreateStoryPage() {
   const { toast } = useToast();
   const [, navigate] = useLocation();
   const [bookId, setBookId] = useState<number | null>(null);
+  const [isDirty, setIsDirty] = useState(false);
 
   // Logging helper
   const log = (...args: any[]) => {
@@ -80,6 +83,8 @@ export default function CreateStoryPage() {
       modelId &&
       baseStoryPrompt &&
       moral &&
+      selecetedCharacter &&
+      selectedStory &&
       !storyResult
     ) {
       // Model training is complete and all data is available.
@@ -89,7 +94,13 @@ export default function CreateStoryPage() {
         baseStoryPrompt,
         moral,
       });
-      handleGenerateStoryWithData(kidName, modelId, baseStoryPrompt, moral)
+      handleGenerateStoryWithData(
+        kidName,
+        modelId,
+        baseStoryPrompt,
+        moral,
+        currentBookTitle: `${selecetedCharacter.name} and ${selectedStory.title}`,
+      )
         .then(() => setGeneratingStory(false))
         .catch((err) => {
           setGeneratingStory(false);
@@ -108,35 +119,16 @@ export default function CreateStoryPage() {
     setCurrentStep(2);
   };
 
-  // STEP 2: When a story is selected, start story generation asynchronously
-  // and move to Step 3 immediately.
-  // const handleSelectStory = (story: any) => {
-  //   log("Story selected:", story);
-  //   setSelectedStory(story);
-  //   // Use instructions if available; otherwise, fall back to description.
-  //   const prompt = story.instructions || story.description || "";
-  //   const moralValue = story.moral || "";
-  //   // Set state for consistency if you need it later.
-  //   setBaseStoryPrompt(prompt);
-  //   setMoral(moralValue);
-  //   // Mark generation as in progress.
-  //   setGeneratingStory(true);
-  //   // Call a helper that uses these values directly.
-  //   handleGenerateStoryWithData(kidName, modelId, prompt, moralValue)
-  //     .then(() => setGeneratingStory(false))
-  //     .catch((err) => {
-  //       setGeneratingStory(false);
-  //       log("Error in generateStoryWithData:", err);
-  //     });
-  //   setCurrentStep(3);
-  // };
-
   const handleSelectStory = (story: any) => {
     log("Story selected:", story);
     setSelectedStory(story);
     // Use instructions if available; if not, fallback to description.
     const prompt = story.instructions || story.description || "";
-    const moralValue = story.moral || "";
+    const moralValue =
+      story.moral ||
+      (story.elements && story.elements.length > 0
+        ? story.elements.join(", ")
+        : "");
     setBaseStoryPrompt(prompt);
     setMoral(moralValue);
     setGeneratingStory(true);
@@ -148,12 +140,14 @@ export default function CreateStoryPage() {
     modelId: string,
     prompt: string,
     moralValue: string,
+    currentBookTitle: string,
   ) => {
     log("handleGenerateStoryWithData triggered", {
       kidName,
       modelId,
       prompt,
       moralValue,
+      currentBookTitle,
     });
 
     try {
@@ -170,7 +164,7 @@ export default function CreateStoryPage() {
     }
 
     // Validate necessary data before proceeding
-    if (!kidName || !modelId || !prompt || !moralValue) {
+    if (!kidName || !modelId || !prompt || !moralValue || !currentBookTitle) {
       toast({
         title: "Incomplete Data",
         description: "Missing kid name, modelId, prompt, or moral.",
@@ -181,6 +175,7 @@ export default function CreateStoryPage() {
         modelId,
         prompt,
         moralValue,
+        currentBookTitle,
       });
       return;
     }
@@ -190,6 +185,7 @@ export default function CreateStoryPage() {
       modelId,
       baseStoryPrompt: prompt,
       moral: moralValue,
+      title: currentBookTitle,
     };
 
     try {
@@ -205,6 +201,8 @@ export default function CreateStoryPage() {
 
       log("handleGenerateStoryWithData: Response received:", data);
       setStoryResult(data);
+      setCoverUrl(data.coverUrl);
+      setBackCoverUrl(data.backCoverUrl);
 
       // Immediately save the generated story as a book
       if (user) {
@@ -219,6 +217,8 @@ export default function CreateStoryPage() {
               ? `${selectedCharacter.name} and ${selectedStory.title}`
               : "Your Story",
           pages: pagesCombined, // Use the combined array here
+          coverUrl: data.coverUrl,
+          backCoverUrl: data.backCoverUrl,
           createdAt: new Date().toISOString(),
           userId: String(user.uid), // Convert numeric user.id to string
           userName: user.displayName,
@@ -259,6 +259,20 @@ export default function CreateStoryPage() {
 
   // Trigger model training using the provided character data.
   const handleTrainModel = async (character: any) => {
+    console.log("handleTrainModel triggered", character);
+    if (character.modelId) {
+      setModelId(character.modelId);
+      toast({
+        title: "Model already trained",
+        description: "Using the existing trained model for this character.",
+      });
+      return;
+    } else {
+      toast({
+        title: "Model not there",
+        description: "Training a new model for your character.",
+      });
+    }
     if (
       !character ||
       !character.imageUrls ||
@@ -289,6 +303,9 @@ export default function CreateStoryPage() {
       const data = await response.json();
       log("handleTrainModel: Training response received:", data);
       setModelId(data.modelId);
+      await apiRequest("PUT", `/api/characters/${character.id}`, {
+        modelId: data.modelId,
+      });
       toast({
         title: "Model Training Complete",
         description: "Your custom model is ready to generate your story!",
@@ -327,11 +344,30 @@ export default function CreateStoryPage() {
           ? `${selectedCharacter.name} and ${selectedStory.title}`
           : "Your Story";
       setBookTitle(title);
-      const pages = storyResult.pages.map((url: string, index: number) => ({
-        id: index + 1,
-        imageUrl: url,
-        content: storyResult.sceneTexts[index] || "",
-      }));
+      // Map the generated story pages (shift indices by 1 for cover)
+      const generatedPages = storyResult.pages.map(
+        (url: string, index: number) => ({
+          id: index + 2, // starting from 2 because 1 is reserved for cover
+          imageUrl: url,
+          content: storyResult.sceneTexts[index] || "",
+        }),
+      );
+      const pages = [
+        {
+          id: 1,
+          imageUrl: storyResult.coverUrl, // cover image
+          content: title, // show the title as text on the cover
+          isCover: true, // flag to help rendering
+        },
+        ...generatedPages,
+        {
+          id: generatedPages.length + 2, // last page id
+          imageUrl: storyResult.backCoverUrl, // back cover image
+          content: "", // blank text for back cover
+          isBackCover: true, // flag for rendering back cover
+        },
+      ];
+
       setBookPages(pages);
       log("useEffect: Updated bookTitle and bookPages:", { title, pages });
     }
@@ -343,36 +379,154 @@ export default function CreateStoryPage() {
     setBookPages((pages) =>
       pages.map((page) => (page.id === id ? { ...page, content } : page)),
     );
+    setIsDirty(true);
   };
 
-  const handleRegenerate = (id: number) => {
-    log("handleRegenerate: Regenerating image for page", id);
-    toast({
-      title: "Regenerating image",
-      description: `Regenerating image for page ${id}...`,
-    });
-  };
+  const handleRegenerate = async (pageId: number) => {
+    // Find the page in the current bookPages state.
+    const page = bookPages.find((p) => p.id === pageId);
+    if (!page) {
+      log("handleRegenerate: Page not found", pageId);
+      return;
+    }
 
-  const handleResetAll = () => {
-    if (storyResult) {
-      const title = storyResult.sceneTexts[0];
-      setBookTitle(title);
-      const pages = storyResult.pages.map((url: string, index: number) => ({
-        id: index + 1,
-        imageUrl: url,
-        content: storyResult.sceneTexts[index] || "",
-      }));
-      setBookPages(pages);
-      log("handleResetAll: Reset pages to initial storyResult");
+    let payload = { modelId, prompt: "", isCover: false };
+
+    if (page.isCover || page.isBackCover) {
+      // Use the edited title from the first page content if available.
+      const currentTitle = bookPages[0]?.content || bookTitle;
+      payload.prompt = page.isCover
+        ? `<kidStyle> A captivating cover photo for the title: ${currentTitle}`
+        : `<kidStyle> A creative back cover image for the book`;
+      payload.isCover = true;
+      log(
+        `handleRegenerate: Regenerating ${page.isCover ? "cover" : "back cover"} for page ${pageId} using prompt: ${payload.prompt}`,
+      );
+    } else {
+      // For regular pages, use the current (edited) text as the prompt.
+      payload.prompt = page.content;
+      log(
+        `handleRegenerate: Regenerating image for page ${pageId} using prompt: ${payload.prompt}`,
+      );
+    }
+
+    try {
+      const response = await fetch("/api/regenerateImage", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) {
+        throw new Error("API error");
+      }
+      const data = await response.json();
+      const newUrl = data.newUrl;
+      log(`handleRegenerate: New image URL for page ${pageId}: ${newUrl}`);
+      // Update the page with the new image URL
+      setBookPages((prev) =>
+        prev.map((p) => (p.id === pageId ? { ...p, imageUrl: newUrl } : p)),
+      );
+      setIsDirty(true);
+    } catch (error) {
+      log("handleRegenerate: Error regenerating image for page", pageId, error);
+      toast({
+        title: "Regeneration Error",
+        description: `Failed to regenerate image for page ${pageId}.`,
+        variant: "destructive",
+      });
     }
   };
 
-  const handleRegenerateAll = () => {
-    log("handleRegenerateAll: Regenerating all pages");
-    toast({
-      title: "Regenerating all pages",
-      description: "Regenerating all pages of your book...",
-    });
+  const handleSaveBook = async () => {
+    if (!bookId) {
+      toast({
+        title: "Save Error",
+        description: "Book ID not available.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const pagesToSave = bookPages.filter((p) => !p.isCover && !p.isBackCover);
+
+    try {
+      setLoading(true);
+      // Build the updated book data.
+      // We use the current bookPages and bookTitle.
+      const updatedBook = {
+        title: bookTitle,
+        pages: pagesToSave,
+        coverUrl: bookPages[0]?.isCover ? bookPages[0].imageUrl : null,
+        backCoverUrl: bookPages[bookPages.length - 1]?.isBackCover
+          ? bookPages[bookPages.length - 1].imageUrl
+          : null,
+        characterId: String(selectedCharacter?.id),
+        storyId: String(selectedStory?.id),
+      };
+      log("handleSaveBook: Updating book with data:", updatedBook);
+
+      // Assuming you have a PUT API endpoint like `/api/books/:id`
+      const savedBook = await apiRequest(
+        "PUT",
+        `/api/books/${bookId}`,
+        updatedBook,
+      );
+
+      // Update the local bookPages and other state if necessary.
+      setIsDirty(false);
+      toast({
+        title: "Save Successful",
+        description: "Your book has been updated.",
+      });
+      log("handleSaveBook: Book saved successfully", savedBook);
+    } catch (error) {
+      log("handleSaveBook: Error saving book", error);
+      toast({
+        title: "Save Error",
+        description: "Failed to update book.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // const handleResetAll = () => {
+  //   if (storyResult) {
+  //     const title = storyResult.sceneTexts[0];
+  //     setBookTitle(title);
+  //     const pages = storyResult.pages.map((url: string, index: number) => ({
+  //       id: index + 1,
+  //       imageUrl: url,
+  //       content: storyResult.sceneTexts[index] || "",
+  //     }));
+  //     setBookPages(pages);
+  //     log("handleResetAll: Reset pages to initial storyResult");
+  //   }
+  // };
+
+  const handleRegenerateAll = async () => {
+    log("handleRegenerateAll: Regenerating all pages.");
+    try {
+      // Create an array of regeneration promises for each page.
+      const regenerationPromises = bookPages.map((page) => {
+        return handleRegenerate(page.id);
+      });
+      // Wait for all regeneration requests to finish.
+      await Promise.all(regenerationPromises);
+      toast({
+        title: "Regeneration complete",
+        description: "All pages have been regenerated.",
+      });
+      log("handleRegenerateAll: All pages regenerated successfully.");
+    } catch (error) {
+      log("handleRegenerateAll: Error regenerating pages", error);
+      toast({
+        title: "Regeneration Error",
+        description: "Failed to regenerate one or more pages.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleDownloadPDF = async () => {
@@ -380,7 +534,12 @@ export default function CreateStoryPage() {
       const response = await fetch("/api/pdf/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: bookTitle, pages: bookPages }),
+        body: JSON.stringify({
+          title: bookTitle,
+          pages: bookPages,
+          coverUrl: coverUrl,
+          backCoverUrl: backCoverUrl,
+        }),
       });
       if (!response.ok) {
         throw new Error("Failed to generate PDF");
@@ -548,10 +707,11 @@ export default function CreateStoryPage() {
                   pages={bookPages}
                   onUpdatePage={handleUpdatePage}
                   onRegenerate={handleRegenerate}
-                  onResetAll={handleResetAll}
                   onRegenerateAll={handleRegenerateAll}
                   onDownload={handleDownloadPDF}
                   onPrint={handlePrint}
+                  onSave={handleSaveBook}
+                  isDirty={isDirty}
                 />
               )}
               {showShippingForm && !orderCompleted && (

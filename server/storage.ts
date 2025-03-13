@@ -77,6 +77,20 @@ export class FirestoreStorage implements IStorage {
       ? ({ id: doc.id, ...doc.data() } as Character)
       : undefined;
   }
+
+  async updateCharacter(
+    id: string,
+    updatedData: any,
+  ): Promise<Character | null> {
+    const characterRef = db.collection("characters").doc(id);
+    const docSnapshot = await characterRef.get();
+    if (!docSnapshot.exists) {
+      return null;
+    }
+    await characterRef.update(updatedData);
+    return { id, ...updatedData } as Character;
+  }
+  
   async getCharactersByUserId(userId: string): Promise<Character[]> {
     const snapshot = await db
       .collection("characters")
@@ -194,6 +208,17 @@ export class FirestoreStorage implements IStorage {
       throw error;
     }
   }
+  async updateBook(id: string, updatedData: any): Promise<Book | null> {
+    console.log("storage.ts - updateBook called with id:", id);
+    const bookRef = db.collection("books").doc(id);
+    const doc = await bookRef.get();
+    if (!doc.exists) {
+      return null;
+    }
+    await bookRef.update(updatedData);
+    return { id, ...updatedData };
+  }
+
   // ---------- Order operations -----------
   async getOrder(id: string): Promise<Order | undefined> {
     const doc = await db.collection("orders").doc(id).get();
