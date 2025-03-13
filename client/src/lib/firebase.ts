@@ -175,24 +175,56 @@ const processAuthResult = async (user: User): Promise<User> => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "Accept": "application/json",
       },
       body: JSON.stringify({ idToken }),
       credentials: "include",
+      mode: "cors" // Explicitly specify CORS mode
+    });
+
+    // Debug log for auth response
+    debugLog("Authentication response status:", {
+      status: response.status,
+      statusText: response.statusText,
+      headers: {
+        "content-type": response.headers.get("content-type"),
+        "set-cookie": response.headers.get("set-cookie"),
+      }
     });
 
     if (!response.ok) {
       let errorMessage = "Failed to authenticate with server";
+      let errorDetail = {};
+      
       try {
         const errorData = await response.json();
         errorMessage = errorData.message || errorMessage;
+        errorDetail = errorData;
+        debugError(`Backend returned error response:`, errorData);
       } catch (e) {
-        // If we can't parse the error as JSON, just use the default message
+        // If we can't parse the error as JSON, get the raw text
+        try {
+          const errorText = await response.text();
+          debugError(`Backend returned non-JSON error:`, errorText);
+          errorDetail = { rawText: errorText };
+        } catch (textError) {
+          debugError(`Could not read response body:`, textError);
+        }
       }
 
       debugError(`Backend authentication failed: ${errorMessage}`, {
         status: response.status,
+        detail: errorDetail
       });
       throw new Error(errorMessage);
+    }
+
+    // Log success details
+    try {
+      const responseData = await response.json();
+      debugLog("Authentication success response:", responseData);
+    } catch (e) {
+      debugLog("Authentication succeeded but could not parse response body");
     }
 
     debugLog("User authenticated successfully with backend");
@@ -211,21 +243,50 @@ export const logOut = async (): Promise<void> => {
     // Clear session on the backend
     const response = await fetch("/api/auth/logout", {
       method: "POST",
+      headers: {
+        "Accept": "application/json",
+      },
       credentials: "include",
+      mode: "cors", // Explicitly specify CORS mode
+    });
+
+    // Debug log the logout response
+    debugLog("Logout response status:", {
+      status: response.status,
+      statusText: response.statusText,
+      headers: {
+        "content-type": response.headers.get("content-type"),
+      }
     });
 
     if (!response.ok) {
       let errorMessage = "Failed to logout from server";
+      let errorDetail = {};
+      
       try {
         const errorData = await response.json();
         errorMessage = errorData.message || errorMessage;
+        errorDetail = errorData;
       } catch (e) {
-        // If we can't parse the error as JSON, just use the default message
+        // If we can't parse the error as JSON, get the raw text
+        try {
+          const errorText = await response.text();
+          debugError(`Backend returned non-JSON error during logout:`, errorText);
+          errorDetail = { rawText: errorText };
+        } catch (textError) {
+          debugError(`Could not read logout response body:`, textError);
+        }
       }
 
-      console.warn(`Backend logout error: ${errorMessage}`);
+      console.warn(`Backend logout error: ${errorMessage}`, errorDetail);
       // We still want to continue even if backend logout fails
     } else {
+      try {
+        const responseData = await response.json();
+        debugLog("Logout success response:", responseData);
+      } catch (e) {
+        debugLog("Logout succeeded but could not parse response body");
+      }
       debugLog("Backend session cleared successfully");
     }
   } catch (error) {
@@ -234,4 +295,6 @@ export const logOut = async (): Promise<void> => {
   }
 };
 
-export { auth, db };
+// Export Firestore db and auth
+export const db = getFirestore(app);
+export { auth };
