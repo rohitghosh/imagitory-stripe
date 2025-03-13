@@ -7,18 +7,31 @@ const app = express();
 
 // CORS configuration for cross-origin requests
 app.use(cors({
-  origin: true, // Allow any origin (wildcard)
+  origin: function(origin, callback) {
+    // Allow any origin since we're in a Replit environment
+    callback(null, true);
+  },
   credentials: true, // Allow credentials (cookies, authorization headers, etc.)
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+  exposedHeaders: ['Set-Cookie'] // Expose Set-Cookie header to client
 }));
 
 // Add required headers for cookies in cross-origin requests
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  // Use the origin from the request or fall back to a wildcard
+  const requestOrigin = req.headers.origin || '*';
+  res.header('Access-Control-Allow-Origin', requestOrigin);
   res.header('Access-Control-Allow-Credentials', 'true');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Expose-Headers', 'Set-Cookie');
+  
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  
   next();
 });
 
