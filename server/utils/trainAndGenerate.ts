@@ -128,37 +128,37 @@ export async function trainCustomModel(
     );
   }
 
-  // const result = await fal.subscribe("fal-ai/flux-lora-fast-training", {
-  //   input,
-  //   logs: true,
-  //   onQueueUpdate: (update) => {
-  //     if (DEBUG_LOGGING && update.status === "IN_PROGRESS") {
-  //       update.logs
-  //         .map((log) => log.message)
-  //         .forEach((msg) =>
-  //           console.log("[trainCustomModel] Queue update:", msg),
-  //         );
-  //     }
-  //   },
-  // });
+  const result = await fal.subscribe("fal-ai/flux-lora-fast-training", {
+    input,
+    logs: true,
+    onQueueUpdate: (update) => {
+      if (DEBUG_LOGGING && update.status === "IN_PROGRESS") {
+        update.logs
+          .map((log) => log.message)
+          .forEach((msg) =>
+            console.log("[trainCustomModel] Queue update:", msg),
+          );
+      }
+    },
+  });
 
-  // if (DEBUG_LOGGING) {
-  //   console.log("[trainCustomModel] Training result data:", result.data);
-  //   console.log("[trainCustomModel] Request ID:", result.requestId);
-  // }
+  if (DEBUG_LOGGING) {
+    console.log("[trainCustomModel] Training result data:", result.data);
+    console.log("[trainCustomModel] Request ID:", result.requestId);
+  }
 
-  // // Assume result.data contains the modelId.
-  // return {
-  //   modelId: result.data.diffusers_lora_file.url,
-  //   requestId: result.requestId,
-  // };
-  await new Promise((resolve) => setTimeout(resolve, 10000));
+  // Assume result.data contains the modelId.
   return {
-    modelId:
-      "https://v3.fal.media/files/panda/q3C2L2ukMOD-XR0XCNLiO_pytorch_lora_weights.safetensors",
-    requestId: "66115f6e-7f18-459a-abbb-184253c769e8",
+    modelId: result.data.diffusers_lora_file.url,
+    requestId: result.requestId,
   };
-}
+//   await new Promise((resolve) => setTimeout(resolve, 10000));
+//   return {
+//     modelId:
+//       "https://v3.fal.media/files/panda/q3C2L2ukMOD-XR0XCNLiO_pytorch_lora_weights.safetensors",
+//     requestId: "66115f6e-7f18-459a-abbb-184253c769e8",
+//   };
+// }
 
 /**
  * Generate a single image using fal.ai and the custom-trained model.
@@ -305,7 +305,7 @@ export async function createImagePromptsFromScenes(
     },
     {
       role: "user",
-      content: `For each of these scene descriptions can you also generate a prompt that can be used for basically generating an image where references to "${kidName}" as the hero of the story has been replaced by "Teddy". Ensure that each prompt is independent and capable of generating images independently such that any references to other character apart from "${kidName}" are mentioned by type and nature and not their references. Most importantly,  if the story involves other animals or people or background, to ensure consistency, try and give vivid and similar description of the their features across prompts so that their images look similar. For example, a black cat or large blue whale etc. `,
+      content: `For each of these scene descriptions can you also generate a prompt that can be used for generating an image apt to go with the scene. Ensure that each prompt is independent and capable of generating images independently such that any references to other character apart from "${kidName}" are mentioned by type and nature and not their references. Most importantly,  if the story involves other animals or people or background, to ensure consistency, try and give vivid and similar description of the their features across prompts so that their images look similar. For example, a black cat or large blue whale etc. `,
     },
   ];
 

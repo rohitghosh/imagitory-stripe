@@ -10,23 +10,28 @@ import { useAuth } from "../contexts/AuthContext";
 import { Link } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
 import { Character, Story, Order, Book } from "@shared/schema";
+import { useQueryParam } from "@/hooks/useQueryParam";
 
 export default function ProfilePage() {
+  console.log("ProfilePage rendered");
+
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState("characters");
-  const [location] = useLocation();
+  const tabFromUrl = useQueryParam("tab");
+  const [activeTab, setActiveTab] = useState(tabFromUrl || "characters");
+  // const [location] = useLocation();
+
+  console.log("🔍 window.location.search:", window.location.search);
+  console.log("🔍 tabFromUrl from hook:", tabFromUrl);
+  console.log("🔍 current activeTab state:", activeTab);
 
   // Update activeTab based on URL query parameter
   useEffect(() => {
-    const queryString = location.split("?")[1];
-    if (queryString) {
-      const params = new URLSearchParams(queryString);
-      const tab = params.get("tab");
-      if (tab) {
-        setActiveTab(tab);
-      }
+    console.log("📦 useEffect triggered: tabFromUrl =", tabFromUrl);
+    if (tabFromUrl && tabFromUrl !== activeTab) {
+      console.log("➡️ Updating activeTab to", tabFromUrl);
+      setActiveTab(tabFromUrl);
     }
-  }, [location]);
+  }, [tabFromUrl]);
 
   const {
     data: predefinedCharacters = [],
@@ -178,10 +183,15 @@ export default function ProfilePage() {
               </div>
             </div>
           </div>
-
           <Tabs
             value={activeTab}
-            onValueChange={setActiveTab}
+            onValueChange={(val) => {
+              console.log("🖱️ Tab changed by user to:", val);
+              setActiveTab(val);
+              const url = new URL(window.location.href);
+              url.searchParams.set("tab", val);
+              window.history.replaceState({}, "", url.toString());
+            }}
             className="w-full"
           >
             {/* Changed grid-cols-3 to grid-cols-4 */}
