@@ -12,7 +12,7 @@ import {
 } from "@shared/schema";
 import { generatePDF } from "./utils/pdf";
 // No longer using authentication middleware
-// import { authenticate } from "./middleware/auth";
+import { authenticate } from "./middleware/auth";
 // Import firebase but don't initialize with credentials for now
 import session from "express-session";
 import multer from "multer";
@@ -133,27 +133,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   });
 
-  // Authentication middleware
-  const authenticate = (req: Request, res: Response, next: NextFunction) => {
-    if (DEBUG_LOGGING) {
-      console.log("[authenticate] Session check:", {
-        hasSession: !!req.session,
-        sessionID: req.sessionID,
-        userId: req.session?.userId,
-        url: req.url,
-      });
-    }
-
-    if (!req.session || !req.session.userId) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-
-    if (DEBUG_LOGGING) {
-      console.log(`[authenticate] User authorized: ${req.session.userId}`);
-    }
-
-    next();
-  };
+  // Using the authenticate middleware imported from ./middleware/auth
 
   // Authentication routes
   app.post("/api/auth/login", async (req: Request, res: Response) => {

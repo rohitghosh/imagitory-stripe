@@ -1,16 +1,27 @@
 import { Request, Response, NextFunction } from "express";
 
-// Temporarily modified authentication for development
+// Proper authentication check
 export function authenticate(req: Request, res: Response, next: NextFunction) {
-  // For development: Skip authentication check
-  // In production, we would uncomment this:
-  // if (!req.session || !req.session.userId) {
-  //   return res.status(401).json({ message: "Unauthorized" });
-  // }
+  // Log debug info if debug logging is enabled
+  const DEBUG_LOGGING = process.env.DEBUG_LOGGING === "true";
   
-  // For development only: Set a mock user ID if not set
-  if (!req.session.userId) {
-    req.session.userId = 1;
+  if (DEBUG_LOGGING) {
+    console.log("[Session Debug] Authenticate middleware:", {
+      hasSession: !!req.session,
+      sessionID: req.sessionID,
+      userId: req.session?.userId,
+      url: req.url
+    });
+  }
+
+  // Validate that we have a session and userId
+  if (!req.session || !req.session.userId) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+  
+  // User is authenticated
+  if (DEBUG_LOGGING) {
+    console.log(`[authenticate] User authorized: ${req.session.userId}`);
   }
   
   next();
