@@ -792,20 +792,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   // Book routes with authentication
-  app.post("/api/books", async (req: Request, res: Response) => {
+  app.post("/api/books", authenticate, async (req: Request, res: Response) => {
     try {
-      // Check authentication with detailed logging
-      if (!req.session || !req.session.userId) {
-        if (DEBUG_LOGGING) {
-          console.log("[/api/books POST] Authentication failed:", {
-            hasSession: !!req.session,
-            sessionID: req.sessionID,
-          });
-        }
-        return res.status(401).json({ message: "Unauthorized" });
-      }
-
-      const userId = req.session.userId.toString();
+      // User is already authenticated by the middleware
+      const userId = req.session!.userId!.toString();
 
       if (DEBUG_LOGGING) {
         console.log(`[/api/books POST] User authenticated: ${userId}`);
@@ -836,20 +826,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/books", async (req: Request, res: Response) => {
+  app.get("/api/books", authenticate, async (req: Request, res: Response) => {
     try {
-      // Check authentication with detailed logging
-      if (!req.session || !req.session.userId) {
-        if (DEBUG_LOGGING) {
-          console.log("[/api/books GET] Authentication failed:", {
-            hasSession: !!req.session,
-            sessionID: req.sessionID,
-          });
-        }
-        return res.status(401).json({ message: "Unauthorized" });
-      }
-
-      const userId = req.session.userId.toString();
+      // User is already authenticated by the middleware
+      const userId = req.session!.userId!.toString();
 
       if (DEBUG_LOGGING) {
         console.log(`[/api/books GET] User authenticated: ${userId}`);
@@ -873,7 +853,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/books/:id", async (req: Request, res: Response) => {
+  app.get("/api/books/:id", authenticate, async (req: Request, res: Response) => {
     const { id } = req.params;
     console.log("routes.ts - GET /api/books/:id called with id:", id);
     try {
@@ -882,6 +862,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log("routes.ts - Book not found for id:", id);
         return res.status(404).json({ error: "Book not found" });
       }
+      
+      // Verify that the book belongs to the authenticated user
+      if (book.userId !== req.session!.userId) {
+        console.log("routes.ts - Book access denied, wrong user:", {
+          bookUserId: book.userId,
+          sessionUserId: req.session!.userId
+        });
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
       console.log("routes.ts - Returning book for id:", id, book);
       return res.status(200).json(book);
     } catch (error) {
@@ -894,22 +884,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Order routes with optional authentication
-  app.post("/api/orders", async (req: Request, res: Response) => {
+  // Order routes with authentication
+  app.post("/api/orders", authenticate, async (req: Request, res: Response) => {
     try {
-      // Check authentication
-      if (!req.session || !req.session.userId) {
-        if (DEBUG_LOGGING) {
-          console.log("[/api/orders POST] No auth session:", {
-            hasSession: !!req.session,
-            sessionID: req.sessionID,
-          });
-        }
-        return res.status(401).json({ message: "Unauthorized" });
-      }
-
-      // Use session userId if authenticated
-      const userId = req.session.userId.toString();
+      // User is already authenticated by middleware
+      const userId = req.session!.userId!.toString();
 
       if (DEBUG_LOGGING) {
         console.log("[/api/orders POST] Auth validated, userId:", userId);
@@ -937,19 +916,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/orders", async (req: Request, res: Response) => {
+  app.get("/api/orders", authenticate, async (req: Request, res: Response) => {
     try {
-      // Check authentication
-      if (!req.session || !req.session.userId) {
-        if (DEBUG_LOGGING) {
-          console.log("[/api/orders POST] No auth session:", {
-            hasSession: !!req.session,
-            sessionID: req.sessionID,
-          });
-        }
-        return res.status(401).json({ message: "Unauthorized" });
-      }
-      const userId = req.session.userId.toString();
+      // User is already authenticated by middleware
+      const userId = req.session!.userId!.toString();
 
       if (DEBUG_LOGGING) {
         console.log("[/api/orders GET] Auth validated, userId:", userId);
