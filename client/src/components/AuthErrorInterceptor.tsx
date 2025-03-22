@@ -15,34 +15,53 @@ export function AuthErrorInterceptor() {
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    // Create an error handler for query/mutation errors
-    const unsubscribe = queryClient.getQueryCache().subscribe((event) => {
-      if (event.type === 'error' && event.error instanceof Error) {
-        const error = event.error as Error;
+    // Function to handle auth errors and redirect if needed
+    const handleAuthError = (errorMessage: string) => {
+      console.log('Intercepted authentication error:', errorMessage);
+      
+      // Only redirect if we're not already on the login page and user should be logged in
+      if (location !== '/login' && !loading && !user) {
+        toast({
+          title: 'Authentication Required',
+          description: 'Please sign in to continue.',
+          variant: 'destructive',
+        });
         
+        // Short delay to allow the toast to be visible
+        setTimeout(() => {
+          setLocation('/login');
+        }, 100);
+      }
+    };
+    
+    // Subscribe to query cache errors
+    const unsubscribeQuery = queryClient.getQueryCache().subscribe((event: any) => {
+      // Check if this is an error event with an error object
+      if (event.type === 'error' && event.error) {
         // Check if the error is an authentication error (401)
-        if (error.message.includes('401:') || error.message.includes('Unauthorized')) {
-          console.log('Intercepted authentication error:', error.message);
-          
-          // Only redirect if we're not already on the login page and user should be logged in
-          if (location !== '/login' && !loading && !user) {
-            toast({
-              title: 'Authentication Required',
-              description: 'Please sign in to continue.',
-              variant: 'destructive',
-            });
-            
-            // Short delay to allow the toast to be visible
-            setTimeout(() => {
-              setLocation('/login');
-            }, 100);
-          }
+        if (event.error.message?.includes('401:') || 
+            event.error.message?.includes('Unauthorized')) {
+          handleAuthError(event.error.message);
+        }
+      }
+    });
+    
+    // Subscribe to mutation cache errors
+    const unsubscribeMutation = queryClient.getMutationCache().subscribe((event: any) => {
+      // Check if this is an error event with an error object
+      if (event.type === 'error' && event.mutation?.state?.error) {
+        const error = event.mutation.state.error;
+        // Check if the error is an authentication error (401)
+        if (error.message?.includes('401:') || 
+            error.message?.includes('Unauthorized')) {
+          handleAuthError(error.message);
         }
       }
     });
 
     return () => {
-      unsubscribe();
+      unsubscribeQuery();
+      unsubscribeMutation();
     };
   }, [queryClient, location, setLocation, user, loading, toast]);
 

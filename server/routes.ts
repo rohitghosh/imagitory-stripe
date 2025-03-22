@@ -52,11 +52,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       saveUninitialized: true,
       store: new MemoryStore({
         checkPeriod: 86400000, // prune expired entries every 24h
+        ttl: 30 * 24 * 60 * 60 * 1000, // 30 days (same as cookie maxAge)
       }),
       cookie: {
         secure: process.env.NODE_ENV === "production", // True in production, false in development
         httpOnly: false, // Allow JavaScript access to cookies
-        maxAge: 24 * 60 * 60 * 1000, // 24 hours
+        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days for longer persistence
         sameSite: "none", // Allow cross-site cookie setting
         path: "/", // Ensure cookies apply to all paths
         domain:
