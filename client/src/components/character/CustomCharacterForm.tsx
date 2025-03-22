@@ -278,6 +278,40 @@ export function CustomCharacterForm({
               <FormLabel className="block mb-1">
                 Upload Photos (up to 10)
               </FormLabel>
+              <p className="text-xs text-gray-500 mb-4">
+                The more photos you upload, the better we can personalize your
+                story.
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+                {/* ✅ DOs */}
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                  <p className="text-sm font-semibold text-green-700 mb-2">
+                    ✅ Good Examples
+                  </p>
+                  <ul className="list-disc pl-5 space-y-1 text-xs text-green-700">
+                    <li>
+                      Face the camera directly with eyes open and smiling.
+                    </li>
+                    <li>Use natural daylight or soft indoor lighting.</li>
+                    <li>Keep background plain or clutter-free.</li>
+                    <li>Upload multiple angles or expressions if possible.</li>
+                  </ul>
+                </div>
+
+                {/* ❌ DON'Ts */}
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                  <p className="text-sm font-semibold text-red-700 mb-2">
+                    ❌ Avoid These
+                  </p>
+                  <ul className="list-disc pl-5 space-y-1 text-xs text-red-700">
+                    <li>Blurry or pixelated images.</li>
+                    <li>Photos with other people.</li>
+                    <li>Extreme selfie angles.</li>
+                    <li>Sunglasses, hats, or face obstructions.</li>
+                  </ul>
+                </div>
+              </div>
               <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
                 <div className="space-y-2">
                   <div className="flex justify-center">

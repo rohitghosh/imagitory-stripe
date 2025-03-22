@@ -12,6 +12,7 @@ interface Page {
   content: string;
   isCover: boolean;
   isBackCover: boolean;
+  regenerating?: boolean;
 }
 
 interface BookPreviewProps {
@@ -142,11 +143,17 @@ export function BookPreview({
                 className="book-preview-page flex-shrink-0 w-64 overflow-hidden hover:shadow-lg transition-all"
               >
                 <div className="relative">
-                  <img
-                    src={page.imageUrl}
-                    className="w-full h-40 object-cover"
-                    alt={`Page ${page.id}`}
-                  />
+                  {page.regenerating ? (
+                    <div className="w-full h-40 bg-gray-100 flex items-center justify-center">
+                      <i className="fas fa-spinner fa-spin text-gray-500 text-xl" />
+                    </div>
+                  ) : (
+                    <img
+                      src={page.imageUrl}
+                      className="w-full h-40 object-cover"
+                      alt={`Page ${page.id}`}
+                    />
+                  )}
                   <div className="absolute top-2 left-2 bg-white/80 rounded-full py-1 px-3 text-xs font-medium">
                     {page.isCover
                       ? bookTitle

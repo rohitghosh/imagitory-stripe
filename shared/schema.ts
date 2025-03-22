@@ -54,6 +54,7 @@ export const books = pgTable("books", {
   coverUrl: text("coverUrl").notNull(),
   backCoverUrl: text("backCoverUrl").notNull(),
   pages: jsonb("pages").notNull(), // Array of { imageUrl, content }
+  stylePreference: text("stylePreference"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

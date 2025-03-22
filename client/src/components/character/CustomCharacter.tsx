@@ -6,6 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
 import { CustomCharacterForm } from "./CustomCharacterForm";
+import { StyleSelection } from "./CustomStyleSelection";
 
 interface CustomCharactersProps {
   onSubmit: (character: {
@@ -32,6 +33,9 @@ export function CustomCharacter({ onSubmit }: CustomCharactersProps) {
   const [selectedCharacterId, setSelectedCharacterId] = useState<string | null>(
     null,
   );
+  const [selectedStyle, setSelectedStyle] = useState<
+    "hyper-realistic" | "cartoonish" | null
+  >(null);
 
   // Carousel navigation
   const [carouselIndex, setCarouselIndex] = useState<number>(0);
@@ -116,11 +120,21 @@ export function CustomCharacter({ onSubmit }: CustomCharactersProps) {
       });
       return;
     }
+    if (!selectedStyle) {
+      toast({
+        title: "Style not chosen",
+        description:
+          "Please select a style (hyper-realistic or cartoonish) for your book.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const selectedCharacter = characters.find(
       (c) => c.id === selectedCharacterId,
     );
     if (selectedCharacter) {
-      onSubmit(selectedCharacter);
+      onSubmit({ ...selectedCharacter, stylePreference: selectedStyle });
     }
   };
 
@@ -233,12 +247,35 @@ export function CustomCharacter({ onSubmit }: CustomCharactersProps) {
         </div>
       )}
 
+      {/* Import and use the StyleSelection component */}
+      {selectedCharacterId && (
+        <StyleSelection
+          onStyleSelected={(style) => setSelectedStyle(style)}
+          selectedStyle={selectedStyle}
+          originalImages={[
+            "https://firebasestorage.googleapis.com/v0/b/kids-story-5eb1b.firebasestorage.app/o/website_photos%2Fdownload.jpeg?alt=media&token=8f224333-c0f2-4b84-b6f3-916abee86f1f",
+          ]}
+          hyperRealisticImages={[
+            "https://firebasestorage.googleapis.com/v0/b/kids-story-5eb1b.firebasestorage.app/o/website_photos%2FFMTTjjBcUsUC5Md1bBsml_ec389b78f8d3403aa8f16e745ab47ff1.jpg?alt=media&token=b418fe8a-4000-4902-8250-29decf6e7163",
+          ]}
+          cartoonishImages={[
+            "https://firebasestorage.googleapis.com/v0/b/kids-story-5eb1b.firebasestorage.app/o/website_photos%2Fmo0DER6dte45-wwSsTJHK_7fda40b8d087480aa6a186b8cf07fbcf.jpg?alt=media&token=66b6db8c-2b29-4359-9c76-e69b12c3f8e9",
+          ]}
+        />
+      )}
+
       {/* "Continue" button at the bottom */}
       <div className="flex justify-center mt-8">
         <Button
           variant="default"
           className="bg-primary text-white px-6 py-3 rounded-full"
           onClick={handleNextClick}
+          disabled={
+            !selectedCharacterId ||
+            (characters.find((c) => c.id === selectedCharacterId)?.type ===
+              "custom" &&
+              !selectedStyle)
+          }
         >
           Continue to Story Selection
         </Button>

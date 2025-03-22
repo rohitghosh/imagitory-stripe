@@ -8,6 +8,7 @@ import { v4 as uuidv4 } from "uuid";
 import path from "path";
 import { URL } from "url";
 import { title } from "process";
+import { s } from "node_modules/vite/dist/node/types.d-aGj9QkWt";
 const DEBUG_LOGGING = process.env.DEBUG_LOGGING === "true";
 
 /**
@@ -84,7 +85,7 @@ function getExtension(urlStr: string): string {
 export async function trainCustomModel(
   imageUrls: string[],
   captions: string[],
-  modelName: string,
+  kidName: string,
 ): Promise<{ modelId: string; requestId: string }> {
   if (imageUrls.length !== captions.length) {
     throw new Error("Number of image URLs and captions must match.");
@@ -115,8 +116,7 @@ export async function trainCustomModel(
   const input = {
     images_data_url: zipUrl, // Pass the zip file URL
     captions, // Still pass the captions array as required (if API expects it)
-    custom_token: "<kidStyle>",
-    model_name: modelName,
+    custom_token: kidName,
     fast_training: true,
     steps: 1000,
     create_masks: true,
@@ -128,96 +128,47 @@ export async function trainCustomModel(
     );
   }
 
-  const result = await fal.subscribe("fal-ai/flux-lora-fast-training", {
-    input,
-    logs: true,
-    onQueueUpdate: (update) => {
-      if (DEBUG_LOGGING && update.status === "IN_PROGRESS") {
-        update.logs
-          .map((log) => log.message)
-          .forEach((msg) =>
-            console.log("[trainCustomModel] Queue update:", msg),
-          );
-      }
-    },
-  });
+  // const result = await fal.subscribe("fal-ai/flux-lora-fast-training", {
+  //   input,
+  //   logs: true,
+  //   onQueueUpdate: (update) => {
+  //     if (DEBUG_LOGGING && update.status === "IN_PROGRESS") {
+  //       update.logs
+  //         .map((log) => log.message)
+  //         .forEach((msg) =>
+  //           console.log("[trainCustomModel] Queue update:", msg),
+  //         );
+  //     }
+  //   },
+  // });
 
-  if (DEBUG_LOGGING) {
-    console.log("[trainCustomModel] Training result data:", result.data);
-    console.log("[trainCustomModel] Request ID:", result.requestId);
-  }
+  // if (DEBUG_LOGGING) {
+  //   console.log("[trainCustomModel] Training result data:", result.data);
+  //   console.log("[trainCustomModel] Request ID:", result.requestId);
+  // }
 
-  // Assume result.data contains the modelId.
+  // // Assume result.data contains the modelId.
+  // return {
+  //   modelId: result.data.diffusers_lora_file.url,
+  //   requestId: result.requestId,
+  // };
+  await new Promise((resolve) => setTimeout(resolve, 10000));
   return {
-    modelId: result.data.diffusers_lora_file.url,
-    requestId: result.requestId,
+    modelId:
+      "https://v3.fal.media/files/panda/q3C2L2ukMOD-XR0XCNLiO_pytorch_lora_weights.safetensors",
+    requestId: "66115f6e-7f18-459a-abbb-184253c769e8",
   };
-  // await new Promise((resolve) => setTimeout(resolve, 10000));
-  //   return {
-  //     modelId:
-  //       "https://v3.fal.media/files/rabbit/Q2UqOqEdJzLM1dZfJuBsV_pytorch_lora_weights.safetensors",
-  //     requestId: "66115f6e-7f18-459a-abbb-184253c769e8",
-  //   };
 }
 
 /**
  * Generate a single image using fal.ai and the custom-trained model.
  */
 
-export async function generateCoverImage(
-  prompt: string,
-  modelId: string,
-): Promise<string> {
-  if (DEBUG_LOGGING)
-    console.log(
-      "[generateCoverImage] Generating cover image with prompt:",
-      prompt,
-      "using lora path:",
-      modelId,
-    );
-
-  const payload = {
-    loras: [
-      {
-        path: modelId,
-        scale: 1,
-      },
-    ],
-    prompt, // Use a prompt designed specifically for a cover image.
-    embeddings: [],
-    model_name: null,
-    enable_safety_checker: true,
-  };
-  if (DEBUG_LOGGING)
-    console.log(
-      "[generateCoverImage] Payload:",
-      JSON.stringify(payload, null, 2),
-    );
-
-  const result = await fal.subscribe("fal-ai/flux-lora", {
-    input: payload,
-    logs: true,
-    onQueueUpdate: (update) => {
-      if (update.status === "IN_PROGRESS") {
-        update.logs.map((log) =>
-          console.log("[generateCoverImage] Queue update:", log.message),
-        );
-      }
-    },
-  });
-  if (DEBUG_LOGGING)
-    console.log("[generateCoverImage] Generation result data:", result.data);
-
-  if (result.data && result.data.images && result.data.images.length > 0) {
-    return result.data.images[0].url;
-  } else {
-    throw new Error("No cover image returned from generation");
-  }
-}
-
 export async function generateImage(
   prompt: string,
   modelId: string,
+  loraScale: number,
+  seed: number,
 ): Promise<string> {
   console.log(
     "[generateImage] Generating image with prompt:",
@@ -231,13 +182,14 @@ export async function generateImage(
     loras: [
       {
         path: modelId, // This is the URL returned from training.
-        scale: 1,
+        scale: loraScale,
       },
     ],
     prompt, // The generation prompt.
     embeddings: [], // No extra embeddings.
     model_name: null, // As required.
     enable_safety_checker: true,
+    seed:seed
   };
 
   console.log("[generateImage] Payload:", JSON.stringify(payload, null, 2));
@@ -271,10 +223,12 @@ export async function generateImage(
  */
 export async function generateScenePromptsLLM(
   kidName: string,
+  age : number,
+  gender: string,
   basePrompt: string,
   moral: string,
 ): Promise<string[]> {
-  const llmPrompt = `Generate a numbered list of 9 creative, one-sentence scene descriptions for a story where the hero is ${kidName} based on the storyline: "${basePrompt}". The story should clearly convey the moral: "${moral}". Story should ideally follow story arc format as defined in the instructions as closely possible`;
+  const llmPrompt = `Generate a numbered list of 9 creative, one-sentence scene descriptions for a story where the hero has the name : ""${kidName}"" based on the storyline "${basePrompt}". The story should clearly convey the moral: "${moral}". Story is meant for a "${age}" year old "${gender}". Story should ideally follow story arc format as defined in the instructions as closely possible . Not all scene descriptions need to start with the words "Because of that" . If scenes are in sequence they can follow from where last scene ended.`;
   if (DEBUG_LOGGING) {
     console.log("[generateScenePromptsLLM] LLM Prompt:", llmPrompt);
   }
@@ -286,12 +240,12 @@ export async function generateScenePromptsLLM(
       Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
     },
     body: JSON.stringify({
-      model: "gpt-3.5-turbo",
+      model: "gpt-4",
       messages: [
         {
           role: "system",
           content:
-            "You are a creative storywriter that helps generate engaging scene descriptions for children's stories. You know the arc of stories that involve the Pixar story arc of (Once upon a time... Every day.. One day… Because of that… Until finally…) of a hero winning against some challenges and learning something",
+            "You are a creative storywriter that helps generate engaging scene descriptions for children's stories. You know the arc of stories that involve the Pixar story arc of (Once upon a time... Every day.. One day… Because of that… Until finally…) of a hero winning against some challenges and learning something. Ensure that the hero has a clear problem to solve. Include sensory details and emotion where you can.  Include a moment of doubt or conflict as the climax of the story. Ensure to have a fun resolution or celebration. Also use a playful refrain and catchphrase as kids love repetition.",
         },
         { role: "user", content: llmPrompt },
       ],
@@ -325,8 +279,62 @@ export async function generateScenePromptsLLM(
 /**
  * Augment a scene description with your custom token.
  */
-export function createImagePrompt(sceneDescription: string): string {
-  return `<kidStyle> A high-quality, cinematic illustration of ${sceneDescription}`;
+export async function createImagePromptsFromScenes(
+  kidName: string,
+  age: number,
+  gender: string,
+  scenes: string[],
+  basePrompt: string,
+  moral: string,
+): Promise<string[]> {
+  const formattedScenes = scenes.map((s, i) => `${i + 1}. ${s}`).join("\n");
+
+  const messages = [
+    {
+      role: "system",
+      content:
+        "You are a creative storywriter that helps generate engaging scene descriptions for children's stories. You know the arc of stories that involve the Pixar story arc of (Once upon a time... Every day.. One day… Because of that… Until finally…) of a hero winning against some challenges and learning something. Ensure that the hero has a clear problem to solve. Include sensory details and emotion where you can.  Include a moment of doubt or conflict as the climax of the story. Ensure to have a fun resolution or celebration. Also use a playful refrain and catchphrase as kids love repetition. ",
+    },
+    {
+      role: "user",
+      content: `Generate a numbered list of 9 creative, one-sentence scene descriptions for a story where the hero has the name : ""${kidName}"" based on the storyline "${basePrompt}". The story should clearly convey the moral: "${moral}". Story is meant for a "${age}" year old "${gender}". Story should ideally follow story arc format as defined in the instructions as closely possible . Not all scene descriptions need to start with the words "Because of that" . If scenes are in sequence they can follow from where last scene ended.`,
+    },
+    {
+      role: "assistant",
+      content: formattedScenes,
+    },
+    {
+      role: "user",
+      content: `For each of these scene descriptions can you also generate a prompt that can be used for basically generating an image where references to "${kidName}" as the hero of the story has been replaced by "Teddy". Ensure that each prompt is independent and capable of generating images independently such that any references to other character apart from "${kidName}" are mentioned by type and nature and not their references. Most importantly,  if the story involves other animals or people or background, to ensure consistency, try and give vivid and similar description of the their features across prompts so that their images look similar. For example, a black cat or large blue whale etc. `,
+    },
+  ];
+
+  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+    },
+    body: JSON.stringify({
+      model: "gpt-4",
+      messages,
+      temperature: 0.7,
+      max_tokens: 1000,
+    }),
+  });
+
+  const data = await response.json();
+  if (!data.choices || !data.choices[0]?.message?.content) {
+    throw new Error("Failed to generate image prompts from OpenAI response");
+  }
+
+  const content = data.choices[0].message.content;
+  const prompts = content
+    .split("\n")
+    .map((line) => line.trim().replace(/^\d+\.\s*/, ""))
+    .filter((line) => line.length > 0);
+
+  return prompts;
 }
 
 /**
@@ -340,6 +348,10 @@ export async function generateStoryImages(
   baseStoryPrompt: string,
   moral: string,
   title: string,
+  age: number,
+  gender: string,
+  loraScale: number,
+  seed: number,
 ): Promise<{
   images: string[];
   sceneTexts: string[];
@@ -356,6 +368,8 @@ export async function generateStoryImages(
   }
   const scenePrompts = await generateScenePromptsLLM(
     kidName,
+    age,
+    gender,
     baseStoryPrompt,
     moral,
   );
@@ -364,18 +378,31 @@ export async function generateStoryImages(
   }
   if (DEBUG_LOGGING)
     console.log("[generateStoryImages] Final scene prompts:", scenePrompts);
-  const imagePromises = scenePrompts.map(async (scene) => {
-    const fullPrompt = createImagePrompt(scene);
-    return await generateImage(fullPrompt, modelId);
+
+  const imageGenerationPrompts = await createImagePromptsFromScenes(
+    kidName,
+    age,
+    gender,
+    scenePrompts,
+    baseStoryPrompt,
+    moral,
+  );
+
+  const imagePromises = imageGenerationPrompts.map(async (prompt) => {
+    const fullPrompt = `an image of ${age} year old ${gender} where scene is "${prompt}", 3d CGI, art by Pixar, half-body, :screenshot from animation`;
+    return await generateImage(fullPrompt, modelId, loraScale, seed);
   });
   const images = await Promise.all(imagePromises);
   if (DEBUG_LOGGING)
     console.log("[generateStoryImages] Generated images:", images);
 
-  const coverPrompt = `<kidStyle> A captivating cover photo for the showing the title: ${title} It should clearly display the text "${title}" on top of the photo in a bold and colourful font. It should also include a photo of the character ${kidName}`;
-  const backcoverPrompt = `<kidStyle> A generic minimal portrait back cover photo for the story of ${title}`;
-  const coverUrl = await generateCoverImage(coverPrompt, modelId);
-  const backCoverUrl = await generateCoverImage(backcoverPrompt, modelId);
+  const coverPrompt = `A captivating front cover photo which is apt for title: ${title} featuring character named ""${kidName}"" as hero of the story. It should clearly display the text "${title}" on top of the photo in a bold and colourful font`;
+  const backcoverPrompt = `A generic minimal portrait back cover photo for the story of ${title}`;
+
+  if (DEBUG_LOGGING) console.log("[generateStoryImages] loraScale:", loraScale);
+
+  const coverUrl = await generateImage(coverPrompt, modelId, loraScale);
+  const backCoverUrl = await generateImage(backcoverPrompt, modelId, loraScale);
   if (DEBUG_LOGGING) {
     console.log(
       "[generateStoryImages] Generated cover image:",
@@ -383,7 +410,13 @@ export async function generateStoryImages(
       backCoverUrl,
     );
   }
-  return { images, sceneTexts: scenePrompts, coverUrl, backCoverUrl };
+  return {
+    images,
+    sceneTexts: scenePrompts,
+    coverUrl,
+    backCoverUrl,
+  };
+
   // const images = [
   //   "https://v3.fal.media/files/lion/BYulTnmCMtjoCWVxUo7xT_e6e032ba64ec4b39b11ce0449a6b7349.jpg",
   //   "https://v3.fal.media/files/tiger/J5lzVpM_BqVbIhbUz2Hne_fe22e58aff3d4162af677c24bcd9bf1d.jpg",
@@ -411,5 +444,6 @@ export async function generateStoryImages(
   //   "https://v3.fal.media/files/koala/PtOeBiekDUU8eJ-z9cjFZ_d1a6e15d77464e5291b4bf6d7cf4424b.jpg";
   // const coverUrl =
   //   "https://v3.fal.media/files/zebra/Ut7N9_NMY_xuRk1JddLog_006730264e5b40e784b80c543558d601.jpg";
+
   // return { images, sceneTexts: scenePrompts, coverUrl, backCoverUrl };
 }

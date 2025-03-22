@@ -28,18 +28,17 @@ import { apiRequest } from "@/lib/queryClient"; // [ADDED] for API calls
 // Form schema
 const formSchema = z.object({
   title: z.string().min(1, "Title is required"),
-  genre: z.string().min(1, "Genre is required"),
+  // genre: z.string().min(1, "Genre is required"),
   instructions: z.string().min(1, "Instructions are required"),
-  elements: z.array(z.string()).optional(),
+  // elements: z.array(z.string()).optional(),
+  moral: z.string().min(1, "Moral is required"),
 });
 
 interface CustomStoryProps {
   onSubmit: (story: {
     id: string;
     title: string;
-    genre: string;
     instructions: string;
-    elements: string[];
     type: "custom";
     moral: string;
   }) => void;
@@ -65,9 +64,7 @@ export function CustomStory({ onSubmit }: CustomStoryProps) {
     resolver: zodResolver(formSchema),
     defaultValues: {
       title: "",
-      genre: "",
       instructions: "",
-      elements: selectedElements,
     },
   });
 
@@ -83,9 +80,7 @@ export function CustomStory({ onSubmit }: CustomStoryProps) {
   const handleSubmitForm = async (values: z.infer<typeof formSchema>) => {
     const payload = {
       ...values,
-      elements: selectedElements,
       type: "custom",
-      moral: selectedElements.join(", "),
     };
     try {
       const createdStory = await apiRequest("POST", "/api/stories", payload);
@@ -126,7 +121,7 @@ export function CustomStory({ onSubmit }: CustomStoryProps) {
                 )}
               />
 
-              <FormField
+              {/* <FormField
                 control={form.control}
                 name="genre"
                 render={({ field }) => (
@@ -156,7 +151,7 @@ export function CustomStory({ onSubmit }: CustomStoryProps) {
                     <FormMessage />
                   </FormItem>
                 )}
-              />
+              /> */}
 
               <FormField
                 control={form.control}
@@ -176,7 +171,7 @@ export function CustomStory({ onSubmit }: CustomStoryProps) {
                 )}
               />
 
-              <div>
+              {/* <div>
                 <FormLabel className="block text-sm font-medium text-gray-700 mb-1">
                   Story Elements
                 </FormLabel>
@@ -200,7 +195,20 @@ export function CustomStory({ onSubmit }: CustomStoryProps) {
                     </div>
                   ))}
                 </div>
-              </div>
+              </div> */}
+
+              {/* Moral textarea instead of elements */}
+              <FormItem>
+                <FormLabel>Moral of the Story</FormLabel>
+                <FormControl>
+                  <Textarea
+                    placeholder="Enter the moral you'd like the story to convey"
+                    className="min-h-[60px]"
+                    onChange={(e) => form.setValue("moral", e.target.value)}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
 
               <Button type="submit" className="w-full">
                 Next: Preview Story

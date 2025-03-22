@@ -23,12 +23,12 @@ import {
   trainCustomModel,
   generateStoryImages,
   generateImage,
-  generateCoverImage,
 } from "./utils/trainAndGenerate";
 import admin from "./firebaseAdmin";
 import createMemoryStore from "memorystore";
 
 import { fal } from "@fal-ai/client";
+import { LucideSortAsc } from "lucide-react";
 
 const MemoryStore = createMemoryStore(session);
 
@@ -59,7 +59,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         maxAge: 24 * 60 * 60 * 1000, // 24 hours
         sameSite: "none", // Allow cross-site cookie setting
         path: "/", // Ensure cookies apply to all paths
-        domain: process.env.NODE_ENV === "production" ? process.env.COOKIE_DOMAIN || undefined : undefined,
+        domain:
+          process.env.NODE_ENV === "production"
+            ? process.env.COOKIE_DOMAIN || undefined
+            : undefined,
       },
       name: "storyteller.sid", // Named session for better identification
       rolling: true, // Resets the cookie expiration on every response
@@ -401,7 +404,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       if (DEBUG_LOGGING)
         console.log("[/api/trainModel] Received training request:", req.body);
-      const { imageUrls, captions, modelName } = req.body;
+      const { imageUrls, captions, kidName } = req.body;
       if (!imageUrls || !captions) {
         throw new Error("imageUrls and captions are required.");
       }
@@ -409,7 +412,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const trainingResult = await trainCustomModel(
         imageUrls,
         captions,
-        modelName || "kids_custom_model",
+        kidName || "kids_custom_model",
       );
       if (DEBUG_LOGGING)
         console.log(
@@ -441,7 +444,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Expects kidName, modelId, baseStoryPrompt, and moral in the request body.
   app.post("/api/generateStory", async (req: Request, res: Response) => {
     try {
-      const { kidName, modelId, baseStoryPrompt, moral, title } = req.body;
+      const {
+        kidName,
+        modelId,
+        baseStoryPrompt,
+        moral,
+        title,
+        age,
+        gender,
+        stylePreference,
+      } = req.body;
       if (DEBUG_LOGGING)
         console.log("[/api/generateStory] Request body:", {
           kidName,
@@ -449,12 +461,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
           baseStoryPrompt,
           moral,
           title,
+          age,
+          gender,
+          stylePreference,
         });
       if (!kidName || !modelId || !baseStoryPrompt || !moral || !title) {
         throw new Error(
           "kidName, modelId, baseStoryPrompt, title and moral are required.",
         );
       }
+
+      let loraScale = 1.0;
+      if (stylePreference === "hyper-realistic") loraScale = 0.9;
+      else if (stylePreference === "cartoonish") loraScale = 0.8;
+      let seed = 3.0;
+
       const { images, sceneTexts, coverUrl, backCoverUrl } =
         await generateStoryImages(
           modelId,
@@ -462,6 +483,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           baseStoryPrompt,
           moral,
           title,
+          age,
+          gender,
+          loraScale,
+          seed,
         );
       if (DEBUG_LOGGING) {
         console.log("[/api/generateStory] Generated images and scene texts:", {
@@ -488,11 +513,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/regenerateImage", async (req: Request, res: Response) => {
     try {
-      const { modelId, prompt, isCover } = req.body;
+      const { modelId, prompt, isCover, loraScale } = req.body;
       // If the flag is true, use generateCoverImage, else generateImage.
-      const newUrl = isCover
-        ? await generateCoverImage(prompt, modelId)
-        : await generateImage(prompt, modelId);
+      const seed = Math.floor(Math.random() * 1_000_000);
+      const newUrl = await generateImage(prompt, modelId, loraScale, seed);
       res.status(200).json({ newUrl });
     } catch (error: any) {
       if (DEBUG_LOGGING)

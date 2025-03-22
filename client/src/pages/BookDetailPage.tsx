@@ -120,15 +120,31 @@ export default function BookDetailPage() {
     console.log(page);
     if (!page) return;
 
+    setPages((prev) =>
+      prev.map((p) => (p.id === pageId ? { ...p, regenerating: true } : p)),
+    );
+
     const effectiveModelId = characterData?.modelId || "defaultModelId";
 
-    let payload = { modelId: effectiveModelId, prompt: "", isCover: false };
+    const loraScale =
+      characterData.type === "custom"
+        ? book.stylePreference === "hyper-realistic"
+          ? 0.9
+          : 0.8
+        : 1.0;
+
+    let payload = {
+      modelId: effectiveModelId,
+      prompt: "",
+      isCover: false,
+      loraScale,
+    };
 
     if (page.isCover || page.isBackCover) {
       const currentTitle = pages[0]?.content || bookTitle;
       payload.prompt = page.isCover
-        ? `<kidStyle> A captivating cover photo for the showing the title: ${currentTitle} It should clearly display the text ${currentTitle} on top of the photo in a bold and colourful font. It should also include a photo of the character ${characterData.name}`
-        : `<kidStyle> A creative back cover image for the book`;
+        ? `A captivating front cover photo which is apt for title: ${currentTitle} featuring character named ""${characterData.name}"" as hero of the story. It should clearly display the text "${currentTitle}" on top of the photo in a bold and colourful font`
+        : `A generic minimal portrait back cover photo for the story of ${currentTitle}`;
       payload.isCover = true; // reuse flag to indicate special pages
     } else {
       payload.prompt = page.content;
@@ -146,12 +162,17 @@ export default function BookDetailPage() {
       // Update the page image
       setPages((prevPages) =>
         prevPages.map((p) =>
-          p.id === pageId ? { ...p, imageUrl: newUrl } : p,
+          p.id === pageId ? { ...p, imageUrl: newUrl, regenerating: false } : p,
         ),
       );
       setIsDirty(true);
     } catch (error) {
       console.error("Regeneration error:", error);
+      setPages((prevPages) =>
+        prevPages.map((p) =>
+          p.id === pageId ? { ...p, regenerating: false } : p,
+        ),
+      );
       toast({
         title: "Regeneration Error",
         description: `Failed to regenerate image for page ${pageId}.`,
@@ -191,7 +212,7 @@ export default function BookDetailPage() {
     try {
       setLoading(true);
       const updatedBook = {
-        title: bookTitle,
+        title: pages[0].content,
         pages: pagesToSave, // full pages array including cover and back cover
         coverUrl: pages.find((p) => p.isCover)?.imageUrl || null,
         backCoverUrl: pages.find((p) => p.isBackCover)?.imageUrl || null,
