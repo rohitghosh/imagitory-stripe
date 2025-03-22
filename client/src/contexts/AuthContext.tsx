@@ -30,9 +30,45 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setTimeout(() => {
         const unsubscribe = onAuthStateChanged(
           auth,
-          (user) => {
+          async (user) => {
             console.log("Auth state changed:", user ? "User authenticated" : "No user");
-            setUser(user);
+            
+            // If user exists (logged in), verify server session is in sync
+            if (user) {
+              try {
+                console.log("Syncing Firebase auth with server session...");
+                // Get the token and validate server session
+                const idToken = await user.getIdToken(true);
+                
+                // Call the login endpoint to ensure session is synced
+                const response = await fetch("/api/auth/login", {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
+                  },
+                  body: JSON.stringify({ idToken }),
+                  credentials: "include",
+                });
+                
+                if (!response.ok) {
+                  console.error("Failed to sync Firebase auth with server session:", 
+                    await response.text());
+                  // Don't update user state if server sync failed
+                  setUser(null);
+                } else {
+                  console.log("Server session synchronized successfully");
+                  setUser(user);
+                }
+              } catch (error) {
+                console.error("Error syncing with server:", error);
+                setUser(null);
+              }
+            } else {
+              // No user, just update state
+              setUser(null);
+            }
+            
             setLoading(false);
           },
           (error) => {

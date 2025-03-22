@@ -18,27 +18,84 @@ export function AuthErrorInterceptor() {
     // Function to handle auth errors and redirect if needed
     const handleAuthError = (errorMessage: string) => {
       console.log('Intercepted authentication error:', errorMessage);
+      console.log('Auth state when error occurred:', { 
+        isLoggedIn: !!user, 
+        userData: user ? { email: user.email, uid: user.uid } : null,
+        currentLocation: location
+      });
       
       // Only redirect if we're not already on the login page
       if (location !== '/login') {
         // Clear any user data that might be in the auth context
         // but is no longer valid according to the server
         if (user) {
-          // User thinks they're logged in but server says no - clear the auth state
-          signOut().catch(console.error);
+          console.log('Client thinks user is logged in but server says no - syncing auth state');
+          // Try to re-synchronize with the server in case it's a temporary issue
+          user.getIdToken(true)
+            .then(idToken => {
+              return fetch('/api/auth/login', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Accept': 'application/json'
+                },
+                body: JSON.stringify({ idToken }),
+                credentials: 'include'
+              });
+            })
+            .then(response => {
+              if (!response.ok) {
+                console.log('Re-sync attempt failed - signing out');
+                // If re-sync failed, sign out
+                signOut().catch(console.error);
+                
+                // Show toast notification
+                toast({
+                  title: 'Session Expired',
+                  description: 'Please sign in again to continue.',
+                  variant: 'destructive',
+                });
+                
+                // Redirect to login page after a short delay (to let toast appear)
+                setTimeout(() => {
+                  setLocation('/login');
+                }, 300);
+              } else {
+                console.log('Re-sync successful - session is now valid');
+                // If re-sync succeeded, invalidate and refetch queries
+                queryClient.invalidateQueries();
+              }
+            })
+            .catch(error => {
+              console.error('Error during auth re-sync:', error);
+              // On error, sign out
+              signOut().catch(console.error);
+              
+              // Show toast notification
+              toast({
+                title: 'Authentication Error',
+                description: 'Please sign in again to continue.',
+                variant: 'destructive',
+              });
+              
+              setTimeout(() => {
+                setLocation('/login');
+              }, 300);
+            });
+        } else {
+          // User is already signed out, just redirect
+          // Show toast notification
+          toast({
+            title: 'Authentication Required',
+            description: 'Please sign in to continue.',
+            variant: 'destructive',
+          });
+          
+          // Redirect to login page after a short delay
+          setTimeout(() => {
+            setLocation('/login');
+          }, 300);
         }
-        
-        // Show toast notification
-        toast({
-          title: 'Session Expired',
-          description: 'Please sign in again to continue.',
-          variant: 'destructive',
-        });
-        
-        // Redirect to login page after a short delay (to let toast appear)
-        setTimeout(() => {
-          setLocation('/login');
-        }, 300);
         
         // Clear any cached data that required authentication
         queryClient.invalidateQueries();
