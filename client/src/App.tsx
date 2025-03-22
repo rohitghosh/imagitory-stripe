@@ -8,6 +8,7 @@ import HomePage from "@/pages/HomePage";
 import CreateStoryPage from "@/pages/CreateStoryPage";
 import LoginPage from "@/pages/LoginPage";
 import BookDetailPage from "@/pages/BookDetailPage";
+import { AuthErrorInterceptor } from "@/components/AuthErrorInterceptor";
 import React, { Suspense, useEffect } from "react";
 
 const ProfilePage = React.lazy(() => import("./pages/ProfilePage"));
