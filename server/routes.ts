@@ -553,21 +553,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Character routes with improved authentication
-  app.post("/api/characters", async (req: Request, res: Response) => {
+  // Character routes with authentication middleware
+  app.post("/api/characters", authenticate, async (req: Request, res: Response) => {
     try {
-      // Check authentication with detailed logging
-      if (!req.session || !req.session.userId) {
-        if (DEBUG_LOGGING) {
-          console.log("[/api/characters POST] Authentication failed:", {
-            hasSession: !!req.session,
-            sessionID: req.sessionID,
-          });
-        }
-        return res.status(401).json({ message: "Unauthorized" });
-      }
-
-      const userId = req.session.userId.toString();
+      // User is already authenticated by middleware
+      const userId = req.session!.userId!.toString();
 
       if (DEBUG_LOGGING) {
         console.log(`[/api/characters POST] User authenticated: ${userId}`);
@@ -595,13 +585,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/characters/:id", async (req: Request, res: Response) => {
+  app.get("/api/characters/:id", authenticate, async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
       const character = await storage.getCharacter(id);
+      
       if (!character) {
         return res.status(404).json({ message: "Character not found" });
       }
+      
+      // Verify the character belongs to the authenticated user if it's a custom character
+      if (character.type === 'custom' && character.userId !== req.session!.userId) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
       res.status(200).json(character);
     } catch (error: any) {
       console.error("Error fetching character by id:", error);
@@ -625,7 +622,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         characters = await storage.getCharactersByType("predefined");
       } else {
-        // Check authentication for custom characters
+        // Custom characters require authentication
         if (!req.session || !req.session.userId) {
           if (DEBUG_LOGGING) {
             console.log(
@@ -666,21 +663,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Story routes with improved authentication
-  app.post("/api/stories", async (req: Request, res: Response) => {
+  // Story routes with authentication middleware
+  app.post("/api/stories", authenticate, async (req: Request, res: Response) => {
     try {
-      // Check authentication with detailed logging
-      if (!req.session || !req.session.userId) {
-        if (DEBUG_LOGGING) {
-          console.log("[/api/stories POST] Authentication failed:", {
-            hasSession: !!req.session,
-            sessionID: req.sessionID,
-          });
-        }
-        return res.status(401).json({ message: "Unauthorized" });
-      }
-
-      const userId = req.session.userId.toString();
+      // User is already authenticated by middleware
+      const userId = req.session!.userId!.toString();
 
       if (DEBUG_LOGGING) {
         console.log(`[/api/stories POST] User authenticated: ${userId}`);
@@ -751,7 +738,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         return res.status(200).json(groupedStories);
       } else {
-        // Check authentication for user's stories
+        // Custom stories require authentication
         if (!req.session || !req.session.userId) {
           if (DEBUG_LOGGING) {
             console.log(
