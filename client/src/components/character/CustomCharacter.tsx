@@ -34,7 +34,19 @@ export function CustomCharacter({ onSubmit }: CustomCharactersProps) {
     null,
   );
   const [selectedStyle, setSelectedStyle] = useState<
-    "hyper-realistic" | "cartoonish" | null
+    | "hyper-pixar"
+    | "hyper-handdrawn"
+    | "hyper-watercolor"
+    | "hyper-crayonart"
+    | "hyper-claymotion"
+    | "hyper-pastelsketch"
+    | "cartoon-pixar"
+    | "cartoon-handdrawn"
+    | "cartoon-watercolor"
+    | "cartoon-crayonart"
+    | "cartoon-claymotion"
+    | "cartoon-pastelsketch"
+    | null
   >(null);
 
   // Carousel navigation
@@ -252,15 +264,19 @@ export function CustomCharacter({ onSubmit }: CustomCharactersProps) {
         <StyleSelection
           onStyleSelected={(style) => setSelectedStyle(style)}
           selectedStyle={selectedStyle}
-          originalImages={[
-            "https://firebasestorage.googleapis.com/v0/b/kids-story-5eb1b.firebasestorage.app/o/website_photos%2Fdownload.jpeg?alt=media&token=8f224333-c0f2-4b84-b6f3-916abee86f1f",
-          ]}
-          hyperRealisticImages={[
-            "https://firebasestorage.googleapis.com/v0/b/kids-story-5eb1b.firebasestorage.app/o/website_photos%2FFMTTjjBcUsUC5Md1bBsml_ec389b78f8d3403aa8f16e745ab47ff1.jpg?alt=media&token=b418fe8a-4000-4902-8250-29decf6e7163",
-          ]}
-          cartoonishImages={[
-            "https://firebasestorage.googleapis.com/v0/b/kids-story-5eb1b.firebasestorage.app/o/website_photos%2Fmo0DER6dte45-wwSsTJHK_7fda40b8d087480aa6a186b8cf07fbcf.jpg?alt=media&token=66b6db8c-2b29-4359-9c76-e69b12c3f8e9",
-          ]}
+          originalImageUrl="https://firebasestorage.googleapis.com/v0/b/kids-story-5eb1b.firebasestorage.app/o/website_photos%2Fdownload.jpeg?alt=media&token=8f224333-c0f2-4b84-b6f3-916abee86f1f"
+          hyperPixarUrl="https://firebasestorage.googleapis.com/v0/b/kids-story-5eb1b.firebasestorage.app/o/website_photos%2FimagesGenerated%2Fpixar-hyper.jpg?alt=media&token=63932a83-59d8-478c-829c-edd8ff64fb73"
+          hyperHanddrawnUrl="https://firebasestorage.googleapis.com/v0/b/kids-story-5eb1b.firebasestorage.app/o/website_photos%2FimagesGenerated%2Fhand-drawn-hyper.jpg?alt=media&token=5df21821-5d22-4f8d-9646-61b689779a46"
+          hyperWatercolorUrl="https://firebasestorage.googleapis.com/v0/b/kids-story-5eb1b.firebasestorage.app/o/website_photos%2FimagesGenerated%2Fwater-color-hyper.jpg?alt=media&token=96070ec7-6562-402e-ae7d-660fe82198ed"
+          hyperCrayonartUrl="https://firebasestorage.googleapis.com/v0/b/kids-story-5eb1b.firebasestorage.app/o/website_photos%2FimagesGenerated%2Fcrayon-hyper.jpg?alt=media&token=0746af63-c471-481d-81f2-e4ee0cfd683b"
+          hyperClaymotionUrl="https://firebasestorage.googleapis.com/v0/b/kids-story-5eb1b.firebasestorage.app/o/website_photos%2FimagesGenerated%2Fclaymotion-hyper.jpg?alt=media&token=73f0ccb6-018f-4b2e-ba79-18c98538acd6"
+          hyperPastelsketchUrl="https://firebasestorage.googleapis.com/v0/b/kids-story-5eb1b.firebasestorage.app/o/website_photos%2FimagesGenerated%2Fpastel-hyper.jpg?alt=media&token=37fe7bb6-4d76-484c-9703-e04306d825ab"
+          cartoonPixarUrl="https://firebasestorage.googleapis.com/v0/b/kids-story-5eb1b.firebasestorage.app/o/website_photos%2FimagesGenerated%2Fpixar-cartoon.jpg?alt=media&token=5b6ff3ff-1bf4-4d2a-a984-f6b795cb60c1"
+          cartoonHanddrawnUrl="https://firebasestorage.googleapis.com/v0/b/kids-story-5eb1b.firebasestorage.app/o/website_photos%2FimagesGenerated%2Fhand-drawn-cartoon.jpg?alt=media&token=d28599e5-686b-4e3e-8f78-5b9a928e3e34"
+          cartoonWatercolorUrl="https://firebasestorage.googleapis.com/v0/b/kids-story-5eb1b.firebasestorage.app/o/website_photos%2FimagesGenerated%2Fwater-color-cartoon.jpg?alt=media&token=7c10cccf-27b8-4930-8855-2393df2785bc"
+          cartoonCrayonartUrl="https://firebasestorage.googleapis.com/v0/b/kids-story-5eb1b.firebasestorage.app/o/website_photos%2FimagesGenerated%2Fcrayon-cartoon.jpg?alt=media&token=3742c42e-fbb4-462e-89ff-016278a9b416"
+          cartoonClaymotionUrl="https://firebasestorage.googleapis.com/v0/b/kids-story-5eb1b.firebasestorage.app/o/website_photos%2FimagesGenerated%2Fclaymotion-cartoon.jpg?alt=media&token=fc80b979-bf10-493f-aa61-08684cae1da8"
+          cartoonPastelsketchUrl="https://firebasestorage.googleapis.com/v0/b/kids-story-5eb1b.firebasestorage.app/o/website_photos%2FimagesGenerated%2Fpastel-cartoon.jpg?alt=media&token=433c5e25-4e89-4b55-b9b4-decb4eb232ee"
         />
       )}
 

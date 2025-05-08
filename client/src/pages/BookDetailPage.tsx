@@ -1,4 +1,4 @@
-import { useParams } from "wouter";
+import { useParams, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
 import { Header } from "@/components/Header";
@@ -61,6 +61,7 @@ export default function BookDetailPage() {
   const { toast } = useToast();
   const [isDirty, setIsDirty] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [, setLocation] = useLocation();
 
   const {
     data: book,
@@ -95,11 +96,32 @@ export default function BookDetailPage() {
     enabled: !!book?.characterId, // only run if characterId exists
   });
 
+  const {
+    data: storyData,
+    isLoading: loadingStory,
+    error: storyError,
+  } = useQuery({
+    queryKey: ["story", book?.storyId],
+    queryFn: async () => {
+      console.log("Fetching story for id:", book?.storyId);
+      const res = await fetch(`/api/stories/${book.storyId}`, {
+        credentials: "include",
+      });
+      console.log("Story fetch response:", res);
+      if (!res.ok) {
+        throw new Error("Story not found");
+      }
+      return res.json();
+    },
+    enabled: !!book?.storyId, // only run if storyId exists
+  });
+
   // (4) Once the book is fetched, transform its pages and set local state
   useEffect(() => {
     if (book) {
       console.log(book);
       console.log(characterData);
+      console.log(storyData);
       const transformedPages = transformBookPages(book);
       setPages(transformedPages);
       setBookTitle(book.title);
@@ -126,24 +148,20 @@ export default function BookDetailPage() {
 
     const effectiveModelId = characterData?.modelId || "defaultModelId";
 
-    const loraScale =
-      characterData.type === "custom"
-        ? book.stylePreference === "hyper-realistic"
-          ? 0.9
-          : 0.8
-        : 1.0;
-
     let payload = {
       modelId: effectiveModelId,
       prompt: "",
       isCover: false,
-      loraScale,
+      kidName: characterData.name,
+      age: characterData.age,
+      gender: characterData.gender,
+      stylePreference: book.stylePreference,
     };
 
     if (page.isCover || page.isBackCover) {
       const currentTitle = pages[0]?.content || bookTitle;
       payload.prompt = page.isCover
-        ? `A captivating front cover photo which is apt for title: ${currentTitle} featuring character named ""${characterData.name}"" as hero of the story. It should clearly display the text "${currentTitle}" on top of the photo in a bold and colourful font`
+        ? `A captivating front cover photo which is apt for title: ${title} featuring <${kidName}kidName> as hero. It should clearly display the text "${title}" on top of the photo in a bold and colourful font`
         : `A generic minimal portrait back cover photo for the story of ${currentTitle}`;
       payload.isCover = true; // reuse flag to indicate special pages
     } else {
@@ -245,42 +263,51 @@ export default function BookDetailPage() {
   const handleDownloadPDF = async () => {
     if (!book) return;
     try {
-      // Call your PDF generation endpoint instead of directly calling generatePDF.
-      // Ensure your endpoint (e.g. /api/generatePDF) uses your generatePDF utility and sends the PDF data.
-      const response = await fetch("/api/PDF/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: book.title,
-          pages: pages,
-          coverUrl: pages.find((p) => p.isCover)?.imageUrl || null,
-          backCoverUrl: pages.find((p) => p.isBackCover)?.imageUrl || null,
-        }),
-      });
-      if (!response.ok) {
-        throw new Error("Failed to generate PDF");
-      }
-
-      // Read the response as a Blob.
-      const blob = await response.blob();
-
-      // Create a temporary URL for the Blob and trigger the download.
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `${book.title}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      console.log("Generating PDF for book:", id);
+      setLocation(`/edit-pdf/${id}`);
     } catch (error) {
       console.error("Error generating PDF:", error);
-      toast({
-        title: "Download Error",
-        description: "Failed to generate PDF.",
-        variant: "destructive",
-      });
     }
+    // try {
+    // Call your PDF generation endpoint instead of directly calling generatePDF.
+    // Ensure your endpoint (e.g. /api/generatePDF) uses your generatePDF utility and sends the PDF data.
+    // const response = await fetch("/api/PDF/generate", {
+    //   method: "POST",
+    //   headers: { "Content-Type": "application/json" },
+    //   body: JSON.stringify({
+    //     id: book.id
+    //     title: book.title,
+    //     pages: pages,
+    //     coverUrl: pages.find((p) => p.isCover)?.imageUrl || null,
+    //     backCoverUrl: pages.find((p) => p.isBackCover)?.imageUrl || null,
+    //     storyPrompt: storyData.instructions,
+    //   }),
+    // });
+    // if (!response.ok) {
+    //   throw new Error("Failed to generate PDF");
+
+    //   }
+
+    //   // Read the response as a Blob.
+    //   const blob = await response.blob();
+
+    //   // Create a temporary URL for the Blob and trigger the download.
+    //   const url = URL.createObjectURL(blob);
+    //   const link = document.createElement("a");
+    //   link.href = url;
+    //   link.download = `${book.title}.pdf`;
+    //   document.body.appendChild(link);
+    //   link.click();
+    //   document.body.removeChild(link);
+    //   URL.revokeObjectURL(url);
+    // } catch (error) {
+    //   console.error("Error generating PDF:", error);
+    //   toast({
+    //     title: "Download Error",
+    //     description: "Failed to generate PDF.",
+    //     variant: "destructive",
+    //   });
+    // }
   };
 
   // Handler to trigger the shipping form (for placing an order)
@@ -320,6 +347,7 @@ export default function BookDetailPage() {
   if (isLoading) return <div>Loading...</div>;
   if (error) return <div>Book not found</div>;
   const disableRegeneration = loadingCharacter || characterError;
+  const disableDownload = loadingStory || storyError;
 
   // Prepare pages for BookPreview (assumes each page has imageUrl and content)
   // const pages = book.pages.map((page: any, index: number) => ({
@@ -335,6 +363,8 @@ export default function BookDetailPage() {
     characterError,
   );
 
+  console.log("loadingStory:", loadingStory, "storyError:", storyError);
+
   return (
     <div className="min-h-screen flex flex-col">
       <Header />
@@ -343,7 +373,7 @@ export default function BookDetailPage() {
           <BookPreview
             bookTitle={book.title}
             pages={pages}
-            onDownload={handleDownloadPDF}
+            onDownload={disableDownload ? () => {} : handleDownloadPDF}
             onPrint={handlePrint}
             onUpdatePage={handleUpdatePage}
             onRegenerate={disableRegeneration ? () => {} : handleRegenerate}

@@ -7,8 +7,10 @@ import { getStorage } from "firebase-admin/storage";
 import { v4 as uuidv4 } from "uuid";
 import path from "path";
 import { URL } from "url";
-import { title } from "process";
-import { s } from "node_modules/vite/dist/node/types.d-aGj9QkWt";
+import { expandImageToLeft, splitImageInHalf } from "./elementGeneration";
+import { uploadBase64ToFirebase } from "./uploadImage";
+import { STORY_SYSTEM_PROMPT, IMAGE_PROMPT_SYSTEM_PROMPT } from "./prompts";
+
 const DEBUG_LOGGING = process.env.DEBUG_LOGGING === "true";
 
 /**
@@ -116,9 +118,9 @@ export async function trainCustomModel(
   const input = {
     images_data_url: zipUrl, // Pass the zip file URL
     captions, // Still pass the captions array as required (if API expects it)
-    custom_token: kidName,
+    custom_token: `<${kidName}kidName>`,
     fast_training: true,
-    steps: 1000,
+    steps: 2000,
     create_masks: true,
   };
   if (DEBUG_LOGGING) {
@@ -152,13 +154,13 @@ export async function trainCustomModel(
     modelId: result.data.diffusers_lora_file.url,
     requestId: result.requestId,
   };
-//   await new Promise((resolve) => setTimeout(resolve, 10000));
-//   return {
-//     modelId:
-//       "https://v3.fal.media/files/panda/q3C2L2ukMOD-XR0XCNLiO_pytorch_lora_weights.safetensors",
-//     requestId: "66115f6e-7f18-459a-abbb-184253c769e8",
-//   };
-// }
+  //   await new Promise((resolve) => setTimeout(resolve, 10000));
+  //   return {
+  //     modelId:
+  //       "https://v3.fal.media/files/panda/q3C2L2ukMOD-XR0XCNLiO_pytorch_lora_weights.safetensors",
+  //     requestId: "66115f6e-7f18-459a-abbb-184253c769e8",
+  //   };
+}
 
 /**
  * Generate a single image using fal.ai and the custom-trained model.
@@ -169,6 +171,8 @@ export async function generateImage(
   modelId: string,
   loraScale: number,
   seed: number,
+  width?: number,
+  height?: number,
 ): Promise<string> {
   console.log(
     "[generateImage] Generating image with prompt:",
@@ -189,7 +193,12 @@ export async function generateImage(
     embeddings: [], // No extra embeddings.
     model_name: null, // As required.
     enable_safety_checker: true,
-    seed:seed
+    num_inference_steps: 50,
+    seed: seed,
+    image_size: {
+      width: width ? width : 1024,
+      height: height ? height : 512,
+    },
   };
 
   console.log("[generateImage] Payload:", JSON.stringify(payload, null, 2));
@@ -223,16 +232,33 @@ export async function generateImage(
  */
 export async function generateScenePromptsLLM(
   kidName: string,
-  age : number,
+  age: number,
   gender: string,
   basePrompt: string,
   moral: string,
+  storyRhyming: boolean,
+  storyTheme: string,
 ): Promise<string[]> {
-  const llmPrompt = `Generate a numbered list of 9 creative, one-sentence scene descriptions for a story where the hero has the name : ""${kidName}"" based on the storyline "${basePrompt}". The story should clearly convey the moral: "${moral}". Story is meant for a "${age}" year old "${gender}". Story should ideally follow story arc format as defined in the instructions as closely possible . Not all scene descriptions need to start with the words "Because of that" . If scenes are in sequence they can follow from where last scene ended.`;
+  // Determine the type of scene format based on the storyRhyming flag.
+  const promptFormat = storyRhyming
+    ? "rhyming 4 line stanzas"
+    : "non rhyming paragraphs";
+
+  // Construct the prompt. Instruct the model to output a valid JSON array of exactly 9 objects.
+  // Each object must have a "number" key (scene number) and a "scene" key (text content).
+  const llmPrompt = `Generate a valid JSON array containing exactly 9 objects.
+Each object should have the following keys:
+  - "number": an integer from 1 to 9 indicating the scene number.
+  - "scene": a string which is ${promptFormat} for a story where the hero is named "${kidName}", 
+    based on the storyline "${basePrompt}", with a theme of ${storyTheme}. 
+The story should clearly convey the moral: "${moral}" and be suitable for a ${age} year old ${gender}.
+Output only the JSON array with no extra text or commentary.`;
+
   if (DEBUG_LOGGING) {
     console.log("[generateScenePromptsLLM] LLM Prompt:", llmPrompt);
   }
 
+  // Execute the OpenAI Chat API call.
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -242,15 +268,11 @@ export async function generateScenePromptsLLM(
     body: JSON.stringify({
       model: "gpt-4",
       messages: [
-        {
-          role: "system",
-          content:
-            "You are a creative storywriter that helps generate engaging scene descriptions for children's stories. You know the arc of stories that involve the Pixar story arc of (Once upon a time... Every day.. One day… Because of that… Until finally…) of a hero winning against some challenges and learning something. Ensure that the hero has a clear problem to solve. Include sensory details and emotion where you can.  Include a moment of doubt or conflict as the climax of the story. Ensure to have a fun resolution or celebration. Also use a playful refrain and catchphrase as kids love repetition.",
-        },
+        { role: "system", content: STORY_SYSTEM_PROMPT },
         { role: "user", content: llmPrompt },
       ],
       temperature: 0.7,
-      max_tokens: 500,
+      max_tokens: 1000,
     }),
   });
 
@@ -265,15 +287,112 @@ export async function generateScenePromptsLLM(
 
   // Extract the assistant's reply.
   const content = data.choices[0].message.content;
-  // Split the text into individual scene prompts. Adjust the splitting logic if needed.
-  const scenes = content
-    .split("\n")
-    .map((line: string) => line.trim().replace(/^\d+\.\s*/, ""))
-    .filter((line: string) => line.length > 0);
-  if (DEBUG_LOGGING) {
-    console.log("[generateScenePromptsLLM] Generated scene prompts:", scenes);
+
+  let scenesArray: any;
+  // Attempt to parse the output as JSON.
+  try {
+    scenesArray = JSON.parse(content);
+  } catch (jsonError) {
+    console.error("[generateScenePromptsLLM] JSON parse error:", jsonError);
+    // Fallback: attempt to clean the text by extracting a substring that looks like a JSON array.
+    try {
+      const jsonStart = content.indexOf("[");
+      const jsonEnd = content.lastIndexOf("]") + 1;
+      const jsonSubstring = content.substring(jsonStart, jsonEnd);
+      scenesArray = JSON.parse(jsonSubstring);
+    } catch (fallbackError) {
+      console.error(
+        "[generateScenePromptsLLM] Fallback JSON parse error:",
+        fallbackError,
+      );
+      throw new Error("Failed to parse JSON response from the AI.");
+    }
   }
+
+  // Validate that exactly 9 scene objects are returned.
+  if (!Array.isArray(scenesArray) || scenesArray.length !== 9) {
+    throw new Error("Unexpected number of scenes returned, expected 9.");
+  }
+
+  // Extract the scene text from each object.
+  const scenes = scenesArray
+    .map((item: any) => {
+      if (typeof item === "object" && item.scene) {
+        return item.scene.trim();
+      }
+      return "";
+    })
+    .filter((scene: string) => scene.length > 0);
+
+  if (DEBUG_LOGGING) {
+    console.log("[generateScenePromptsLLM] Generated scenes:", scenes);
+  }
+
   return scenes;
+}
+
+export async function regenerateImagePromptsFromScenes(
+  kidName: string,
+  age: number,
+  gender: string,
+  scenes: string[],
+): Promise<string[]> {
+  const formattedScenes = scenes.map((s, i) => `${i + 1}. ${s}`).join("\n");
+
+  const messages = [
+    {
+      role: "system",
+      content: IMAGE_PROMPT_SYSTEM_PROMPT,
+    },
+    {
+      role: "user",
+      content: `
+Generate an image generation prompts to be used for illustration generation for the above story content. Below is a scene and I need an image generation prompt against that ensuring character consistency across previously geenrated prompts
+__________________
+${formattedScenes}
+__________________
+
+Other inputs:
+Main Character : ${kidName}
+Age : ${age}
+Gender : ${gender}
+Trigger: <${kidName}kidName>
+Everyone else apart from ${kidName} is a secondary character. Follow the guidelines mandatorily`,
+    },
+  ];
+
+  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+    },
+    body: JSON.stringify({
+      model: "gpt-4.1",
+      messages,
+      temperature: 1.0,
+      max_tokens: 500,
+    }),
+  });
+
+  const data = await response.json();
+  if (!data.choices || !data.choices[0]?.message?.content) {
+    throw new Error("Failed to generate image prompts from OpenAI response");
+  }
+
+  const content = data.choices[0].message.content;
+  console.log(content);
+  const prompts = content
+    .split("\n")
+    .map((line) => {
+      let trimmed = line.trim();
+      trimmed = trimmed.replace(/^Scene\s*\d+:\s*/i, "");
+      trimmed = trimmed.replace(/^\d+\.\s*/, "");
+      return trimmed;
+    })
+    .filter((line) => line.length > 0);
+
+  return prompts;
 }
 
 /**
@@ -286,26 +405,30 @@ export async function createImagePromptsFromScenes(
   scenes: string[],
   basePrompt: string,
   moral: string,
+  storyRhyming: boolean,
+  storyTheme: string,
 ): Promise<string[]> {
   const formattedScenes = scenes.map((s, i) => `${i + 1}. ${s}`).join("\n");
 
   const messages = [
     {
       role: "system",
-      content:
-        "You are a creative storywriter that helps generate engaging scene descriptions for children's stories. You know the arc of stories that involve the Pixar story arc of (Once upon a time... Every day.. One day… Because of that… Until finally…) of a hero winning against some challenges and learning something. Ensure that the hero has a clear problem to solve. Include sensory details and emotion where you can.  Include a moment of doubt or conflict as the climax of the story. Ensure to have a fun resolution or celebration. Also use a playful refrain and catchphrase as kids love repetition. ",
+      content: IMAGE_PROMPT_SYSTEM_PROMPT,
     },
     {
       role: "user",
-      content: `Generate a numbered list of 9 creative, one-sentence scene descriptions for a story where the hero has the name : ""${kidName}"" based on the storyline "${basePrompt}". The story should clearly convey the moral: "${moral}". Story is meant for a "${age}" year old "${gender}". Story should ideally follow story arc format as defined in the instructions as closely possible . Not all scene descriptions need to start with the words "Because of that" . If scenes are in sequence they can follow from where last scene ended.`,
-    },
-    {
-      role: "assistant",
-      content: formattedScenes,
-    },
-    {
-      role: "user",
-      content: `For each of these scene descriptions can you also generate a prompt that can be used for generating an image apt to go with the scene. Ensure that each prompt is independent and capable of generating images independently such that any references to other character apart from "${kidName}" are mentioned by type and nature and not their references. Most importantly,  if the story involves other animals or people or background, to ensure consistency, try and give vivid and similar description of the their features across prompts so that their images look similar. For example, a black cat or large blue whale etc. `,
+      content: `
+Generate a numbered list of 9 image generation prompts to be used for illustration generation for the above story content Here are the 9 scenes and I need an image generation prompt against each ensuring character consistency across the prompts.
+__________________
+${formattedScenes}
+__________________
+
+Other inputs:
+Main Character : ${kidName}
+Age : ${age}
+Gender : ${gender}
+Trigger: <${kidName}kidName>
+Everyone else apart from ${kidName} is a secondary character. Follow the guidelines mandatorily`,
     },
   ];
 
@@ -318,8 +441,8 @@ export async function createImagePromptsFromScenes(
     body: JSON.stringify({
       model: "gpt-4",
       messages,
-      temperature: 0.7,
-      max_tokens: 1000,
+      temperature: 1.0,
+      max_tokens: 3000,
     }),
   });
 
@@ -331,10 +454,83 @@ export async function createImagePromptsFromScenes(
   const content = data.choices[0].message.content;
   const prompts = content
     .split("\n")
-    .map((line) => line.trim().replace(/^\d+\.\s*/, ""))
+    .map((line) => {
+      let trimmed = line.trim();
+      trimmed = trimmed.replace(/^Scene\s*\d+:\s*/i, "");
+      trimmed = trimmed.replace(/^\d+\.\s*/, "");
+      return trimmed;
+    })
     .filter((line) => line.length > 0);
 
   return prompts;
+}
+
+export function buildFullPrompt(
+  stylePreference: string,
+  age: number,
+  gender: string,
+  prompt: string,
+) {
+  let fullPrompt = "";
+  const style = stylePreference.split("-").pop();
+
+  switch (style) {
+    case "pixar":
+      fullPrompt = `
+        Pixar-style 3D rendered, vibrant colors, expressive characters, ultra-detailed textures, cinematic lighting, joyful emotions, ${prompt}`;
+      break;
+
+    case "handdrawn":
+      fullPrompt = `
+      Detailed hand-drawn illustration, warm gentle colors, fine pencil or ink outlines, inviting textures, storybook charm, ${prompt}`;
+      break;
+
+    case "watercolor":
+      fullPrompt = `
+        Whimsical watercolor illustration, pastel color palette, smooth gradients, textured paper background, dream-like atmosphere, ${prompt}`;
+      break;
+
+    case "claymotion":
+      fullPrompt = `
+            Claymation-style detailed scene, realistic handmade clay textures, subtle imperfections, vibrant tactile appearance, playful composition, ${prompt}`;
+      break;
+
+    case "crayonart":
+      fullPrompt = `
+            Bright, playful crayon-style drawing, vivid bold colors, childlike rough textures, joyful simplicity, ${prompt}`;
+      break;
+
+    case "pastelsketch":
+      fullPrompt = `
+              Gentle pastel sketch, soft smudged textures, calming color tones, soothing, artistic sketch quality, ${prompt}`;
+      break;
+
+    default:
+      // Fallback or handle unknown style
+      fullPrompt = `
+        An image of a ${age}-year-old ${gender} where the scene is "${prompt}". 
+        (Default style).
+      `;
+      break;
+  }
+
+  // Optional: Clean up whitespace
+  return fullPrompt.trim();
+}
+
+export async function generateBackCoverImage(
+  coverUrl: string,
+  backCoverFileName: string,
+): Promise<{
+  backCoverUrl: string;
+}> {
+  const expandedImageUrl = await expandImageToLeft(coverUrl);
+  const { leftHalf, rightHalf } = await splitImageInHalf(expandedImageUrl);
+  const backCoverUrl = await uploadBase64ToFirebase(
+    leftHalf,
+    backCoverFileName,
+  );
+  return backCoverUrl;
 }
 
 /**
@@ -350,7 +546,9 @@ export async function generateStoryImages(
   title: string,
   age: number,
   gender: string,
-  loraScale: number,
+  stylePreference: string,
+  storyRhyming: boolean,
+  storyTheme: string,
   seed: number,
 ): Promise<{
   images: string[];
@@ -364,14 +562,25 @@ export async function generateStoryImages(
       baseStoryPrompt,
       moral,
       title,
+      stylePreference,
     });
   }
+
+  const loraScale =
+    stylePreference === "predefined"
+      ? 1.0
+      : stylePreference.startsWith("hyper")
+        ? 0.7
+        : 0.6;
+
   const scenePrompts = await generateScenePromptsLLM(
     kidName,
     age,
     gender,
     baseStoryPrompt,
     moral,
+    storyRhyming,
+    storyTheme,
   );
   if (scenePrompts.length < 9) {
     throw new Error("LLM did not return enough scene prompts.");
@@ -386,23 +595,51 @@ export async function generateStoryImages(
     scenePrompts,
     baseStoryPrompt,
     moral,
+    storyRhyming,
+    storyTheme,
+  );
+
+  console.log(
+    "[generateStoryImages] Image generation prompts length:",
+    imageGenerationPrompts.length,
+  );
+
+  console.log(
+    "[generateStoryImages] Image generation prompts length:",
+    imageGenerationPrompts,
   );
 
   const imagePromises = imageGenerationPrompts.map(async (prompt) => {
-    const fullPrompt = `an image of ${age} year old ${gender} where scene is "${prompt}", 3d CGI, art by Pixar, half-body, :screenshot from animation`;
+    const fullPrompt = buildFullPrompt(stylePreference, age, gender, prompt);
     return await generateImage(fullPrompt, modelId, loraScale, seed);
   });
   const images = await Promise.all(imagePromises);
   if (DEBUG_LOGGING)
     console.log("[generateStoryImages] Generated images:", images);
 
-  const coverPrompt = `A captivating front cover photo which is apt for title: ${title} featuring character named ""${kidName}"" as hero of the story. It should clearly display the text "${title}" on top of the photo in a bold and colourful font`;
-  const backcoverPrompt = `A generic minimal portrait back cover photo for the story of ${title}`;
+  const coverPrompt = `A captivating front cover photo which is apt for title: ${title} featuring <${kidName}kidName> as hero. It should clearly display the text "${title}" on top of the photo in a bold and colourful font`;
 
   if (DEBUG_LOGGING) console.log("[generateStoryImages] loraScale:", loraScale);
 
-  const coverUrl = await generateImage(coverPrompt, modelId, loraScale);
-  const backCoverUrl = await generateImage(backcoverPrompt, modelId, loraScale);
+  const coverPromptFull = buildFullPrompt(
+    stylePreference,
+    age,
+    gender,
+    coverPrompt,
+  );
+
+  const coverUrl = await generateImage(
+    coverPromptFull,
+    modelId,
+    loraScale,
+    512,
+  );
+  const backCoverFileName = `books/backCover/${kidName}_${baseStoryPrompt}.png`;
+  const backCoverUrl = await generateBackCoverImage(
+    coverUrl,
+    backCoverFileName,
+  );
+
   if (DEBUG_LOGGING) {
     console.log(
       "[generateStoryImages] Generated cover image:",

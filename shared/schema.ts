@@ -41,7 +41,9 @@ export const stories = pgTable("stories", {
   predefinedId: text("predefined_id"), // Only for predefined stories
   genre: text("genre"),
   instructions: text("instructions"),
-  elements: text("elements").array(),
+  rhyming: boolean("rhyming").default(false),
+  moral: text("moral").default(""),
+  theme: text("theme").default(""),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

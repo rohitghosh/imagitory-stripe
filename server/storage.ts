@@ -90,7 +90,7 @@ export class FirestoreStorage implements IStorage {
     await characterRef.update(updatedData);
     return { id, ...updatedData } as Character;
   }
-  
+
   async getCharactersByUserId(userId: string): Promise<Character[]> {
     const snapshot = await db
       .collection("characters")
@@ -164,6 +164,9 @@ export class FirestoreStorage implements IStorage {
       instructions: insertStory.instructions || null,
       elements: insertStory.elements || null,
       type: insertStory.type || "custom",
+      rhyming: insertStory.rhyming || false,
+      theme: insertStory.theme || null,
+      moral: insertStory.moral || "",
     };
     const docRef = await db.collection("stories").add(data);
     return { id: docRef.id, ...data } as Story;

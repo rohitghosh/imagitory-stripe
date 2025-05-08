@@ -1,4 +1,6 @@
 import type { Express, Request, Response, NextFunction } from "express";
+import express from "express";
+import { useLocation } from "wouter";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { z } from "zod";
@@ -11,6 +13,10 @@ import {
   shippingFormSchema,
 } from "@shared/schema";
 import { generatePDF } from "./utils/pdf";
+import { generatePDF as generateModernPDF } from "./utils/pdf2";
+import { generatePDF as generateStackedPDF } from "./utils/pdf3";
+import { inferTheme } from "./utils/themeEngine";
+import { generateDecorativeBordersForPages } from "./utils/imageGenerator";
 // No longer using authentication middleware
 import { authenticate } from "./middleware/auth";
 // Import firebase but don't initialize with credentials for now
@@ -23,12 +29,16 @@ import {
   trainCustomModel,
   generateStoryImages,
   generateImage,
+  buildFullPrompt,
+  generateBackCoverImage,
+  regenerateImagePromptsFromScenes,
 } from "./utils/trainAndGenerate";
 import admin from "./firebaseAdmin";
 import createMemoryStore from "memorystore";
-
-import { fal } from "@fal-ai/client";
-import { LucideSortAsc } from "lucide-react";
+import { splitImageInHalf } from "./utils/elementGeneration";
+import { pickContrastingTextColor } from "./utils/textColorUtils";
+import { loadBase64Image } from "./utils/layouts";
+import { uploadBase64ToFirebase } from "./utils/uploadImage";
 
 const MemoryStore = createMemoryStore(session);
 
@@ -434,6 +444,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         age,
         gender,
         stylePreference,
+        storyRhyming,
+        storyTheme,
       } = req.body;
       if (DEBUG_LOGGING)
         console.log("[/api/generateStory] Request body:", {
@@ -445,6 +457,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           age,
           gender,
           stylePreference,
+          storyRhyming,
+          storyTheme,
         });
       if (!kidName || !modelId || !baseStoryPrompt || !moral || !title) {
         throw new Error(
@@ -452,9 +466,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         );
       }
 
-      let loraScale = 1.0;
-      if (stylePreference === "hyper-realistic") loraScale = 0.9;
-      else if (stylePreference === "cartoonish") loraScale = 0.8;
       let seed = 3.0;
 
       const { images, sceneTexts, coverUrl, backCoverUrl } =
@@ -466,7 +477,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           title,
           age,
           gender,
-          loraScale,
+          stylePreference,
+          storyRhyming,
+          storyTheme,
           seed,
         );
       if (DEBUG_LOGGING) {
@@ -494,10 +507,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/regenerateImage", async (req: Request, res: Response) => {
     try {
-      const { modelId, prompt, isCover, loraScale } = req.body;
+      const {
+        modelId,
+        prompt,
+        isCover,
+        kidName,
+        age,
+        gender,
+        stylePreference,
+      } = req.body;
       // If the flag is true, use generateCoverImage, else generateImage.
+      const loraScale =
+        stylePreference === "predefined"
+          ? 1.0
+          : stylePreference.startsWith("hyper")
+            ? 0.7
+            : 0.6;
       const seed = Math.floor(Math.random() * 1_000_000);
-      const newUrl = await generateImage(prompt, modelId, loraScale, seed);
+      const generatedPrompt: string[] = await regenerateImagePromptsFromScenes(
+        kidName,
+        age,
+        gender,
+        [prompt],
+      );
+      const fullPrompt = isCover
+        ? prompt
+        : buildFullPrompt(
+            stylePreference,
+            age,
+            gender,
+            generatedPrompt.join(" "),
+          );
+      const width = isCover ? 512 : 1024;
+      const newUrl = await generateImage(
+        fullPrompt,
+        modelId,
+        loraScale,
+        seed,
+        width,
+      );
       res.status(200).json({ newUrl });
     } catch (error: any) {
       if (DEBUG_LOGGING)
@@ -554,57 +602,68 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Character routes with authentication middleware
-  app.post("/api/characters", authenticate, async (req: Request, res: Response) => {
-    try {
-      // User is already authenticated by middleware
-      const userId = req.session!.userId!.toString();
+  app.post(
+    "/api/characters",
+    authenticate,
+    async (req: Request, res: Response) => {
+      try {
+        // User is already authenticated by middleware
+        const userId = req.session!.userId!.toString();
 
-      if (DEBUG_LOGGING) {
-        console.log(`[/api/characters POST] User authenticated: ${userId}`);
-        console.log("[/api/characters POST] Request body:", req.body);
+        if (DEBUG_LOGGING) {
+          console.log(`[/api/characters POST] User authenticated: ${userId}`);
+          console.log("[/api/characters POST] Request body:", req.body);
+        }
+
+        const validatedData = insertCharacterSchema.parse({
+          ...req.body,
+          userId,
+        });
+
+        const character = await storage.createCharacter(validatedData);
+
+        if (DEBUG_LOGGING) {
+          console.log("[/api/characters POST] Character created:", character);
+        }
+
+        res.status(201).json(character);
+      } catch (error: any) {
+        console.error("[/api/characters POST] Error:", error);
+        res.status(400).json({
+          message: "Invalid character data",
+          error: error.errors || error.message || {},
+        });
       }
+    },
+  );
 
-      const validatedData = insertCharacterSchema.parse({
-        ...req.body,
-        userId,
-      });
+  app.get(
+    "/api/characters/:id",
+    authenticate,
+    async (req: Request, res: Response) => {
+      try {
+        const { id } = req.params;
+        const character = await storage.getCharacter(id);
 
-      const character = await storage.createCharacter(validatedData);
+        if (!character) {
+          return res.status(404).json({ message: "Character not found" });
+        }
 
-      if (DEBUG_LOGGING) {
-        console.log("[/api/characters POST] Character created:", character);
+        // Verify the character belongs to the authenticated user if it's a custom character
+        if (
+          character.type === "custom" &&
+          character.userId !== req.session!.userId
+        ) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+
+        res.status(200).json(character);
+      } catch (error: any) {
+        console.error("Error fetching character by id:", error);
+        res.status(500).json({ message: "Server error", error: error.message });
       }
-
-      res.status(201).json(character);
-    } catch (error: any) {
-      console.error("[/api/characters POST] Error:", error);
-      res.status(400).json({
-        message: "Invalid character data",
-        error: error.errors || error.message || {},
-      });
-    }
-  });
-
-  app.get("/api/characters/:id", authenticate, async (req: Request, res: Response) => {
-    try {
-      const { id } = req.params;
-      const character = await storage.getCharacter(id);
-      
-      if (!character) {
-        return res.status(404).json({ message: "Character not found" });
-      }
-      
-      // Verify the character belongs to the authenticated user if it's a custom character
-      if (character.type === 'custom' && character.userId !== req.session!.userId) {
-        return res.status(403).json({ message: "Access denied" });
-      }
-      
-      res.status(200).json(character);
-    } catch (error: any) {
-      console.error("Error fetching character by id:", error);
-      res.status(500).json({ message: "Server error", error: error.message });
-    }
-  });
+    },
+  );
 
   app.get("/api/characters", async (req: Request, res: Response) => {
     try {
@@ -664,36 +723,65 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Story routes with authentication middleware
-  app.post("/api/stories", authenticate, async (req: Request, res: Response) => {
-    try {
-      // User is already authenticated by middleware
-      const userId = req.session!.userId!.toString();
+  app.post(
+    "/api/stories",
+    authenticate,
+    async (req: Request, res: Response) => {
+      try {
+        // User is already authenticated by middleware
+        const userId = req.session!.userId!.toString();
 
-      if (DEBUG_LOGGING) {
-        console.log(`[/api/stories POST] User authenticated: ${userId}`);
-        console.log("[/api/stories POST] Request body:", req.body);
+        if (DEBUG_LOGGING) {
+          console.log(`[/api/stories POST] User authenticated: ${userId}`);
+          console.log("[/api/stories POST] Request body:", req.body);
+        }
+
+        const validatedData = insertStorySchema.parse({
+          ...req.body,
+          userId,
+        });
+
+        const story = await storage.createStory(validatedData);
+
+        if (DEBUG_LOGGING) {
+          console.log("[/api/stories POST] Story created:", story);
+        }
+
+        res.status(201).json(story);
+      } catch (error: any) {
+        console.error("[/api/stories POST] Error:", error);
+        res.status(400).json({
+          message: "Invalid story data",
+          error: error.errors || error.message || {},
+        });
       }
+    },
+  );
 
-      const validatedData = insertStorySchema.parse({
-        ...req.body,
-        userId,
-      });
+  app.get(
+    "/api/stories/:id",
+    authenticate,
+    async (req: Request, res: Response) => {
+      try {
+        const { id } = req.params;
+        const story = await storage.getStory(id);
 
-      const story = await storage.createStory(validatedData);
+        if (!story) {
+          return res.status(404).json({ message: "Story not found" });
+        }
 
-      if (DEBUG_LOGGING) {
-        console.log("[/api/stories POST] Story created:", story);
+        // Verify the character belongs to the authenticated user if it's a custom character
+        if (story.type === "custom" && story.userId !== req.session!.userId) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+
+        res.status(200).json(story);
+      } catch (error: any) {
+        console.error("Error fetching story by id:", error);
+        res.status(500).json({ message: "Server error", error: error.message });
       }
-
-      res.status(201).json(story);
-    } catch (error: any) {
-      console.error("[/api/stories POST] Error:", error);
-      res.status(400).json({
-        message: "Invalid story data",
-        error: error.errors || error.message || {},
-      });
-    }
-  });
+    },
+  );
 
   app.get("/api/stories", async (req: Request, res: Response) => {
     try {
@@ -840,36 +928,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/books/:id", authenticate, async (req: Request, res: Response) => {
-    const { id } = req.params;
-    console.log("routes.ts - GET /api/books/:id called with id:", id);
-    try {
-      const book = await storage.getBookById(id);
-      if (!book) {
-        console.log("routes.ts - Book not found for id:", id);
-        return res.status(404).json({ error: "Book not found" });
+  app.get(
+    "/api/books/:id",
+    authenticate,
+    async (req: Request, res: Response) => {
+      const { id } = req.params;
+      console.log("routes.ts - GET /api/books/:id called with id:", id);
+      try {
+        const book = await storage.getBookById(id);
+        if (!book) {
+          console.log("routes.ts - Book not found for id:", id);
+          return res.status(404).json({ error: "Book not found" });
+        }
+
+        // Verify that the book belongs to the authenticated user
+        if (book.userId !== req.session!.userId) {
+          console.log("routes.ts - Book access denied, wrong user:", {
+            bookUserId: book.userId,
+            sessionUserId: req.session!.userId,
+          });
+          return res.status(403).json({ error: "Access denied" });
+        }
+
+        console.log("routes.ts - Returning book for id:", id, book);
+        return res.status(200).json(book);
+      } catch (error) {
+        console.error(
+          "routes.ts - Error in GET /api/books/:id for id:",
+          id,
+          error,
+        );
+        return res.status(500).json({ error: "Internal server error" });
       }
-      
-      // Verify that the book belongs to the authenticated user
-      if (book.userId !== req.session!.userId) {
-        console.log("routes.ts - Book access denied, wrong user:", {
-          bookUserId: book.userId,
-          sessionUserId: req.session!.userId
-        });
-        return res.status(403).json({ error: "Access denied" });
-      }
-      
-      console.log("routes.ts - Returning book for id:", id, book);
-      return res.status(200).json(book);
-    } catch (error) {
-      console.error(
-        "routes.ts - Error in GET /api/books/:id for id:",
-        id,
-        error,
-      );
-      return res.status(500).json({ error: "Internal server error" });
-    }
-  });
+    },
+  );
 
   // Order routes with authentication
   app.post("/api/orders", authenticate, async (req: Request, res: Response) => {
@@ -934,7 +1026,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // PDF generation - no authentication required
+  // app.post("/api/pdf/generate", async (req: Request, res: Response) => {
+  //   try {
+  //     const { title, pages, coverUrl, backCoverUrl, storyPrompt } = req.body;
+
+  //     // const newPages = pages.slice(0, 8);
+  //     const newPages = pages;
+
+  //     // const layout = "side-by-side";
+  //     let borderImages = undefined;
+  //     // let backgroundImageBase64 = undefined;
+
+  //     // if (layout == "side-by-side") {
+  //     //   pageBackgrounds = await generatePageBackgrounds(newPages, "side-by-side");
+  //     // }
+
+  //     // const theme = inferTheme(storyPrompt);
+  //     borderImages = await generateDecorativeBordersForPages(8, "space");
+
+  //     // console.log(pageBackgrounds);
+
+  //     const buffer = await generateStackedPDF(
+  //       title,
+  //       newPages,
+  //       coverUrl,
+  //       backCoverUrl,
+  //       borderImages,
+  //     );
+
+  //     res.setHeader("Content-Type", "application/pdf");
+  //     res.setHeader(
+  //       "Content-Disposition",
+  //       `attachment; filename="${title.replace(/\s+/g, "_")}.pdf"`,
+  //     );
+
+  //     res.send(buffer);
+  //   } catch (error) {
+  //     console.error("PDF generation error:", error);
+  //     res.status(500).json({ message: "Failed to generate PDF", error });
+  //   }
+  // });
+
+  // PDF generation - no authentication required
   app.post("/api/pdf/generate", async (req: Request, res: Response) => {
+    let size = 0;
+    req.on("data", (chunk) => (size += chunk.length));
+    req.on("end", () => console.log("Request size in bytes:", size));
     try {
       const { title, pages, coverUrl, backCoverUrl } = req.body;
 
@@ -953,5 +1090,80 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/books/:bookId/prepareSplit", async (req, res) => {
+    const { id: bookId, pages } = req.body;
+
+    try {
+      // Check if pages are already processed
+      const book = await storage.getBookById(bookId);
+
+      const alreadyProcessed = book.pages.every(
+        (p) =>
+          p.leftHalfUrl &&
+          p.rightHalfUrl &&
+          p.rightTextColor &&
+          (p.leftText || p.rightText),
+      );
+
+      if (alreadyProcessed) {
+        console.log("Returning pre-processed pages from DB.");
+        return res.json({ pages: book.pages });
+      }
+
+      // Otherwise: split, upload, color-pick, and store results
+      const processedPages = [];
+
+      for (const page of pages) {
+        const { leftHalf, rightHalf } = await splitImageInHalf(page.imageUrl);
+        const leftFileName = `books/${bookId}/pages/${page.id}_left.png`;
+        const rightFileName = `books/${bookId}/pages/${page.id}_right.png`;
+
+        const leftHalfUrl = await uploadBase64ToFirebase(
+          leftHalf,
+          leftFileName,
+        );
+        const rightHalfUrl = await uploadBase64ToFirebase(
+          rightHalf,
+          rightFileName,
+        );
+
+        const rightImg = await loadBase64Image(rightHalf);
+        const rightTextColor = pickContrastingTextColor(
+          rightImg,
+          50,
+          50,
+          100,
+          100,
+        );
+
+        const leftText = "";
+        const rightText = page.content;
+
+        processedPages.push({
+          ...page,
+          leftHalfUrl,
+          rightHalfUrl,
+          leftTextColor: "", // or computed
+          rightTextColor,
+          leftText,
+          rightText,
+        });
+      }
+
+      // ✅ Save updated pages back to DB
+      await storage.updateBook(bookId, { pages: processedPages });
+
+      res.json({ pages: processedPages });
+    } catch (error) {
+      console.error("prepareSplit error:", error);
+      res.status(500).json({ message: "Failed to process pages" });
+    }
+  });
+
   return httpServer;
 }
+
+//   app.post("/api/pdf/generate", async (req: Request, res: Response) => {
+//      const { id, title, pages, coverUrl, backCoverUrl, storyPrompt } = req.body;
+//       setLocation(`/pdf-editor/${id}`);
+// }

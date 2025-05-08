@@ -59,7 +59,7 @@ export function BookPreview({
     try {
       toast({
         title: "Preparing your book",
-        description: "Your book is being prepared for download...",
+        description: "Your book is being prepared for rendering...",
       });
 
       await onDownload();
@@ -70,7 +70,7 @@ export function BookPreview({
       });
     } catch (error) {
       toast({
-        title: "Download failed",
+        title: "Rendering failed",
         description:
           "There was a problem generating your book. Please try again.",
         variant: "destructive",
@@ -220,11 +220,11 @@ export function BookPreview({
           className="w-full md:w-auto flex items-center justify-center"
           onClick={handleDownload}
         >
-          <i className="fas fa-download mr-2"></i>
-          <span>Download PDF</span>
+          <i className="fas fa-edit mr-2"></i>
+          <span>Edit PDF</span>
         </Button>
 
-        <Button
+        {/* <Button
           variant="outline"
           size="lg"
           className="w-full md:w-auto flex items-center justify-center border-2 border-primary text-primary"
@@ -232,7 +232,7 @@ export function BookPreview({
         >
           <i className="fas fa-print mr-2"></i>
           <span>Print & Ship</span>
-        </Button>
+        </Button> */}
       </div>
     </div>
   );

@@ -9,6 +9,7 @@ import HomePage from "@/pages/HomePage";
 import CreateStoryPage from "@/pages/CreateStoryPage";
 import LoginPage from "@/pages/LoginPage";
 import BookDetailPage from "@/pages/BookDetailPage";
+import EditPDFPage from "@/pages/EditPDFPage";
 import { AuthErrorInterceptor } from "@/components/AuthErrorInterceptor";
 import React, { Suspense, useEffect } from "react";
 
@@ -39,7 +40,7 @@ function ProtectedRoute({ component: Component, params }: ProtectedRouteProps) {
         description: "Please sign in to access this content.",
         variant: "destructive",
       });
-      
+
       // Redirect to login page
       setLocation("/login");
     }
@@ -55,7 +56,7 @@ function ProtectedRoute({ component: Component, params }: ProtectedRouteProps) {
       </div>
     );
   }
-  
+
   // Only render the component if the user is authenticated
   return user ? <Component {...params} /> : null;
 }
@@ -76,6 +77,7 @@ function Router() {
       <Route path="/book/:id">
         {(params) => <ProtectedRoute component={BookDetailPage} {...params} />}
       </Route>
+      <Route path="/edit-pdf/:bookId" component={EditPDFPage} />
       <Route component={NotFound} />
     </Switch>
   );

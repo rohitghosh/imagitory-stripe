@@ -1,6 +1,9 @@
 // pdf.ts
 import { jsPDF } from "jspdf";
-import { registerCustomFonts } from "./fonts";
+import { registerCustomFonts } from "./customFonts/fonts";
+import { callAddFontChewy } from "./customFonts/Chewy";
+import { callAddFontBaloo2 } from "./customFonts/Baloo-2";
+import { getImageDataURL } from "./imageUtils";
 
 interface Page {
   id: number;
@@ -8,64 +11,64 @@ interface Page {
   content: string;
   isCover?: boolean;
   isBackCover?: boolean;
+  // WYSIWYG editing fields (stored in full resolution):
+  x?: number;
+  y?: number;
+  fontSize?: number;
+  color?: string;
+  leftHalfUrl?: string;
+  rightHalfUrl?: string;
+  leftTextColor?: string;
+  rightTextColor?: string;
+  leftText?: string | string[];
+  rightText?: string | string[];
 }
 
-async function getImageDataURL(url: string): Promise<string> {
-  const response = await fetch(url);
-  const arrayBuffer = await response.arrayBuffer();
-  const base64 = Buffer.from(arrayBuffer).toString("base64");
-  return `data:image/jpeg;base64,${base64}`;
+function parseColor(inputColor: string): [number, number, number] {
+  // 1) Handle basic named colors
+  const lower = inputColor.toLowerCase();
+  if (lower === "black") {
+    return [0, 0, 0];
+  } else if (lower === "white") {
+    return [255, 255, 255];
+  }
+
+  // 2) If the color starts with "#", parse it as a hex code
+  if (lower.startsWith("#")) {
+    // e.g. "#FF0000" => red
+    const hex = lower.slice(1);
+    // If it's a 3-digit hex like "#F00", expand to 6-digit first
+    const expanded =
+      hex.length === 3
+        ? hex
+            .split("")
+            .map((c) => c + c)
+            .join("") // #f00 => #ff0000
+        : hex;
+    const r = parseInt(expanded.slice(0, 2), 16);
+    const g = parseInt(expanded.slice(2, 4), 16);
+    const b = parseInt(expanded.slice(4, 6), 16);
+    return [r, g, b];
+  }
+
+  console.warn(
+    `parseColor: Unknown color "${inputColor}", defaulting to black`,
+  );
+  return [0, 0, 0];
 }
 
-function wrapText(doc: jsPDF, text: string, maxWidth: number): string[] {
-  return doc.splitTextToSize(text, maxWidth);
-}
+export function setFontForPage(doc, fontFamily, fontStyle = "normal") {
+  const fontMapping = {
+    Nunito: "nunito",
+    "Baloo 2": "Baloo",
+    Chewy: "Chewy",
+  };
 
-function renderPageSideBySideText(
-  doc: jsPDF,
-  page: Page,
-  pageWidth: number,
-  pageHeight: number,
-) {
-  const margin = 0.75;
-  const usableWidth = pageWidth - 2 * margin;
-  doc.setFont("nunito", "normal");
-  doc.setFontSize(16); // Larger font size for full-page text
-  const lines = wrapText(doc, page.content, usableWidth);
-  doc.text(lines, margin, margin);
-}
+  const alias = fontMapping[fontFamily] || fontMapping["Baloo 2"];
+  console.log(alias);
 
-function renderPageSideBySideImage(
-  doc: jsPDF,
-  imageData: string,
-  pageWidth: number,
-  pageHeight: number,
-) {
-  doc.addImage(imageData, "JPEG", 0, 0, pageWidth, pageHeight);
-}
-
-function renderPageStacked(
-  doc: jsPDF,
-  page: Page,
-  imageData: string,
-  pageWidth: number,
-  pageHeight: number,
-) {
-  const margin = 0.25;
-  const usableWidth = pageWidth - 2 * margin;
-  const imageHeight = pageHeight * 0.7;
-  const remainingHeight = pageHeight - (margin + imageHeight + margin);
-
-  doc.addImage(imageData, "JPEG", margin, margin, usableWidth, imageHeight);
-  doc.setFont("nunito", "normal");
-  doc.setFontSize(14);
-
-  const wrappedText = wrapText(doc, page.content, usableWidth);
-  const textHeight = wrappedText.length * 0.25; // estimate line height at 0.25in
-  const textY =
-    margin + imageHeight + (remainingHeight - textHeight) / 2 + margin; // center in remaining space
-
-  doc.text(wrappedText, margin, textY);
+  // Set the font on the jsPDF document using the alias and font style.
+  doc.setFont(alias, fontStyle);
 }
 
 export async function generatePDF(
@@ -73,11 +76,12 @@ export async function generatePDF(
   pages: Page[],
   coverUrl?: string,
   backCoverUrl?: string,
-  layout: "side-by-side" | "stacked" = "side-by-side",
-): Promise<Buffer> {
+) {
   registerCustomFonts();
+  jsPDF.API.events.push(["addFonts", callAddFontChewy]);
+  jsPDF.API.events.push(["addFonts", callAddFontBaloo2]);
 
-  const doc = new jsPDF({ unit: "in", format: [6, 9] });
+  const doc = new jsPDF({ unit: "pt", format: [600, 600] });
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
 
@@ -90,70 +94,86 @@ export async function generatePDF(
     doc.text(title, pageWidth / 2, 1.5, { align: "center" });
   }
 
-  if (layout === "stacked") {
-    doc.addPage(); // optional blank only for stacked layout
-  }
+  const contentPages = pages.filter((p) => !p.isCover && !p.isBackCover);
+  // or 6" x 6" if you want
 
-  for (let i = 0; i < pages.length; i++) {
-    const page = pages[i];
-    if (page.isCover || page.isBackCover) continue;
+  // For each "page" in pages:
+  for (const p of contentPages) {
+    doc.addPage();
+    if (p.leftHalfUrl) {
+      const leftImgData = await getImageDataURL(p.leftHalfUrl);
+      doc.addImage(leftImgData, "PNG", 0, 0, pageWidth, pageHeight);
+    }
+    if (p.leftText) {
+      doc.setFontSize(p.fontSize || 16);
+      const [r, g, b] = parseColor(p.leftTextColor || "#000000");
+      doc.setTextColor(r, g, b);
 
-    if (layout === "side-by-side") {
-      // Text page first
-      doc.addPage();
-      renderPageSideBySideText(doc, page, pageWidth, pageHeight);
+      const xPos = (p.leftX ?? 0) + 10;
+      const yPos = (p.leftY ?? 0) + 10;
+      const wrapWidth = p.width || 400;
+      const textStr = Array.isArray(p.leftText)
+        ? p.leftText.join("\n")
+        : p.leftText;
+      const lines = doc.splitTextToSize(textStr, wrapWidth);
+      setFontForPage(doc, p.leftFontFamily);
+      doc.text(lines, xPos, yPos);
+    }
 
-      // Image page next
-      const imageData = await getImageDataURL(page.imageUrl);
-      doc.addPage();
-      renderPageSideBySideImage(doc, imageData, pageWidth, pageHeight);
-    } else {
-      doc.addPage();
-      const imageData = await getImageDataURL(page.imageUrl);
-      renderPageStacked(doc, page, imageData, pageWidth, pageHeight);
+    doc.addPage();
+    if (p.rightHalfUrl) {
+      const rightImgData = await getImageDataURL(p.rightHalfUrl);
+      doc.addImage(rightImgData, "PNG", 0, 0, pageWidth, pageHeight);
+    }
+    if (p.rightText) {
+      doc.setFontSize(p.fontSize || 16);
+      const [r, g, b] = parseColor(p.rightTextColor || "#000000");
+      doc.setTextColor(r, g, b);
+
+      const xPos = (p.rightX ?? 0) + 10;
+      const yPos = (p.rightY ?? 0) + 10;
+      const wrapWidth = p.width || 400;
+      const textStr = Array.isArray(p.rightText)
+        ? p.rightText.join("\n")
+        : p.rightText;
+      const lines = doc.splitTextToSize(textStr, wrapWidth);
+      setFontForPage(doc, p.rightFontFamily);
+      doc.text(lines, xPos, yPos);
     }
   }
 
   if (backCoverUrl) {
     const backImage = await getImageDataURL(backCoverUrl);
+    console.log("adding back cover image");
     doc.addPage();
-    doc.addImage(backImage, "JPEG", 0, 0, pageWidth, pageHeight);
-
-    // Draw white rounded rectangle at the bottom 20%
+    doc.addImage(backImage, "JPEG", 0, 0, pageHeight, pageHeight);
+    console.log("added back cover image");
     const boxHeight = pageHeight * 0.2;
     const boxY = pageHeight - boxHeight;
     doc.setFillColor(255, 255, 255);
-    doc.roundedRect(
-      0.25,
-      boxY + 0.1,
-      pageWidth - 0.5,
-      boxHeight - 0.2,
-      0.25,
-      0.25,
-      "F",
-    );
-
-    // Add text over the white box
+    doc.roundedRect(25, boxY + 10, pageWidth - 50, boxHeight - 20, 25, 25, "F");
     doc.setFont("fredoka", "bold");
     doc.setFontSize(12);
     doc.setTextColor(0);
-    doc.text("Want to create your own book?", pageWidth / 2, pageHeight - 1.2, {
+    doc.text("Want to create your own book?", pageWidth / 2, pageHeight - 120, {
       align: "center",
     });
     doc.text(
       "Write to us at help@storypals.com",
       pageWidth / 2,
-      pageHeight - 0.8,
+      pageHeight - 80,
       { align: "center" },
     );
     doc.setFontSize(10);
     doc.text(
       "Created with love by Team StoryPals",
       pageWidth / 2,
-      pageHeight - 0.4,
+      pageHeight - 40,
       { align: "center" },
     );
   }
+
+  console.log("returning PDF");
 
   const arrayBuffer = doc.output("arraybuffer");
   return Buffer.from(arrayBuffer);

@@ -32,7 +32,7 @@ export default function CreateStoryPage() {
   const { user } = useAuth();
 
   // Navigation & UI States
-  const [, navigate] = useLocation();
+  const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [currentStep, setCurrentStep] = useState(1);
 
@@ -53,10 +53,24 @@ export default function CreateStoryPage() {
 
   // Book Parameters
   const [bookStyle, setBookStyle] = useState<
-    "hyper-realistic" | "cartoonish" | "predefined" | null
+    | "hyper-pixar"
+    | "hyper-handdrawn"
+    | "hyper-watercolor"
+    | "hyper-crayonart"
+    | "hyper-claymotion"
+    | "hyper-pastelsketch"
+    | "cartoon-pixar"
+    | "cartoon-handdrawn"
+    | "cartoon-watercolor"
+    | "cartoon-crayonart"
+    | "cartoon-claymotion"
+    | "cartoon-pastelsketch"
+    | null
   >(null);
   const [storyPrompt, setStoryPrompt] = useState("");
   const [storyMoral, setStoryMoral] = useState("");
+  const [storyRhyming, setStoryRhyming] = useState(false);
+  const [storyTheme, setStoryTheme] = useState<string>("none");
 
   // Training & Generation States
   const [modelId, setModelId] = useState("");
@@ -105,12 +119,20 @@ export default function CreateStoryPage() {
         storyPrompt,
         storyMoral,
       });
+
+      const storyTitle =
+        storyType === "predefined"
+          ? `${activeCharacter.name} and ${activeStory.title}`
+          : `${activeStory.title}`;
+      log("useEffect: storyTitle:", storyTitle);
       handleGenerateStoryWithData(
         kidName,
         modelId,
         storyPrompt,
         storyMoral,
-        `${activeCharacter.name} and ${activeStory.title}`,
+        storyTitle,
+        storyRhyming,
+        storyTheme,
       )
         .then(() => setGeneratingStory(false))
         .catch((err) => {
@@ -125,9 +147,9 @@ export default function CreateStoryPage() {
     log("useEffect: storyData changed:", storyData);
     if (storyData) {
       const title =
-        activeCharacter && activeStory
+        storyType === "predefined"
           ? `${activeCharacter.name} and ${activeStory.title}`
-          : "Your Story";
+          : `${activeStory.title}`;
       setBookTitle(title);
       const generatedPages = storyData.pages.map((url, index) => {
         const scene = storyData.sceneTexts[index] || "";
@@ -176,6 +198,9 @@ export default function CreateStoryPage() {
     // Use instructions if available; if not, fallback to description.
     const prompt = story.instructions || story.description || "";
     const moralValue = story.moral || "";
+    console.log(story.rhyming, story.theme, story.moral);
+    setStoryRhyming(story.rhyming);
+    setStoryTheme(story.theme || "none");
     setStoryPrompt(prompt);
     setStoryMoral(moralValue);
     setGeneratingStory(true);
@@ -188,6 +213,8 @@ export default function CreateStoryPage() {
     prompt: string,
     moralValue: string,
     currentBookTitle: string,
+    storyRhyming: boolean,
+    storyTheme: string,
   ) => {
     log("handleGenerateStoryWithData triggered", {
       kidName,
@@ -195,6 +222,8 @@ export default function CreateStoryPage() {
       prompt,
       moralValue,
       currentBookTitle,
+      storyRhyming,
+      storyTheme,
     });
 
     try {
@@ -237,6 +266,8 @@ export default function CreateStoryPage() {
         activeCharacter.type === "custom" ? bookStyle : "predefined",
       age: activeCharacter.age,
       gender: activeCharacter.gender,
+      storyRhyming: storyRhyming || false,
+      storyTheme: storyTheme || "none",
     };
 
     try {
@@ -261,7 +292,7 @@ export default function CreateStoryPage() {
         return {
           id: index + 2,
           imageUrl: url,
-          content: scene,
+          content: storyRhyming ? scene.split("\n") : scene,
         };
       });
 
@@ -428,27 +459,23 @@ export default function CreateStoryPage() {
       ),
     );
 
-    const loraScale =
-      activeCharacter.type === "custom"
-        ? bookStyle === "hyper-realistic"
-          ? 0.9
-          : 0.8
-        : 1.0;
-
     const payload = {
       modelId,
       prompt: "",
       isCover: page.isCover || page.isBackCover,
-      loraScale,
+      kidName: activeCharacter.name,
+      age: activeCharacter.age,
+      gender: activeCharacter.gender,
+      stylePreference: bookStyle,
     };
 
     if (page.isCover || page.isBackCover) {
       const currentTitle = storyPages[0]?.content || bookTitle;
       payload.prompt = page.isCover
-        ? `A captivating front cover photo which is apt for title: ${currentTitle} featuring character named ""${activeCharacter.name}"" as hero of the story. It should clearly display the text "${currentTitle}" on top of the photo in a bold and colourful font`
+        ? `A captivating front cover photo which is apt for title: ${title} featuring <${kidName}kidName> as hero. It should clearly display the text "${title}" on top of the photo in a bold and colourful font`
         : `A generic minimal portrait back cover photo for the story of ${currentTitle}`;
     } else {
-      payload.prompt = `an image of ${activeCharacter.age} year old ${activeCharacter.gender} where scene is "${page.content}", 3d CGI, art by Pixar, half-body, :screenshot from animation`;
+      payload.prompt = page.content;
     }
 
     try {
@@ -537,37 +564,13 @@ export default function CreateStoryPage() {
 
   const handleDownloadPDF = async () => {
     try {
-      const coverPage = storyPages.find((p) => p.isCover);
-      const backCoverPage = storyPages.find((p) => p.isBackCover);
-
-      const response = await fetch("/api/pdf/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: bookTitle,
-          pages: storyPages,
-          coverUrl: coverPage?.imageUrl || "",
-          backCoverUrl: backCoverPage?.imageUrl || "",
-        }),
-      });
-      if (!response.ok) throw new Error("Failed to generate PDF");
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `${bookTitle}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      console.log("Generating PDF for book:", bookId);
+      setLocation(`/edit-pdf/${bookId}`);
     } catch (error) {
-      toast({
-        title: "Download Error",
-        description: "Failed to generate PDF.",
-        variant: "destructive",
-      });
+      console.error("Error generating PDF:", error);
     }
   };
+
   const handlePrint = () => {
     log("handlePrint: Print button clicked");
     setShowShippingForm(true);
