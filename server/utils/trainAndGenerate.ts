@@ -695,6 +695,12 @@ export async function generateStoryImages(
   if (DEBUG_LOGGING)
     console.log("[generateStoryImages] Final scene prompts:", scenePrompts);
 
+  jobTracker.set(jobId, {
+    phase: "prompting",
+    pct: 67,
+    message: "Generating prompts for images",
+  });
+
   const imageGenerationPrompts = await createImagePromptsFromScenes(
     kidName,
     age,
@@ -715,6 +721,13 @@ export async function generateStoryImages(
     "[generateStoryImages] Image generation prompts length:",
     imageGenerationPrompts,
   );
+  
+  jobTracker.set(jobId, {
+    phase: "prompting",
+    pct: 72,
+    message: "Generating prompts for images",
+  });
+  
   let avatarUrl = "";
   if (mode === "refine") {
     const avatarPrompt = `closeup photo of ${age} year old ${gender} kid <${kidName}kidName>,  imagined as pixar cartoon character,  clearly visible against a white background`;
@@ -723,7 +736,7 @@ export async function generateStoryImages(
 
   jobTracker.set(jobId, {
     phase: "generating",
-    pct: 70,
+    pct: 75,
     message: "Generating images…",
   });
   const total = 11;
@@ -751,7 +764,7 @@ export async function generateStoryImages(
       done += 1;
       jobTracker.set(jobId, {
         phase: "generating",
-        pct: 70 + (done / total) * 25, // 65-95
+        pct: 75 + (done / total) * 20, // 65-95
       });
 
       return {
@@ -789,6 +802,7 @@ export async function generateStoryImages(
     modelId,
     loraScale,
     seed,
+    controlLoraStrength,
     512,
   );
   const backCoverFileName = `books/backCover/${kidName}_${baseStoryPrompt}.png`;
