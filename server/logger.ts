@@ -13,7 +13,10 @@ const transports: pino.TransportMultiOptions = {
 if (prod && process.env.LOGTAIL_TOKEN) {
   transports.targets.push({
     target: "@logtail/pino",
-    options: { sourceToken: process.env.LOGTAIL_TOKEN },
+    options: {
+      sourceToken: process.env.LOGTAIL_TOKEN,
+      endpoint: process.env.LOGTAIL_ENDPOINT,
+    },
     level: process.env.LOG_LEVEL || "info",
   });
 }
