@@ -8,16 +8,12 @@ import { CustomCharacter } from "@/components/character/CustomCharacter";
 import { StoryToggle } from "@/components/story/StoryToggle";
 import { PredefinedStories } from "@/components/story/PredefinedStories";
 import { CustomStory } from "@/components/story/CustomStory";
-import { BookPreview } from "@/components/preview/BookPreview";
-import { ShippingForm } from "@/components/preview/ShippingForm";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useLocation } from "wouter";
-import { generatePDF } from "@/utils/pdf";
-import { db } from "@/lib/firebase";
-import { collection, addDoc } from "firebase/firestore";
 import { useAuth } from "@/contexts/AuthContext";
+import { Progress } from "@/components/ui/progress";
 
 const STEPS = [
   { id: 1, name: "Choose Character" },
@@ -26,6 +22,54 @@ const STEPS = [
 ];
 
 const DEBUG_LOGGING = true;
+
+// util hook placed above component definition
+function useJobProgress(jobId?: string) {
+  const [state, setState] = useState<{
+    pct: number;
+    phase: string;
+    message?: string;
+    error?: string;
+  }>();
+
+  useEffect(() => {
+    if (!jobId) return;
+    let cancel = false;
+
+    const poll = async () => {
+      const r = await fetch(`/api/jobs/${jobId}/progress`, {
+        credentials: "include",
+      });
+      const j = await r.json();
+      if (!cancel) {
+        setState(j);
+        if (j.phase !== "complete" && j.phase !== "error")
+          setTimeout(poll, 3000);
+      }
+    };
+    poll();
+
+    return () => {
+      cancel = true;
+    };
+  }, [jobId]);
+
+  return state;
+}
+
+function ProgressDisplay({ prog }: { prog: any }) {
+  return (
+    <div className="max-w-md mx-auto my-6 space-y-2">
+      <Progress value={prog.pct ?? 0} />
+      <p className="text-center text-sm text-muted-foreground">
+        {prog.message ?? prog.phase} – {Math.round(prog.pct ?? 0)}%
+      </p>
+      {prog.phase === "error" && (
+        <p className="text-destructive text-center text-sm">{prog.error}</p>
+      )}
+    </div>
+  );
+}
 
 export default function CreateStoryPage() {
   // User Authentication
@@ -78,18 +122,14 @@ export default function CreateStoryPage() {
   const [kidName, setKidName] = useState("");
   const [loading, setLoading] = useState(false);
   const [generatingStory, setGeneratingStory] = useState(false);
+  const [trainJobId, setTrainJobId] = useState<string>();
+  const [storyJobId, setStoryJobId] = useState<string>();
+  const trainProg = useJobProgress(trainJobId);
+  const storyProg = useJobProgress(storyJobId);
 
   // Book Management
   const [bookId, setBookId] = useState<number | null>(null);
-  const [isDirty, setIsDirty] = useState(false);
 
-  // Cover & Back Cover URLs
-  const [coverUrl, setCoverUrl] = useState("");
-  const [backCoverUrl, setBackCoverUrl] = useState("");
-
-  // Shipping / Orders
-  const [showShippingForm, setShowShippingForm] = useState(false);
-  const [orderCompleted, setOrderCompleted] = useState(false);
   // Logging helper
   const log = (...args: any[]) => {
     if (DEBUG_LOGGING) {
@@ -151,31 +191,6 @@ export default function CreateStoryPage() {
           ? `${activeCharacter.name} and ${activeStory.title}`
           : `${activeStory.title}`;
       setBookTitle(title);
-      const generatedPages = storyData.pages.map((url, index) => {
-        const scene = storyData.sceneTexts[index] || "";
-        return {
-          id: index + 2,
-          imageUrl: url,
-          content: scene,
-        };
-      });
-      const pages = [
-        {
-          id: 1,
-          imageUrl: storyData.coverUrl,
-          content: title,
-          isCover: true,
-        },
-        ...generatedPages,
-        {
-          id: generatedPages.length + 2,
-          imageUrl: storyData.backCoverUrl,
-          content: "",
-          isBackCover: true,
-        },
-      ];
-      setStoryPages(pages);
-      log("useEffect: Updated bookTitle and storyPages:", { title, pages });
     }
   }, [storyData]);
 
@@ -257,6 +272,7 @@ export default function CreateStoryPage() {
     }
 
     const payload = {
+      ...(trainJobId ? { jobId: trainJobId } : {}),
       kidName,
       modelId,
       baseStoryPrompt: prompt,
@@ -274,54 +290,74 @@ export default function CreateStoryPage() {
       setLoading(true);
 
       // Generate the story
-      const response = await fetch("/api/generateStory", {
+      const kickoff = await fetch("/api/generateStory", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const data = await response.json();
+      if (!kickoff.ok) {
+        const text = await kickoff.text();
+        throw new Error(`Kickoff failed: ${kickoff.status} ${text}`);
+      }
+      const { jobId } = await kickoff.json();
+      setStoryJobId(jobId);
+      toast({
+        title: "Story generation started",
+        description: "This may take a few minutes.",
+      });
+      log("Story jobId:", jobId);
+
+      while (true) {
+        const statusResp = await fetch(`/api/jobs/${jobId}/progress`, {
+          credentials: "include",
+        });
+        const status = await statusResp.json();
+
+        if (status.phase === "complete") break;
+        if (status.phase === "error") {
+          throw new Error(status.error || "Story generation failed");
+        }
+
+        // throttle the loop
+        await new Promise((r) => setTimeout(r, 1500));
+      }
+
+      const jobResp = await fetch(`/api/generateStatus/${jobId}`).then((r) =>
+        r.json(),
+      );
+
+      const data = {
+        pages: jobResp.pages,
+        coverUrl: jobResp.coverUrl,
+        backCoverUrl: jobResp.backCoverUrl,
+        avatarUrl: jobResp.avatarUrl,
+        avatarLora: jobResp.avatarLora,
+      };
+
+      const pages = data.pages.map((p, index) => ({
+        id: index + 2,
+        imageUrl: p.imageUrl,
+        content: storyRhyming ? p.sceneText.split("\n") : p.sceneText,
+        prompt: p.prompt,
+        loraScale: p.loraScale,
+        controlLoraStrength: p.controlLoraStrength,
+      }));
 
       log("handleGenerateStoryWithData: Response received:", data);
       setStoryData(data);
-      setCoverUrl(data.coverUrl);
-      setBackCoverUrl(data.backCoverUrl);
-
-      const formattedPages = data.pages.map((url: string, index: number) => {
-        const scene = data.sceneTexts[index] || "";
-
-        return {
-          id: index + 2,
-          imageUrl: url,
-          content: storyRhyming ? scene.split("\n") : scene,
-        };
-      });
-
-      setStoryPages([
-        {
-          id: 1,
-          imageUrl: data.coverUrl,
-          content: currentBookTitle,
-          isCover: true,
-        },
-        ...formattedPages,
-        {
-          id: formattedPages.length + 2,
-          imageUrl: data.backCoverUrl,
-          content: "",
-          isBackCover: true,
-        },
-      ]);
 
       // Immediately save the generated story as a book
       if (user) {
         const newBook = {
           title: currentBookTitle,
-          pages: formattedPages,
+          pages: pages,
+          avatarUrl: data.avatarUrl,
           coverUrl: data.coverUrl,
           backCoverUrl: data.backCoverUrl,
           createdAt: new Date().toISOString(),
           userId: String(user.uid),
           userName: user.displayName,
+          avatarLora: data.avatarLora,
           characterId: String(activeCharacter?.id),
           storyId: String(activeStory?.id),
           stylePreference:
@@ -338,6 +374,8 @@ export default function CreateStoryPage() {
             title: "Book saved!",
             description: "Your story has been successfully saved.",
           });
+          setLocation(`/book/${savedBook.id}`);
+          return;
         } catch (error) {
           log("Error saving book via API:", error);
           toast({
@@ -361,7 +399,8 @@ export default function CreateStoryPage() {
 
   // Trigger model training using the provided character data.
   const handleTrainModel = async (character: any) => {
-    console.log("handleTrainModel triggered", character);
+    log("handleTrainModel triggered", character);
+
     if (character.modelId) {
       setModelId(character.modelId);
       toast({
@@ -369,45 +408,91 @@ export default function CreateStoryPage() {
         description: "Using the existing trained model for this character.",
       });
       return;
-    } else {
-      toast({
-        title: "Model not there",
-        description: "Training a new model for your character.",
-      });
     }
-    if (
-      !character ||
-      !character.imageUrls ||
-      character.imageUrls.length === 0
-    ) {
+
+    if (!character.imageUrls || character.imageUrls.length === 0) {
       toast({
         title: "Images required",
         description: "Please upload at least one image of your character",
         variant: "destructive",
       });
-      log("handleTrainModel: No images found");
+      log("handleTrainModel: No images found on character");
       return;
     }
-    log("handleTrainModel: Training model with character:", character);
+
+    toast({
+      title: "Training started",
+      description: "Your model is now training. This can take a few minutes.",
+    });
+
     try {
-      const captions = character.imageUrls.map(() => character.name);
-      const payload = {
-        imageUrls: character.imageUrls,
-        captions,
-        kidName: character.name,
-      };
-      log("handleTrainModel: Training payload:", payload);
-      const response = await fetch("/api/trainModel", {
+      // Kick off
+      const kickoffResp = await fetch("/api/trainModel", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          imageUrls: character.imageUrls,
+          captions: character.imageUrls.map(() => character.name),
+          kidName: character.name,
+          characterId: character.id,
+        }),
       });
-      const data = await response.json();
-      log("handleTrainModel: Training response received:", data);
-      setModelId(data.modelId);
-      await apiRequest("PUT", `/api/characters/${character.id}`, {
-        modelId: data.modelId,
-      });
+      if (!kickoffResp.ok) {
+        const text = await kickoffResp.text();
+        throw new Error(
+          `Training kickoff failed: ${kickoffResp.status} ${text}`,
+        );
+      }
+      const { characterId, jobId } = await kickoffResp.json();
+      setTrainJobId(jobId);
+      log("handleTrainModel: Training job accepted for", characterId);
+
+      // Poll
+      let trainedModelId = "";
+      while (!trainedModelId) {
+        log("handleTrainModel: Polling status for", characterId);
+        await new Promise((r) => setTimeout(r, 3000));
+
+        const statusResp = await fetch(`/api/trainStatus/${characterId}`);
+
+        const raw = await statusResp.text();
+        const ct = statusResp.headers.get("content-type");
+        log(
+          "handleTrainModel: statusResp:",
+          statusResp.status,
+          "content-type:",
+          ct,
+        );
+        log("handleTrainModel: raw body (200 chars):", raw.slice(0, 200));
+
+        if (!statusResp.ok) {
+          const text = await statusResp.text();
+          throw new Error(`Status check failed: ${statusResp.status} ${text}`);
+        }
+
+        let json: any;
+        try {
+          json = JSON.parse(raw);
+        } catch (err) {
+          throw new Error(
+            `Failed to parse JSON from /api/trainStatus: ${err}\nRaw body: ${raw}`,
+          );
+        }
+
+        const { status, modelId } = json;
+        log("handleTrainModel: Status response", { status, modelId });
+
+        if (status === "complete" && modelId) {
+          trainedModelId = modelId;
+        }
+      }
+
+      log(
+        "handleTrainModel: Training complete, setting modelId:",
+        trainedModelId,
+      );
+      setModelId(trainedModelId);
+
       toast({
         title: "Model Training Complete",
         description: "Your custom model is ready to generate your story!",
@@ -423,7 +508,7 @@ export default function CreateStoryPage() {
   };
 
   // Trigger story generation using the trained model and provided story inputs.
-  const waitForModelId = async (timeout = 60000, interval = 2000) => {
+  const waitForModelId = async (timeout = 600000, interval = 2000) => {
     const startTime = Date.now();
     while (true) {
       if (modelIdRef.current && modelIdRef.current !== "") {
@@ -435,190 +520,6 @@ export default function CreateStoryPage() {
       log("Waiting for modelId... current value:", modelIdRef.current);
       await new Promise((resolve) => setTimeout(resolve, interval));
     }
-  };
-
-  // Utility handlers remain unchanged.
-  const handleUpdatePage = (id: number, content: string) => {
-    log("handleUpdatePage: Updating page", { id, content });
-    setStoryPages((pages) =>
-      pages.map((page) => (page.id === id ? { ...page, content } : page)),
-    );
-    setIsDirty(true);
-  };
-
-  const handleRegenerate = async (pageId) => {
-    const page = storyPages.find((p) => p.id === pageId);
-    if (!page) {
-      log("handleRegenerate: Page not found", pageId);
-      return;
-    }
-
-    setStoryPages((prevPages) =>
-      prevPages.map((p) =>
-        p.id === pageId ? { ...p, regenerating: true } : p,
-      ),
-    );
-
-    const payload = {
-      modelId,
-      prompt: "",
-      isCover: page.isCover || page.isBackCover,
-      kidName: activeCharacter.name,
-      age: activeCharacter.age,
-      gender: activeCharacter.gender,
-      stylePreference: bookStyle,
-    };
-
-    if (page.isCover || page.isBackCover) {
-      const currentTitle = storyPages[0]?.content || bookTitle;
-      payload.prompt = page.isCover
-        ? `A captivating front cover photo which is apt for title: ${title} featuring <${kidName}kidName> as hero. It should clearly display the text "${title}" on top of the photo in a bold and colourful font`
-        : `A generic minimal portrait back cover photo for the story of ${currentTitle}`;
-    } else {
-      payload.prompt = page.content;
-    }
-
-    try {
-      const response = await fetch("/api/regenerateImage", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (!response.ok) throw new Error("API error");
-      const data = await response.json();
-      const newUrl = data.newUrl;
-      setStoryPages((prev) =>
-        prev.map((p) =>
-          p.id === pageId ? { ...p, imageUrl: newUrl, regenerating: false } : p,
-        ),
-      );
-      setIsDirty(true);
-    } catch (error) {
-      setStoryPages((prev) =>
-        prev.map((p) => (p.id === pageId ? { ...p, regenerating: false } : p)),
-      );
-      toast({
-        title: "Regeneration Error",
-        description: `Failed to regenerate image for page ${pageId}.`,
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleRegenerateAll = async () => {
-    try {
-      await Promise.all(storyPages.map((page) => handleRegenerate(page.id)));
-      toast({
-        title: "Regeneration complete",
-        description: "All pages regenerated.",
-      });
-    } catch (error) {
-      toast({
-        title: "Regeneration Error",
-        description: "Failed to regenerate one or more pages.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleSaveBook = async () => {
-    if (!bookId) {
-      toast({
-        title: "Save Error",
-        description: "Book ID not available.",
-        variant: "destructive",
-      });
-      return;
-    }
-    const pagesToSave = storyPages.filter((p) => !p.isCover && !p.isBackCover);
-    try {
-      setLoading(true);
-      const updatedBook = {
-        title: bookTitle,
-        pages: pagesToSave,
-        coverUrl: storyPages[0]?.isCover ? storyPages[0].imageUrl : null,
-        backCoverUrl: storyPages[storyPages.length - 1]?.isBackCover
-          ? storyPages[storyPages.length - 1].imageUrl
-          : null,
-        characterId: String(activeCharacter?.id),
-        storyId: String(activeStory?.id),
-        stylePreference:
-          activeCharacter.type === "custom" ? bookStyle : "predefined",
-      };
-      await apiRequest("PUT", `/api/books/${bookId}`, updatedBook);
-      setIsDirty(false);
-      toast({
-        title: "Save Successful",
-        description: "Your book has been updated.",
-      });
-    } catch (error) {
-      toast({
-        title: "Save Error",
-        description: "Failed to update book.",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDownloadPDF = async () => {
-    try {
-      console.log("Generating PDF for book:", bookId);
-      setLocation(`/edit-pdf/${bookId}`);
-    } catch (error) {
-      console.error("Error generating PDF:", error);
-    }
-  };
-
-  const handlePrint = () => {
-    log("handlePrint: Print button clicked");
-    setShowShippingForm(true);
-  };
-
-  const handleShippingSubmit = async (formData) => {
-    try {
-      if (user) {
-        await apiRequest("POST", "/api/orders", {
-          ...formData,
-          bookId,
-          characterId: activeCharacter.id,
-          storyId: activeStory.id,
-          userId: user.uid,
-        });
-        setOrderCompleted(true);
-        setShowShippingForm(false);
-        toast({
-          title: "Order placed successfully!",
-          description: "Your book will be delivered soon.",
-        });
-      }
-    } catch (error) {
-      toast({
-        title: "Order failed",
-        description: "There was a problem placing your order.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  // const handleBackToStep = (step: number) => {
-  //   log("handleBackToStep: Navigating back to step", step);
-  //   setCurrentStep(step);
-  // };
-
-  const handleCreateNewStory = () => {
-    log(
-      "handleCreateNewStory: Resetting all story data for new story creation",
-    );
-    setCurrentStep(1);
-    setActiveCharacter(null);
-    setActiveStory(null);
-    setBookTitle("");
-    setStoryPages([]);
-    setStoryData(null);
-    setShowShippingForm(false);
-    setOrderCompleted(false);
   };
 
   return (
@@ -688,6 +589,12 @@ export default function CreateStoryPage() {
                 Review your book, make edits, and prepare to download or print.
               </p>
 
+              {trainProg && trainProg.phase !== "complete" && (
+                <ProgressDisplay prog={trainProg} />
+              )}
+
+              {storyProg && <ProgressDisplay prog={storyProg} />}
+
               {generatingStory && (
                 <div className="flex justify-center mt-8">
                   <p className="text-lg text-center">
@@ -696,53 +603,6 @@ export default function CreateStoryPage() {
                   </p>
                 </div>
               )}
-
-              {!generatingStory && storyData && (
-                <BookPreview
-                  bookTitle={bookTitle}
-                  pages={storyPages}
-                  onUpdatePage={handleUpdatePage}
-                  onRegenerate={handleRegenerate}
-                  onRegenerateAll={handleRegenerateAll}
-                  onDownload={handleDownloadPDF}
-                  onPrint={handlePrint}
-                  onSave={handleSaveBook}
-                  isDirty={isDirty}
-                />
-              )}
-
-              {showShippingForm && !orderCompleted && (
-                <ShippingForm onSubmit={handleShippingSubmit} />
-              )}
-
-              {orderCompleted && (
-                <div className="flex items-center justify-center bg-green-100 text-green-800 p-4 rounded-lg mb-8 max-w-md mx-auto mt-8">
-                  <i className="fas fa-check-circle text-green-500 mr-2 text-xl"></i>
-                  <span>
-                    Order successfully placed! Your book will be delivered soon.
-                  </span>
-                </div>
-              )}
-
-              <div className="flex justify-center space-x-4 mt-8">
-                {!orderCompleted && !showShippingForm && (
-                  <Button
-                    variant="outline"
-                    onClick={() => setCurrentStep(2)}
-                    className="border border-gray-300 bg-white hover:bg-gray-50 text-text-primary font-bold py-3 px-6 rounded-full text-lg shadow-sm hover:shadow-md transition-all"
-                  >
-                    Back
-                  </Button>
-                )}
-                {orderCompleted && (
-                  <Button
-                    onClick={handleCreateNewStory}
-                    className="bg-primary hover:bg-primary/90 text-white font-bold py-3 px-8 rounded-full text-lg shadow-lg hover:shadow-xl transition-all"
-                  >
-                    Create New Story
-                  </Button>
-                )}
-              </div>
             </section>
           )}
         </div>

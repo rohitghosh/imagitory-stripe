@@ -258,18 +258,23 @@ export default function EditPDFPage() {
 
   useEffect(() => {
     async function fetchBook() {
+      console.log("[EditPDF] ▶️ fetchBook start, bookId=", bookId);
       try {
         const res = await fetch(`/api/books/${bookId}`, {
           credentials: "include",
         });
         if (!res.ok) throw new Error("Failed to fetch book data");
         const data = await res.json();
+        console.log("[EditPDF] ← Book data:", data);
 
+        console.log("[EditPDF] → POST /api/books/" + bookId + "/prepareSplit");
         const splitResp = await fetch(`/api/books/${bookId}/prepareSplit`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ id: bookId, pages: data.pages }),
         });
+
+        console.log("[EditPDF] ← prepareSplit status:", splitResp.status);
         if (!splitResp.ok) throw new Error("Failed to split images");
         const { pages: splitPages } = await splitResp.json();
 
@@ -363,7 +368,7 @@ export default function EditPDFPage() {
         y: 50,
       });
     }
-    
+
     return result;
   }
 

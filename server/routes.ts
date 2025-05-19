@@ -13,10 +13,6 @@ import {
   shippingFormSchema,
 } from "@shared/schema";
 import { generatePDF } from "./utils/pdf";
-import { generatePDF as generateModernPDF } from "./utils/pdf2";
-import { generatePDF as generateStackedPDF } from "./utils/pdf3";
-import { inferTheme } from "./utils/themeEngine";
-import { generateDecorativeBordersForPages } from "./utils/imageGenerator";
 // No longer using authentication middleware
 import { authenticate } from "./middleware/auth";
 // Import firebase but don't initialize with credentials for now
@@ -32,6 +28,7 @@ import {
   buildFullPrompt,
   generateBackCoverImage,
   regenerateImagePromptsFromScenes,
+  generateGuidedImage,
 } from "./utils/trainAndGenerate";
 import admin from "./firebaseAdmin";
 import createMemoryStore from "memorystore";
@@ -39,6 +36,21 @@ import { splitImageInHalf } from "./utils/elementGeneration";
 import { pickContrastingTextColor } from "./utils/textColorUtils";
 import { loadBase64Image } from "./utils/layouts";
 import { uploadBase64ToFirebase } from "./utils/uploadImage";
+import { jobTracker } from "./lib/jobTracker";
+
+type StoryResult = {
+  pages: string[];
+  coverUrl: string;
+  backCoverUrl: string;
+  avatarUrl: string;
+  avatarLora: number;
+};
+type StoryJob =
+  | { status: "pending" }
+  | { status: "complete"; result: StoryResult }
+  | { status: "error"; error: string };
+
+const storyJobs = new Map<string, StoryJob>();
 
 const MemoryStore = createMemoryStore(session);
 
@@ -53,6 +65,7 @@ declare module "express-session" {
 
 export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
+  app.use(express.json({ limit: "5mb" }));
 
   // Configure session middleware with memory store for persistence
   app.use(
@@ -389,43 +402,70 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     },
   );
+
+  app.get("/api/jobs/:jobId/progress", (req, res) => {
+    const st = jobTracker.get(req.params.jobId);
+    if (!st) return res.json({ phase: "unknown", pct: 0 });
+    res.set("Cache-Control", "no-store");
+    res.json(st);
+  });
+
   // New Endpoint: Train Custom Model
   // This endpoint uses multer to capture the kidImages from the request.
   app.post("/api/trainModel", async (req: Request, res: Response) => {
-    try {
-      if (DEBUG_LOGGING)
-        console.log("[/api/trainModel] Received training request:", req.body);
-      const { imageUrls, captions, kidName } = req.body;
-      if (!imageUrls || !captions) {
-        throw new Error("imageUrls and captions are required.");
-      }
-      // Use the official fal.ai client API to train the model.
-      const trainingResult = await trainCustomModel(
-        imageUrls,
-        captions,
-        kidName || "kids_custom_model",
-      );
-      if (DEBUG_LOGGING)
-        console.log(
-          "[/api/trainModel] Training initiated. JobId from fal.ai:",
-          trainingResult,
-        );
-      // Polling is done internally by our trainCustomModel via fal.subscribe.
-      // Here we assume trainCustomModel returns { modelId, requestId } once training is complete.
-      const { modelId: trainedModelId, requestId } = trainingResult;
+    const { imageUrls, captions, kidName, characterId } = req.body;
+
+    if (DEBUG_LOGGING) {
+      console.log("[/api/trainModel] 🟢 Incoming request:", {
+        imageUrlsLength: imageUrls?.length,
+        captionsLength: captions?.length,
+        kidName,
+        characterId,
+      });
+    }
+
+    if (!imageUrls || !captions) {
       if (DEBUG_LOGGING) {
-        console.log(
-          "[/api/trainModel] Training completed. ModelId:",
-          trainedModelId,
-          "RequestId:",
-          requestId,
-        );
+        console.warn("[/api/trainModel] ⚠️ Missing imageUrls or captions");
       }
-      res.json({ modelId: trainedModelId, requestId });
-    } catch (error: any) {
-      if (DEBUG_LOGGING)
-        console.error("[/api/trainModel] Training error:", error);
-      res.status(500).json({ error: error.message || "Training failed" });
+      return res
+        .status(400)
+        .json({ error: "imageUrls and captions are required." });
+    }
+
+    const jobId = jobTracker.newJob(); // -> lib/jobTracker
+    res.status(202).json({ characterId, jobId });
+
+    if (DEBUG_LOGGING) {
+      console.log("[/api/trainModel] ▶️ Launching background training job");
+    }
+
+    (async () => {
+      try {
+        const modelIdString = await trainCustomModel(
+          imageUrls,
+          captions,
+          kidName,
+          jobId,
+        );
+        await storage.updateCharacter(characterId, { modelId: modelIdString });
+        jobTracker.set(jobId, { phase: "complete", pct: 100 });
+      } catch (err: any) {
+        console.error("[trainModel] error", err);
+        jobTracker.set(jobId, { phase: "error", pct: 100, error: err.message });
+      }
+    })();
+  });
+
+  app.get("/api/trainStatus/:characterId", authenticate, async (req, res) => {
+    const { characterId } = req.params;
+    const character = await storage.getCharacter(characterId);
+    if (!character) return res.status(404).json({ error: "not found" });
+
+    if (character.modelId) {
+      return res.json({ status: "complete", modelId: character.modelId });
+    } else {
+      return res.json({ status: "pending" });
     }
   });
 
@@ -433,81 +473,75 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Expects: kidName, modelId, baseStoryPrompt, and moral in the request body.
   // New Endpoint: Generate Story
   // Expects kidName, modelId, baseStoryPrompt, and moral in the request body.
-  app.post("/api/generateStory", async (req: Request, res: Response) => {
-    try {
-      const {
-        kidName,
-        modelId,
-        baseStoryPrompt,
-        moral,
-        title,
-        age,
-        gender,
-        stylePreference,
-        storyRhyming,
-        storyTheme,
-      } = req.body;
-      if (DEBUG_LOGGING)
-        console.log("[/api/generateStory] Request body:", {
-          kidName,
-          modelId,
-          baseStoryPrompt,
-          moral,
-          title,
-          age,
-          gender,
-          stylePreference,
-          storyRhyming,
-          storyTheme,
-        });
-      if (!kidName || !modelId || !baseStoryPrompt || !moral || !title) {
-        throw new Error(
-          "kidName, modelId, baseStoryPrompt, title and moral are required.",
-        );
-      }
+  // POST /api/generateStory
+  app.post("/api/generateStory", authenticate, async (req, res) => {
+    let {
+      jobId,
+      kidName,
+      modelId,
+      baseStoryPrompt,
+      moral,
+      title,
+      age,
+      gender,
+      stylePreference,
+      storyRhyming,
+      storyTheme,
+    } = req.body;
 
-      let seed = 3.0;
+    if (!jobId) jobId = jobTracker.newJob();
 
-      const { images, sceneTexts, coverUrl, backCoverUrl } =
-        await generateStoryImages(
-          modelId,
-          kidName,
-          baseStoryPrompt,
-          moral,
-          title,
-          age,
-          gender,
-          stylePreference,
-          storyRhyming,
-          storyTheme,
-          seed,
-        );
-      if (DEBUG_LOGGING) {
-        console.log("[/api/generateStory] Generated images and scene texts:", {
-          images,
-          sceneTexts,
-          coverUrl,
-          backCoverUrl,
-        });
-      }
-      res.json({
-        coverUrl: coverUrl,
-        backCoverUrl: backCoverUrl,
-        pages: images,
-        sceneTexts,
+    // 1) Quick validation
+    if (!kidName || !modelId || !baseStoryPrompt || !moral || !title) {
+      return res.status(400).json({
+        error:
+          "kidName, modelId, baseStoryPrompt, moral and title are required.",
       });
-    } catch (error: any) {
-      if (DEBUG_LOGGING)
-        console.error("[/api/generateStory] Story generation error:", error);
-      res
-        .status(500)
-        .json({ error: error.message || "Story generation failed" });
     }
+
+    if (!jobId) return res.status(400).json({ error: "jobId required" });
+    jobTracker.set(jobId, {
+      phase: "prompting",
+      pct: 60,
+      message: "LLM scene prompts…",
+    });
+    res.status(202).json({ jobId });
+
+    if (DEBUG_LOGGING) console.log("[/api/generateStory] jobId:", jobId);
+
+    const seed = 3.0;
+
+    generateStoryImages(
+      jobId,
+      modelId,
+      kidName,
+      baseStoryPrompt,
+      moral,
+      title,
+      age,
+      gender,
+      stylePreference,
+      storyRhyming,
+      storyTheme,
+      seed,
+    ).catch((err) => {
+      console.error("[/api/generateStory] background error:", err);
+      jobTracker.set(jobId, { phase: "error", pct: 100, error: err.message });
+    });
+  });
+
+  app.get("/api/generateStatus/:jobId", (req, res) => {
+    const st = jobTracker.get(req.params.jobId);
+    if (!st) return res.status(404).json({ error: "Job not found" });
+    res.set("Cache-Control", "no-store");
+    res.json(st);
   });
 
   app.post("/api/regenerateImage", async (req: Request, res: Response) => {
     try {
       const {
+        bookId,
+        pageId,
         modelId,
         prompt,
         isCover,
@@ -515,37 +549,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
         age,
         gender,
         stylePreference,
+        loraScale,
+        avatarUrl,
+        controlLoraStrength,
+        randomSeed,
       } = req.body;
-      // If the flag is true, use generateCoverImage, else generateImage.
-      const loraScale =
-        stylePreference === "predefined"
-          ? 1.0
-          : stylePreference.startsWith("hyper")
-            ? 0.7
-            : 0.6;
-      const seed = Math.floor(Math.random() * 1_000_000);
-      const generatedPrompt: string[] = await regenerateImagePromptsFromScenes(
-        kidName,
-        age,
-        gender,
-        [prompt],
-      );
-      const fullPrompt = isCover
-        ? prompt
-        : buildFullPrompt(
-            stylePreference,
-            age,
-            gender,
-            generatedPrompt.join(" "),
-          );
+
+      const seed = randomSeed ? Math.floor(Math.random() * 1_000_000) : 3.0;
+      const fullPrompt = buildFullPrompt(stylePreference, age, gender, prompt);
       const width = isCover ? 512 : 1024;
-      const newUrl = await generateImage(
+      const newUrl = await generateGuidedImage(
         fullPrompt,
+        avatarUrl,
         modelId,
         loraScale,
         seed,
+        controlLoraStrength,
         width,
       );
+
+      const book = await storage.getBookById(bookId);
+      if (!book) return res.status(404).json({ error: "Book not found" });
+
+      // Build new pages array
+      let updatedPages = book.pages;
+      if (isCover) {
+        book.coverUrl = newUrl;
+      } else {
+        updatedPages = book.pages.map((p: any) =>
+          p.id === pageId
+            ? { ...p, imageUrl: newUrl, loraScale, controlLoraStrength }
+            : p,
+        );
+      }
+
+      await storage.updateBook(bookId, {
+        coverUrl: book.coverUrl,
+        backCoverUrl: book.backCoverUrl,
+        pages: updatedPages,
+      });
       res.status(200).json({ newUrl });
     } catch (error: any) {
       if (DEBUG_LOGGING)
@@ -559,35 +601,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/books/:id", async (req: Request, res: Response) => {
-    try {
-      // Ensure the user is authenticated.
-      if (!req.session || !req.session.userId) {
-        return res.status(401).json({ message: "Unauthorized" });
-      }
-      const userId = req.session.userId.toString();
-      const bookId = req.params.id;
+  app.post("/api/regenerateAvatar", async (req, res) => {
+    const { bookId, modelId, prompt, loraScale } = req.body;
+    const seed = 3.0;
+    const url = await generateImage(prompt, modelId, loraScale, seed);
 
-      // Validate the incoming data using insertBookSchema (or a dedicated update schema)
-      const updatedData = insertBookSchema.parse({
-        ...req.body,
-        userId,
-      });
+    await storage.updateBook(bookId, {
+      avatarUrl: url,
+      avatarLora: loraScale,
+    });
 
-      // Update the book using a storage function.
-      // You need to implement storage.updateBook if not already available.
-      const updatedBook = await storage.updateBook(bookId, updatedData);
-      if (!updatedBook) {
-        return res.status(404).json({ message: "Book not found" });
-      }
-      res.status(200).json(updatedBook);
-    } catch (error: any) {
-      console.error("[/api/books PUT] Error updating book:", error);
-      res.status(400).json({
-        message: "Failed to update book",
-        error: error.message || error,
-      });
-    }
+    res.json({ avatarUrl: url });
   });
 
   app.put("/api/characters/:id", async (req, res) => {
@@ -963,6 +987,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
     },
   );
 
+  app.put("/api/books/:id", async (req: Request, res: Response) => {
+    try {
+      // Ensure the user is authenticated.
+      if (!req.session || !req.session.userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      const userId = req.session.userId.toString();
+      const bookId = req.params.id;
+
+      // Validate the incoming data using insertBookSchema (or a dedicated update schema)
+      const updatedData = insertBookSchema.parse({
+        ...req.body,
+        userId,
+      });
+
+      // Update the book using a storage function.
+      // You need to implement storage.updateBook if not already available.
+      const updatedBook = await storage.updateBook(bookId, updatedData);
+      if (!updatedBook) {
+        return res.status(404).json({ message: "Book not found" });
+      }
+      res.status(200).json(updatedBook);
+    } catch (error: any) {
+      console.error("[/api/books PUT] Error updating book:", error);
+      res.status(400).json({
+        message: "Failed to update book",
+        error: error.message || error,
+      });
+    }
+  });
+
+  app.patch("/api/books/:id/meta", authenticate, async (req, res) => {
+    const { id } = req.params;
+    const { avatarFinalized } = req.body;
+    try {
+      const updated = await storage.updateBook(id, { avatarFinalized });
+      res.json(updated);
+    } catch (e) {
+      res.status(500).json({ error: "Failed to update book meta" });
+    }
+  });
+
   // Order routes with authentication
   app.post("/api/orders", authenticate, async (req: Request, res: Response) => {
     try {
@@ -1069,6 +1135,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // PDF generation - no authentication required
   app.post("/api/pdf/generate", async (req: Request, res: Response) => {
+    console.log("[routes] /api/pdf/generate hit with body:", req.body);
     let size = 0;
     req.on("data", (chunk) => (size += chunk.length));
     req.on("end", () => console.log("Request size in bytes:", size));
@@ -1090,75 +1157,90 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/books/:bookId/prepareSplit", async (req, res) => {
-    const { id: bookId, pages } = req.body;
+  app.post(
+    "/api/books/:bookId/prepareSplit",
+    async (req: Request, res: Response) => {
+      console.log("[routes] /api/books/:bookId/prepareSplit hit");
 
-    try {
-      // Check if pages are already processed
-      const book = await storage.getBookById(bookId);
-
-      const alreadyProcessed = book.pages.every(
-        (p) =>
-          p.leftHalfUrl &&
-          p.rightHalfUrl &&
-          p.rightTextColor &&
-          (p.leftText || p.rightText),
+      console.log(
+        "[routes] /api/books/:bookId/prepareSplit hit with body:",
+        req.body,
       );
 
-      if (alreadyProcessed) {
-        console.log("Returning pre-processed pages from DB.");
-        return res.json({ pages: book.pages });
+      try {
+        const bookId = req.params.bookId; // from the URL
+        const { pages } = req.body; // now parsed by express.json
+
+        if (!Array.isArray(pages)) {
+          return res.status(400).json({ message: "Missing pages array" });
+        }
+        console.log("[routes] pages.length=", pages.length);
+        // Check if pages are already processed
+        const book = await storage.getBookById(bookId);
+
+        const alreadyProcessed = book.pages.every(
+          (p) =>
+            p.leftHalfUrl &&
+            p.rightHalfUrl &&
+            p.rightTextColor &&
+            (p.leftText || p.rightText),
+        );
+
+        if (alreadyProcessed) {
+          console.log("Returning pre-processed pages from DB.");
+          return res.json({ pages: book.pages });
+        }
+
+        // Otherwise: split, upload, color-pick, and store results
+        const processedPages = [];
+
+        for (const page of pages) {
+          const { leftHalf, rightHalf } = await splitImageInHalf(page.imageUrl);
+          const leftFileName = `books/${bookId}/pages/${page.id}_left.png`;
+          const rightFileName = `books/${bookId}/pages/${page.id}_right.png`;
+
+          const leftHalfUrl = await uploadBase64ToFirebase(
+            leftHalf,
+            leftFileName,
+          );
+          const rightHalfUrl = await uploadBase64ToFirebase(
+            rightHalf,
+            rightFileName,
+          );
+
+          const rightImg = await loadBase64Image(rightHalf);
+          const rightTextColor = pickContrastingTextColor(
+            rightImg,
+            50,
+            50,
+            100,
+            100,
+          );
+
+          const leftText = "";
+          const rightText = page.content;
+
+          processedPages.push({
+            ...page,
+            leftHalfUrl,
+            rightHalfUrl,
+            leftTextColor: "", // or computed
+            rightTextColor,
+            leftText,
+            rightText,
+          });
+        }
+
+        // ✅ Save updated pages back to DB
+        await storage.updateBook(bookId, { pages: processedPages });
+
+        res.json({ pages: processedPages });
+      } catch (error) {
+        console.error("prepareSplit error:", error);
+        res.status(500).json({ message: "Failed to process pages" });
       }
-
-      // Otherwise: split, upload, color-pick, and store results
-      const processedPages = [];
-
-      for (const page of pages) {
-        const { leftHalf, rightHalf } = await splitImageInHalf(page.imageUrl);
-        const leftFileName = `books/${bookId}/pages/${page.id}_left.png`;
-        const rightFileName = `books/${bookId}/pages/${page.id}_right.png`;
-
-        const leftHalfUrl = await uploadBase64ToFirebase(
-          leftHalf,
-          leftFileName,
-        );
-        const rightHalfUrl = await uploadBase64ToFirebase(
-          rightHalf,
-          rightFileName,
-        );
-
-        const rightImg = await loadBase64Image(rightHalf);
-        const rightTextColor = pickContrastingTextColor(
-          rightImg,
-          50,
-          50,
-          100,
-          100,
-        );
-
-        const leftText = "";
-        const rightText = page.content;
-
-        processedPages.push({
-          ...page,
-          leftHalfUrl,
-          rightHalfUrl,
-          leftTextColor: "", // or computed
-          rightTextColor,
-          leftText,
-          rightText,
-        });
-      }
-
-      // ✅ Save updated pages back to DB
-      await storage.updateBook(bookId, { pages: processedPages });
-
-      res.json({ pages: processedPages });
-    } catch (error) {
-      console.error("prepareSplit error:", error);
-      res.status(500).json({ message: "Failed to process pages" });
-    }
-  });
+    },
+  );
 
   return httpServer;
 }

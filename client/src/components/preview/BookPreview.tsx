@@ -10,6 +10,7 @@ interface Page {
   id: number;
   imageUrl: string;
   content: string;
+  prompt: string;
   isCover: boolean;
   isBackCover: boolean;
   regenerating?: boolean;
@@ -20,12 +21,16 @@ interface BookPreviewProps {
 
   pages: Page[];
   onUpdatePage: (id: number, content: string) => void;
-  onRegenerate: (id: number) => void;
+  onRegenerate: (
+    id: number,
+    mode: "cartoon" | "hyper" | "consistent" | "vanilla",
+  ) => void;
   onRegenerateAll: () => void;
   onDownload: () => void;
   onPrint: () => void;
   onSave: () => void;
   isDirty: boolean;
+  avatarFinalized: boolean;
 }
 
 export function BookPreview({
@@ -38,6 +43,7 @@ export function BookPreview({
   onPrint,
   onSave,
   isDirty,
+  avatarFinalized,
 }: BookPreviewProps) {
   const [carouselIndex, setCarouselIndex] = useState(0);
   const [activePage, setActivePage] = useState(0);
@@ -124,7 +130,17 @@ export function BookPreview({
       </div>
 
       {/* Book Preview */}
-      <div className="relative">
+      <div
+        className={`relative ${!avatarFinalized ? "pointer-events-none" : ""}`}
+      >
+        {!avatarFinalized && (
+          <div className="absolute inset-0 z-20 backdrop-blur-sm bg-white/60 flex flex-col items-center justify-center text-center p-6 rounded-lg">
+            <i className="fas fa-lock text-2xl text-gray-600 mb-2" />
+            <p className="text-gray-700">
+              Finalize your avatar first to unlock page edits.
+            </p>
+          </div>
+        )}
         <div className="absolute left-0 top-1/2 transform -translate-y-1/2 z-10">
           <button
             onClick={handlePrevCarousel}
@@ -137,49 +153,71 @@ export function BookPreview({
 
         <div className="carousel-container overflow-x-auto hide-scrollbar py-4">
           <div className="flex space-x-6 px-12">
-            {pages.slice(carouselIndex, carouselIndex + 5).map((page) => (
-              <Card
-                key={page.id}
-                className="book-preview-page flex-shrink-0 w-64 overflow-hidden hover:shadow-lg transition-all"
-              >
-                <div className="relative">
-                  {page.regenerating ? (
-                    <div className="w-full h-40 bg-gray-100 flex items-center justify-center">
-                      <i className="fas fa-spinner fa-spin text-gray-500 text-xl" />
+            {pages
+              .filter((page) => !page.isBackCover)
+              .slice(carouselIndex, carouselIndex + 5)
+              .map((page) => (
+                <Card
+                  key={page.id}
+                  className={`book-preview-page flex-shrink-0 
+                ${page.isCover ? "w-80" : "w-64"} 
+                overflow-hidden hover:shadow-lg transition-all`}
+                >
+                  <div className="relative">
+                    {page.regenerating ? (
+                      <div className="w-full h-40 bg-gray-100 flex items-center justify-center">
+                        <i className="fas fa-spinner fa-spin text-gray-500 text-xl" />
+                      </div>
+                    ) : (
+                      <img
+                        src={page.imageUrl}
+                        className="w-full h-40 object-cover"
+                        alt={`Page ${page.id}`}
+                      />
+                    )}
+                    <div className="absolute top-2 left-2 bg-white/80 rounded-full py-1 px-3 text-xs font-medium">
+                      {page.isCover
+                        ? bookTitle
+                        : page.isBackCover
+                          ? ""
+                          : `Page ${page.id}`}
                     </div>
-                  ) : (
-                    <img
-                      src={page.imageUrl}
-                      className="w-full h-40 object-cover"
-                      alt={`Page ${page.id}`}
-                    />
-                  )}
-                  <div className="absolute top-2 left-2 bg-white/80 rounded-full py-1 px-3 text-xs font-medium">
-                    {page.isCover
-                      ? bookTitle
-                      : page.isBackCover
-                        ? ""
-                        : `Page ${page.id}`}
+                    {/* ⋯ overlay group – hide for cover / back */}
+                    {!page.regenerating && (
+                      <div className="mt-4 px-4 flex flex-col space-y-2">
+                        <Button
+                          size="sm"
+                          variant="default"
+                          disabled={!avatarFinalized}
+                          onClick={() => onRegenerate(page.id, "vanilla")}
+                          className="w-full py-1.5 px-4 rounded-md text-sm font-medium normal-case"
+                        >
+                          Randomize Visuals
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={!avatarFinalized}
+                          onClick={() => onRegenerate(page.id, "consistent")}
+                          className="w-full py-1.5 px-4 rounded-md text-sm font-medium normal-case"
+                        >
+                          Make Consistent
+                        </Button>
+                      </div>
+                    )}
                   </div>
-                  <button
-                    className="absolute bottom-2 right-2 bg-white rounded-full p-1 shadow-sm hover:bg-gray-100"
-                    onClick={() => onRegenerate(page.id)}
-                  >
-                    <i className="fas fa-sync-alt text-gray-600"></i>
-                  </button>
-                </div>
-                <div className="p-4">
-                  <Textarea
-                    rows={3}
-                    className="w-full text-sm border border-gray-200 rounded-md p-2 focus:ring-primary focus:border-primary"
-                    value={page.content}
-                    onChange={(e) =>
-                      handleContentChange(page.id, e.target.value)
-                    }
-                  />
-                </div>
-              </Card>
-            ))}
+                  <div className="p-4">
+                    <Textarea
+                      rows={3}
+                      className="w-full text-sm border border-gray-200 rounded-md p-2 focus:ring-primary focus:border-primary"
+                      value={page.content}
+                      onChange={(e) =>
+                        handleContentChange(page.id, e.target.value)
+                      }
+                    />
+                  </div>
+                </Card>
+              ))}
           </div>
         </div>
 

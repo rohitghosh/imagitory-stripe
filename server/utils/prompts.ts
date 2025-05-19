@@ -74,13 +74,21 @@ For each provided scene, generate exactly ONE highly detailed, vividly descripti
 - **Main Character (Trigger Word):** Automatically replace the main character's name consistently with the provided LoRA trigger word (e.g., "<TeddyKidName>") exactly once per prompt, prominently positioned as the primary subject. NEVER use the actual name directly.
 - **Main Character Attributes:** Only describe main character attributes such as clothes, shoes, accessories, or props. Do NOT include physical attributes like hair color, skin color, eye color, body shape, or facial features, as these will be handled by the LoRA model.
 - **Secondary Character Descriptions:** Provide vivid, detailed descriptions of secondary characters' visual appearance (colors, expressions, clothing, accessories, textures), but NEVER use their names explicitly. Use descriptive terms like "friendly penguin," "courageous companion," or "playful animal."
+**Descriptor-Lock:** When a secondary character re-appears in later scenes, reuse its *first* full descriptor verbatim.  
 - **Detailed Scene Description:** Craft vivid, sensory-rich descriptions of the environment, clearly mentioning lighting conditions, textures, weather, time of day, atmospheric effects, sounds, and any other relevant sensory details.
+- **Independence:** Never reference previous or future illustrations, pages, or events. Each prompt must be fully self-contained. 
 - **Emotion and Mood:** Automatically infer and clearly depict relevant emotions and moods directly from the provided scene description, without needing additional inputs.
 - **Action-Oriented:** Clearly and dynamically depict the main character actively engaging in each scene, ensuring engaging and varied actions.
-- **Visual Variation:** Automatically select and vary engaging visual storytelling perspectives such as bird’s-eye view, hero’s viewpoint, extreme close-ups, wide-angle landscape views, or cinematic angles as most appropriate to the scene.
+- **Visual Variation:** Automatically select and vary engaging visual storytelling perspectives such as bird’s-eye view, hero’s viewpoint, extreme close-ups, wide-angle landscape views, or cinematic angles as most appropriate to the scene. When choosing a perspective, pick only from the list below AND do not mix multiple perspectives in a single prompt.
+  Allowed: { bird’s-eye, hero’s-view, extreme close-up, wide-angle, cinematic }.
 
 ### Style Application:
 - The visual style phrase will be algorithmically prepended to each prompt externally. Do NOT include style descriptors within your generated prompt; focus solely on vivid, Flux-optimized scene descriptions.
+
+### Technical Constraints
+- **Trigger Count:** The LorA Trigger Word must appear **exactly once** per prompt.
+- **Token Budget:** Keep each prompt ≤ 200 tokens (~150 words). If necessary, trim least-important sensory details first.
+- **No Hidden Style Keywords:** Do not inject implicit art-style, camera, or film terms such as “cinematic,” “DSLR,” or “Kodak.”
 
 ### Example Optimized Prompt :
 Input details:
@@ -91,7 +99,14 @@ Input details:
 - Scene: "Teddy finds a lost penguin on a sunny beach."
 
 Optimized prompt:
-"<TeddyKidName>", wearing bright red overalls and sturdy sandals, excitedly discovers a small, shy penguin with shiny black and white feathers and a curious expression amidst tiny, colorful seashells scattered along a golden sandy beach, bathed in warm sunshine with gentle waves softly splashing at the shore, viewed dynamically from a bird’s-eye perspective."
+"A 4 year boy, <TeddyKidName>, wearing bright red overalls and sturdy sandals, excitedly discovers a small, shy penguin with shiny black and white feathers and a curious expression amidst tiny, colorful seashells scattered along a golden sandy beach, bathed in warm sunshine with gentle waves softly splashing at the shore, viewed dynamically from a bird’s-eye perspective."
 
-Ensure each prompt strictly maintains visual continuity for described secondary character details, is consistently vivid, sensory-rich, and strictly avoids any direct mention of character names beyond the provided trigger word. NEVER mention secondary character by names, only visual reference. Don't put things like (default style) at the end.
+### Paired-Appearance Example (showing Descriptor-Lock)
+**First appearance** –  
+“A 4-year-old boy, <TeddyKidName>, wearing bright red overalls … discovers a **small, shy penguin with shiny black-and-white feathers and a curious expression** on a golden beach, bird’s-eye view.”
+
+**Re-appearance** –  
+“<TeddyKidName> balances on a driftwood log while the **small, shy penguin with shiny black-and-white feathers and a curious expression** watches admiringly from the sand … wide-angle view.”
+
+Ensure each prompt strictly maintains visual continuity for described secondary character details, is consistently vivid, and strictly avoids any direct mention of character names beyond the provided trigger word. NEVER mention secondary character by names, only visual reference.NEVER dress primary character in whimsical dresees or magical dresses as that distorts their consistency. Don't put things like (default style) or similar unrelated words at the end. Each image generation prompt must be an independent description and not refering items from previous or future pages, illustrations or events. 
 `;

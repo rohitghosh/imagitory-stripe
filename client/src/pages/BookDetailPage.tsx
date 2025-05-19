@@ -1,23 +1,29 @@
 import { useParams, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { useState, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { BookPreview } from "@/components/preview/BookPreview";
-import { generatePDF } from "@/utils/pdf";
+import { useBookEditor } from "@/hooks/useBookEditor";
 import { apiRequest } from "@/lib/queryClient";
 import { ShippingForm } from "@/components/preview/ShippingForm";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 
 // Define an interface for the pages stored in the book (raw data)
 
 function transformBookPages(book: any) {
-  // If your backend returns coverUrl/backCoverUrl, do something like this:
   const middlePages = book.pages.map((p: any, index: number) => ({
     id: index + 2, // start from 2 to leave slot #1 for the cover
     imageUrl: p.imageUrl || "", // fallback if missing
     content: p.content || "",
+    prompt: p.prompt ?? p.content ?? "", // fallback to content
+    loraScale: p.loraScale ?? undefined,
+    controlLoraStrength: p.controlLoraStrength ?? undefined,
+    isCover: false,
+    isBackCover: false,
   }));
 
   const pages = [];
@@ -54,13 +60,10 @@ export default function BookDetailPage() {
   const { user } = useAuth();
 
   // Fetch the book data by id
-  const [pages, setPages] = useState<any[]>([]);
-  const [bookTitle, setBookTitle] = useState("");
+
   const [showShippingForm, setShowShippingForm] = useState(false);
   const [orderCompleted, setOrderCompleted] = useState(false);
   const { toast } = useToast();
-  const [isDirty, setIsDirty] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [, setLocation] = useLocation();
 
   const {
@@ -75,6 +78,11 @@ export default function BookDetailPage() {
       return res.json();
     },
   });
+
+  const initialPages = useMemo(
+    () => (book ? transformBookPages(book) : []),
+    [book],
+  );
 
   const {
     data: characterData,
@@ -116,148 +124,42 @@ export default function BookDetailPage() {
     enabled: !!book?.storyId, // only run if storyId exists
   });
 
-  // (4) Once the book is fetched, transform its pages and set local state
-  useEffect(() => {
-    if (book) {
-      console.log(book);
-      console.log(characterData);
-      console.log(storyData);
-      const transformedPages = transformBookPages(book);
-      setPages(transformedPages);
-      setBookTitle(book.title);
-    }
-  }, [book]);
+  const {
+    pages,
+    isDirty,
+    avatarUrl,
+    avatarLora,
+    avatarRegenerating,
+    avatarFinalized,
+    finalizeAvatar,
+    updatePage: handleUpdatePage,
+    regeneratePage: handleRegenerate,
+    regenerateAll: handleRegenerateAll,
+    regenerateAvatar,
+    saveBook: handleSaveBook,
+  } = useBookEditor({
+    bookId: id,
+    title: book?.title,
+    stylePreference: book?.stylePreference,
+    characterId: book?.characterId,
+    storyId: book?.storyId,
+    initialPages,
+    characterData,
+    initialAvatarLora: book?.avatarLora,
+    initialAvatarUrl: book?.avatarUrl,
+    avatarFinalizedInitial: book?.avatarFinalized ?? false,
+  });
 
-  const handleUpdatePage = async (pageId: number, content: string) => {
-    setPages((prevPages) =>
-      prevPages.map((page) =>
-        page.id === pageId ? { ...page, content } : page,
-      ),
-    );
-    setIsDirty(true); // if using a flag for unsaved changes
+  const warnAndRegenAvatar = async (mode: "cartoon" | "hyper") => {
+    if (
+      window.confirm(
+        "Heads up: once you lock in this avatar, we’ll regenerate *all* story images to match it. " +
+          "This can take a minute. Continue?",
+      )
+    ) {
+      await regenerateAvatar(mode);
+    }
   };
-
-  async function handleRegenerate(pageId: number) {
-    const page = pages.find((p) => p.id === pageId);
-    console.log(page);
-    if (!page) return;
-
-    setPages((prev) =>
-      prev.map((p) => (p.id === pageId ? { ...p, regenerating: true } : p)),
-    );
-
-    const effectiveModelId = characterData?.modelId || "defaultModelId";
-
-    let payload = {
-      modelId: effectiveModelId,
-      prompt: "",
-      isCover: false,
-      kidName: characterData.name,
-      age: characterData.age,
-      gender: characterData.gender,
-      stylePreference: book.stylePreference,
-    };
-
-    if (page.isCover || page.isBackCover) {
-      const currentTitle = pages[0]?.content || bookTitle;
-      payload.prompt = page.isCover
-        ? `A captivating front cover photo which is apt for title: ${title} featuring <${kidName}kidName> as hero. It should clearly display the text "${title}" on top of the photo in a bold and colourful font`
-        : `A generic minimal portrait back cover photo for the story of ${currentTitle}`;
-      payload.isCover = true; // reuse flag to indicate special pages
-    } else {
-      payload.prompt = page.content;
-    }
-
-    try {
-      const response = await fetch("/api/regenerateImage", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (!response.ok) throw new Error("API error");
-      const data = await response.json();
-      const newUrl = data.newUrl;
-      // Update the page image
-      setPages((prevPages) =>
-        prevPages.map((p) =>
-          p.id === pageId ? { ...p, imageUrl: newUrl, regenerating: false } : p,
-        ),
-      );
-      setIsDirty(true);
-    } catch (error) {
-      console.error("Regeneration error:", error);
-      setPages((prevPages) =>
-        prevPages.map((p) =>
-          p.id === pageId ? { ...p, regenerating: false } : p,
-        ),
-      );
-      toast({
-        title: "Regeneration Error",
-        description: `Failed to regenerate image for page ${pageId}.`,
-        variant: "destructive",
-      });
-    }
-  }
-  async function handleRegenerateAll() {
-    try {
-      await Promise.all(pages.map((page) => handleRegenerate(page.id)));
-      toast({
-        title: "Regeneration complete",
-        description: "All pages have been regenerated.",
-      });
-    } catch (error) {
-      toast({
-        title: "Regeneration Error",
-        description: "Failed to regenerate one or more pages.",
-        variant: "destructive",
-      });
-    }
-  }
-
-  async function handleSaveBook() {
-    const effectiveBookId = id;
-    if (!effectiveBookId) {
-      toast({
-        title: "Save Error",
-        description: "Book ID not available.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const pagesToSave = pages.filter((p) => !p.isCover && !p.isBackCover);
-
-    try {
-      setLoading(true);
-      const updatedBook = {
-        title: pages[0].content,
-        pages: pagesToSave, // full pages array including cover and back cover
-        coverUrl: pages.find((p) => p.isCover)?.imageUrl || null,
-        backCoverUrl: pages.find((p) => p.isBackCover)?.imageUrl || null,
-        characterId: book.characterId,
-        storyId: book.storyId,
-      };
-      const savedBook = await apiRequest(
-        "PUT",
-        `/api/books/${effectiveBookId}`,
-        updatedBook,
-      );
-      setIsDirty(false);
-      toast({
-        title: "Save Successful",
-        description: "Your book has been updated.",
-      });
-    } catch (error) {
-      console.error("Save error:", error);
-      toast({
-        title: "Save Error",
-        description: "Failed to update book.",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  }
 
   // Handler for downloading the PDF (mirroring handleDownloadPDF from CreateStoryPage)
   const handleDownloadPDF = async () => {
@@ -268,46 +170,6 @@ export default function BookDetailPage() {
     } catch (error) {
       console.error("Error generating PDF:", error);
     }
-    // try {
-    // Call your PDF generation endpoint instead of directly calling generatePDF.
-    // Ensure your endpoint (e.g. /api/generatePDF) uses your generatePDF utility and sends the PDF data.
-    // const response = await fetch("/api/PDF/generate", {
-    //   method: "POST",
-    //   headers: { "Content-Type": "application/json" },
-    //   body: JSON.stringify({
-    //     id: book.id
-    //     title: book.title,
-    //     pages: pages,
-    //     coverUrl: pages.find((p) => p.isCover)?.imageUrl || null,
-    //     backCoverUrl: pages.find((p) => p.isBackCover)?.imageUrl || null,
-    //     storyPrompt: storyData.instructions,
-    //   }),
-    // });
-    // if (!response.ok) {
-    //   throw new Error("Failed to generate PDF");
-
-    //   }
-
-    //   // Read the response as a Blob.
-    //   const blob = await response.blob();
-
-    //   // Create a temporary URL for the Blob and trigger the download.
-    //   const url = URL.createObjectURL(blob);
-    //   const link = document.createElement("a");
-    //   link.href = url;
-    //   link.download = `${book.title}.pdf`;
-    //   document.body.appendChild(link);
-    //   link.click();
-    //   document.body.removeChild(link);
-    //   URL.revokeObjectURL(url);
-    // } catch (error) {
-    //   console.error("Error generating PDF:", error);
-    //   toast({
-    //     title: "Download Error",
-    //     description: "Failed to generate PDF.",
-    //     variant: "destructive",
-    //   });
-    // }
   };
 
   // Handler to trigger the shipping form (for placing an order)
@@ -349,18 +211,13 @@ export default function BookDetailPage() {
   const disableRegeneration = loadingCharacter || characterError;
   const disableDownload = loadingStory || storyError;
 
-  // Prepare pages for BookPreview (assumes each page has imageUrl and content)
-  // const pages = book.pages.map((page: any, index: number) => ({
-  //   id: index + 1,
-  //   imageUrl: page.imageUrl || page,
-  //   content: page.content || "",
-  // }));
-
   console.log(
     "loadingCharacter:",
     loadingCharacter,
     "characterError:",
     characterError,
+    "avatarUrl:",
+    avatarUrl,
   );
 
   console.log("loadingStory:", loadingStory, "storyError:", storyError);
@@ -370,6 +227,67 @@ export default function BookDetailPage() {
       <Header />
       <main className="flex-grow">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          {avatarUrl && (
+            <div
+              className={`flex flex-col items-center mb-8 transition-all duration-300
+              ${avatarFinalized ? "lg:flex-row lg:gap-6 mb-4" : ""}`}
+            >
+              <div className="relative w-32 h-32">
+                <img
+                  src={avatarUrl}
+                  alt="Story avatar"
+                  className={`rounded-full shadow-lg object-cover transition-all duration-300
+                  ${avatarFinalized ? "w-16 h-16" : "w-32 h-32"}`}
+                />
+
+                {avatarRegenerating && (
+                  <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/60 rounded-full">
+                    <i className="fas fa-spinner fa-spin text-gray-600 text-3xl" />
+                  </div>
+                )}
+              </div>
+
+              {/* 4) Action buttons below */}
+              {!avatarFinalized ? (
+                <>
+                  <div className="mt-3 flex gap-2">
+                    <Button
+                      size="sm"
+                      onClick={() => warnAndRegenAvatar("cartoon")}
+                      disabled={avatarRegenerating}
+                    >
+                      More Cartoonish
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => warnAndRegenAvatar("hyper")}
+                      disabled={avatarRegenerating}
+                    >
+                      More Realistic
+                    </Button>
+                  </div>
+
+                  {/* Primary call-to-action */}
+                  <Button
+                    className="mt-4"
+                    disabled={avatarRegenerating}
+                    onClick={finalizeAvatar}
+                  >
+                    Looks good → Start editing pages
+                  </Button>
+                </>
+              ) : (
+                /* After finalize – just show small label */
+                <span className="mt-2 text-sm text-gray-500">
+                  Avatar locked in ✓
+                </span>
+              )}
+
+              {/* 5) LORA scale label */}
+            </div>
+          )}
+
           <BookPreview
             bookTitle={book.title}
             pages={pages}
@@ -382,6 +300,7 @@ export default function BookDetailPage() {
             }
             onSave={handleSaveBook}
             isDirty={isDirty}
+            avatarFinalized={avatarFinalized}
           />
           {showShippingForm && !orderCompleted && (
             <ShippingForm onSubmit={handleShippingSubmit} />

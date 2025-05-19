@@ -1,41 +1,86 @@
+import "./logger";
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
-import { setupVite, serveStatic, log } from "./vite";
-import cors from 'cors';
+import { setupVite, serveStatic } from "./vite";
+import cors from "cors";
+import pinoHttp from "pino-http";
+import log from "./logger";
 
 const app = express();
 
 // CORS configuration for cross-origin requests
-app.use(cors({
-  origin: function(origin, callback) {
-    // Allow any origin since we're in a Replit environment
-    callback(null, true);
-  },
-  credentials: true, // Allow credentials (cookies, authorization headers, etc.)
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
-  exposedHeaders: ['Set-Cookie'] // Expose Set-Cookie header to client
-}));
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      // Allow any origin since we're in a Replit environment
+      callback(null, true);
+    },
+    credentials: true, // Allow credentials (cookies, authorization headers, etc.)
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "X-Requested-With",
+      "Accept",
+    ],
+    exposedHeaders: ["Set-Cookie"], // Expose Set-Cookie header to client
+  }),
+);
 
 // Add required headers for cookies in cross-origin requests
-app.use((req, res, next) => {
-  // Use the origin from the request or fall back to a wildcard
-  const requestOrigin = req.headers.origin || '*';
-  res.header('Access-Control-Allow-Origin', requestOrigin);
-  res.header('Access-Control-Allow-Credentials', 'true');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-  res.header('Access-Control-Expose-Headers', 'Set-Cookie');
-  
-  // Handle preflight requests
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-  
-  next();
-});
+// app.use((req, res, next) => {
+//   // Use the origin from the request or fall back to a wildcard
+//   const requestOrigin = req.headers.origin || "*";
+//   res.header("Access-Control-Allow-Origin", requestOrigin);
+//   res.header("Access-Control-Allow-Credentials", "true");
+//   res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+//   res.header(
+//     "Access-Control-Allow-Headers",
+//     "Origin, X-Requested-With, Content-Type, Accept, Authorization",
+//   );
+//   res.header("Access-Control-Expose-Headers", "Set-Cookie");
+
+//   // Handle preflight requests
+//   if (req.method === "OPTIONS") {
+//     return res.status(200).end();
+//   }
+
+//   next();
+// });
 
 app.use(express.json());
+app.use(
+  pinoHttp({
+    logger: log,
+    autoLogging: {
+      ignore: (req) => !req.url.startsWith("/api"),
+    },
+    customLogLevel(req, res, err) {
+      if (err || res.statusCode >= 500) return "error";
+      if (res.statusCode >= 400) return "warn";
+      if (res.statusCode >= 300) return "debug";
+      return "info";
+    },
+    serializers: {
+      req(req) {
+        return { method: req.method, url: req.originalUrl };
+      },
+      res(res) {
+        return { statusCode: res.statusCode };
+      },
+    },
+
+    /* ── optional: custom message text ─────────────── */
+    customSuccessMessage(req, res) {
+      return `${req.method} ${req.url} → ${res.statusCode}`;
+    },
+    customErrorMessage(req, res) {
+      if (res.statusCode < 400) return undefined;
+      return `${req.method} ${req.url} errored with ${res.statusCode}`;
+    },
+  }),
+);
+
 app.use(express.urlencoded({ extended: false }));
 
 app.use((req, res, next) => {
@@ -61,7 +106,7 @@ app.use((req, res, next) => {
         logLine = logLine.slice(0, 79) + "…";
       }
 
-      log(logLine);
+      log.info(logLine);
     }
   });
 
@@ -73,6 +118,7 @@ app.use((req, res, next) => {
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
+    log.error(err, "unhandled error");
     const message = err.message || "Internal Server Error";
 
     res.status(status).json({ message });
@@ -90,11 +136,14 @@ app.use((req, res, next) => {
 
   // Use environment port or fallback to 5000
   const port = process.env.PORT || 5000;
-  server.listen({
-    port,
-    host: "0.0.0.0",
-    reusePort: true,
-  }, () => {
-    log(`serving on port ${port}`);
-  });
+  server.listen(
+    {
+      port,
+      host: "0.0.0.0",
+      reusePort: true,
+    },
+    () => {
+      log.info(`serving on port ${port}`);
+    },
+  );
 })();

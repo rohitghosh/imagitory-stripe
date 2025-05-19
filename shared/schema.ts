@@ -6,6 +6,7 @@ import {
   boolean,
   timestamp,
   jsonb,
+  real,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -58,6 +59,9 @@ export const books = pgTable("books", {
   pages: jsonb("pages").notNull(), // Array of { imageUrl, content }
   stylePreference: text("stylePreference"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  avatarUrl: text("avatarUrl"),
+  avatarLora: real("avatarLora"),
+  avatarFinalized: boolean("avatarFinalized").default(false),
 });
 
 export const orders = pgTable("orders", {

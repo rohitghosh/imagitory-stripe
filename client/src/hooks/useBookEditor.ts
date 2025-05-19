@@ -1,0 +1,355 @@
+import { useState, useEffect, useRef } from "react";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+
+/** ───────── Types ───────── */
+export interface Page {
+  id: number;
+  imageUrl: string;
+  content: string;
+  prompt: string;
+  isCover?: boolean;
+  isBackCover?: boolean;
+  regenerating?: boolean;
+  loraScale: number; // 0-1
+  controlLoraStrength: number;
+}
+
+interface CharacterData {
+  modelId?: string;
+  name?: string;
+  age?: number;
+  gender?: "male" | "female" | "other";
+}
+
+interface UseBookEditorOptions {
+  bookId: string;
+  initialPages: Page[];
+  title: string;
+  stylePreference?: string;
+  characterId?: string;
+  storyId?: string;
+  characterData?: CharacterData | null;
+  initialAvatarUrl?: string;
+  initialAvatarLora?: number;
+  avatarFinalizedInitial?: boolean;
+}
+
+/** ───────── Hook ───────── */
+export function useBookEditor({
+  bookId,
+  initialPages,
+  title,
+  stylePreference,
+  characterId,
+  storyId,
+  characterData,
+  initialAvatarUrl,
+  initialAvatarLora,
+  avatarFinalizedInitial,
+}: UseBookEditorOptions) {
+  const [pages, setPages] = useState<Page[]>(initialPages);
+  const [isDirty, setDirty] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(
+    initialAvatarUrl ?? null,
+  );
+  const [avatarLora, setAvatarLora] = useState<number>(initialAvatarLora ?? 1);
+  const initialAvatarUrlRef = useRef<string | null>(initialAvatarUrl ?? null);
+  const initialAvatarLoraRef = useRef<number>(initialAvatarLora ?? 1);
+
+  const [avatarRegenerating, setAvatarRegenerating] = useState<boolean>(false);
+  const [avatarFinalized, setAvatarFinalized] = useState<boolean>(
+    avatarFinalizedInitial,
+  );
+
+  const { toast } = useToast();
+
+  useEffect(() => {
+    if (initialPages.length && initialPages !== pages) {
+      setPages(initialPages);
+      setDirty(false);
+    }
+  }, [initialPages]);
+
+  useEffect(() => {
+    if (initialAvatarUrl) setAvatarUrl(initialAvatarUrl);
+  }, [initialAvatarUrl]);
+
+  useEffect(() => {
+    if (typeof initialAvatarLora === "number") setAvatarLora(initialAvatarLora);
+  }, [initialAvatarLora]);
+
+  useEffect(() => {
+    if (typeof avatarFinalizedInitial === "boolean") {
+      setAvatarFinalized(avatarFinalizedInitial);
+    }
+  }, [avatarFinalizedInitial]);
+
+  /** ---------- Page text updates ---------- */
+  const updatePage = (pageId: number, newContent: string) => {
+    setPages((prev) =>
+      prev.map((p) => (p.id === pageId ? { ...p, content: newContent } : p)),
+    );
+    setDirty(true);
+  };
+
+  type RegenMode =
+    | "cartoon"
+    | "hyper"
+    | "consistent"
+    | "syncAvatar"
+    | "vanilla";
+  const DELTA = 0.05;
+
+  /** ---------- Image re-generation ---------- */
+  async function regeneratePage(pageId: number, mode?: RegenMode) {
+    if (!avatarFinalized && mode !== "syncAvatar") return;
+    const page = pages.find((p) => p.id === pageId);
+    if (!page) return;
+
+    let lora = page.loraScale;
+    let ctrl = page.controlLoraStrength;
+
+    if (mode === "cartoon") lora = Math.max(0, lora - DELTA);
+    if (mode === "hyper") lora = Math.min(1, lora + DELTA);
+    if (mode === "consistent") ctrl = Math.min(1, ctrl + DELTA);
+    if (mode === "syncAvatar") lora = avatarLora;
+
+    // optimistic UI flag
+    setPages((prev) =>
+      prev.map((p) => (p.id === pageId ? { ...p, regenerating: true } : p)),
+    );
+
+    const promptForCover = (isFront: boolean, kidName = "Hero") => {
+      const safeTitle = pages[0]?.content ?? title;
+      return isFront
+        ? `A captivating front-cover illustration for "${safeTitle}" featuring <${kidName}> as the hero. The title text "${safeTitle}" should appear boldly on the cover.`
+        : `A minimal, portrait-style back-cover illustration for the story "${safeTitle}".`;
+    };
+
+    const payload = {
+      bookId,
+      pageId,
+      modelId: characterData?.modelId ?? "defaultModelId",
+      kidName: characterData?.name,
+      age: characterData?.age,
+      gender: characterData?.gender,
+      avatarUrl: avatarUrl,
+      stylePreference,
+      isCover: page.isCover || page.isBackCover,
+      prompt: page.isCover
+        ? promptForCover(true, characterData?.name)
+        : page.isBackCover
+          ? promptForCover(false)
+          : page.prompt,
+      loraScale: lora,
+      controlLoraStrength: ctrl,
+      randomSeed: mode === "vanilla",
+    };
+
+    console.log("Regenerating page with payload:", payload);
+
+    try {
+      const res = await fetch("/api/regenerateImage", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error(`API ${res.status}`);
+
+      const { newUrl } = await res.json();
+      setPages((prev) =>
+        prev.map((p) =>
+          p.id === pageId
+            ? {
+                ...p,
+                regenerating: false,
+                imageUrl: newUrl,
+                loraScale: lora,
+                controlLoraStrength: ctrl,
+              }
+            : p,
+        ),
+      );
+      setDirty(true);
+    } catch (err) {
+      console.error("Regeneration failed:", err);
+      setPages((prev) =>
+        prev.map((p) => (p.id === pageId ? { ...p, regenerating: false } : p)),
+      );
+      toast({
+        title: "Regeneration error",
+        description: `Couldn’t regenerate page ${pageId}.`,
+        variant: "destructive",
+      });
+    }
+  }
+
+  /** Regenerate every non-cover page in parallel */
+  const regenerateAll = async () => {
+    if (!avatarFinalized) return;
+    try {
+      await Promise.all(pages.map((p) => regeneratePage(p.id)));
+      toast({
+        title: "All pages regenerated!",
+        description: "You can review the fresh images now.",
+      });
+    } catch {
+      /* individual page errors are handled inside regeneratePage */
+    }
+  };
+
+  const regenerateAllSyncWithAvatar = async () => {
+    try {
+      await Promise.all(
+        pages
+          .filter((p) => !p.isBackCover)
+          .map((p) => regeneratePage(p.id, "syncAvatar")),
+      );
+      toast({
+        title: "Pages refreshed",
+        description: "All pages now match the final avatar.",
+      });
+    } catch {
+      /* per-page errors already handled */
+    }
+  };
+
+  type AvatarMode = "cartoon" | "hyper";
+
+  async function regenerateAvatar(mode: AvatarMode) {
+    if (avatarFinalized) return;
+    setAvatarRegenerating(true);
+    try {
+      let lora = initialAvatarLora;
+
+      lora =
+        mode === "cartoon"
+          ? Math.max(0, avatarLora - DELTA)
+          : Math.min(1, avatarLora + DELTA);
+      const avatarPrompt = `closeup photo of ${characterData?.age} year old ${characterData?.gender} kid <${characterData?.name}kidName>,  imagined as pixar cartoon character,  clearly visible against a white background`;
+      const payload = {
+        bookId,
+        modelId: characterData?.modelId ?? "defaultModelId",
+        prompt: avatarPrompt,
+        loraScale: lora,
+      };
+      const res = await fetch("/api/regenerateAvatar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error(`API ${res.status}`);
+      const { avatarUrl: url } = await res.json();
+      setAvatarUrl(url);
+      setAvatarRegenerating(false);
+      setDirty(true);
+      setAvatarLora(lora); // avatar change = dirty state
+      toast({ title: "Avatar updated!" });
+    } catch (err) {
+      setAvatarRegenerating(false);
+      console.error("Avatar regen failed:", err);
+      toast({
+        title: "Avatar error",
+        description: "Couldn’t regenerate avatar.",
+        variant: "destructive",
+      });
+    }
+  }
+
+  const finalizeAvatar = async () => {
+    setAvatarFinalized(true); // optimistic UI
+    setDirty(true); // so Save button lights up (optional)
+
+    try {
+      await apiRequest("PATCH", `/api/books/${bookId}/meta`, {
+        avatarFinalized: true,
+      });
+      const hadOriginal =
+        initialAvatarUrlRef.current !== null &&
+        initialAvatarLoraRef.current !== undefined;
+
+      if (hadOriginal) {
+        const urlChanged = avatarUrl !== initialAvatarUrlRef.current;
+        const loraChanged = avatarLora !== initialAvatarLoraRef.current;
+        if (urlChanged || loraChanged) {
+          await regenerateAllSyncWithAvatar();
+          toast({
+            title: "Avatar locked in!",
+            description: "All pages have been updated to match your avatar.",
+          });
+        } else {
+          toast({ title: "Avatar locked in!" });
+        }
+      } else {
+        // no original avatar existed, so nothing to refresh
+        toast({ title: "Avatar locked in!" });
+      }
+    } catch (err) {
+      console.error("Failed to persist avatarFinalized:", err);
+      toast({
+        title: "Save error",
+        description: "Couldn’t finalize avatar on server.",
+        variant: "destructive",
+      });
+      setAvatarFinalized(false); // rollback on failure
+    }
+  };
+  /** ---------- Persist book to backend ---------- */
+  const saveBook = async () => {
+    if (!bookId) {
+      toast({
+        title: "Save error",
+        description: "Missing book ID.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const pagesToSave = pages.filter((p) => !p.isCover && !p.isBackCover);
+
+    const payload = {
+      title: pages[0]?.content ?? title,
+      pages: pagesToSave,
+      coverUrl: pages.find((p) => p.isCover)?.imageUrl ?? null,
+      backCoverUrl: pages.find((p) => p.isBackCover)?.imageUrl ?? null,
+      characterId,
+      storyId,
+    };
+
+    try {
+      setLoading(true);
+      await apiRequest("PUT", `/api/books/${bookId}`, payload);
+      setDirty(false);
+      toast({ title: "Saved!", description: "Your updates are live." });
+    } catch (err) {
+      console.error("Save failed:", err);
+      toast({
+        title: "Save error",
+        description: "Couldn’t update your book.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /** ---------- Exposed API ---------- */
+  return {
+    pages,
+    isDirty,
+    loading,
+    avatarUrl,
+    avatarLora,
+    avatarRegenerating,
+    avatarFinalized,
+    finalizeAvatar,
+    /* actions */
+    updatePage,
+    regeneratePage,
+    regenerateAll,
+    regenerateAvatar,
+    saveBook,
+  };
+}
