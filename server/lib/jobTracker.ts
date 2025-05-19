@@ -2,6 +2,7 @@
 import { v4 as uuid } from "uuid";
 
 export type JobPhase =
+  | "uploading"
   | "training"
   | "prompting"
   | "generating"
@@ -21,7 +22,7 @@ const m = new Map<string, JobState>();
 export const jobTracker = {
   newJob(): string {
     const id = uuid();
-    m.set(id, { phase: "training", pct: 0 });
+    m.set(id, { phase: "uploading", pct: 0 });
     return id;
   },
   get: (id: string) => m.get(id),

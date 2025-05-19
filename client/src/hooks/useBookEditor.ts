@@ -108,8 +108,10 @@ export function useBookEditor({
     const page = pages.find((p) => p.id === pageId);
     if (!page) return;
 
-    let lora = page.loraScale;
-    let ctrl = page.controlLoraStrength;
+    let lora = page.loraScale ?? avatarLora;
+    let ctrl = page.controlLoraStrength ?? 0.5;
+
+    console.log("Lora", lora, "controlLoraStrength", ctrl);
 
     if (mode === "cartoon") lora = Math.max(0, lora - DELTA);
     if (mode === "hyper") lora = Math.min(1, lora + DELTA);

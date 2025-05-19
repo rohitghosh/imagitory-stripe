@@ -568,6 +568,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         width,
       );
 
+      console.log(
+        "lorascale and controlStrength",
+        loraScale,
+        controlLoraStrength,
+      );
+
       const book = await storage.getBookById(bookId);
       if (!book) return res.status(404).json({ error: "Book not found" });
 
@@ -575,6 +581,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let updatedPages = book.pages;
       if (isCover) {
         book.coverUrl = newUrl;
+        (book as any).coverLoraScale = loraScale;
+        (book as any).coverControlLoraStrength = controlLoraStrength;
       } else {
         updatedPages = book.pages.map((p: any) =>
           p.id === pageId
@@ -587,6 +595,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         coverUrl: book.coverUrl,
         backCoverUrl: book.backCoverUrl,
         pages: updatedPages,
+        coverLoraScale: (book as any).coverLoraScale,
+        coverControlLoraStrength: (book as any).coverControlLoraStrength,
       });
       res.status(200).json({ newUrl });
     } catch (error: any) {

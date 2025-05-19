@@ -18,7 +18,7 @@ const DEBUG_LOGGING = process.env.DEBUG_LOGGING === "true";
  * Helper: Given an array of image URLs, downloads each image,
  * creates a zip archive in memory, and returns a Buffer for that zip.
  */
-async function createZipBuffer(imageUrls: string[]): Promise<Buffer> {
+async function createZipBuffer(imageUrls: string[], jobId: string): Promise<Buffer> {
   return new Promise(async (resolve, reject) => {
     const bufferStream = new WritableStreamBuffer({
       initialSize: 100 * 1024, // start at 100KB
@@ -48,6 +48,12 @@ async function createZipBuffer(imageUrls: string[]): Promise<Buffer> {
         // Determine file extension from URL
         const ext = getExtension(url);
         archive.append(imageBuffer, { name: `image_${i + 1}${ext}` });
+        const pct = (i + 1) / imageUrls.length * 5;
+        jobTracker.set(jobId, {
+          phase : "uploading",
+          pct,
+          message : `Uploading image ${i + 1}/${imageUrls.length}`
+        });
       } catch (err) {
         return reject(err);
       }
@@ -98,7 +104,7 @@ export async function trainCustomModel(
   // Create a zip buffer from the provided image URLs.
   if (DEBUG_LOGGING)
     console.log("[trainCustomModel] Creating zip from image URLs...");
-  const zipBuffer = await createZipBuffer(imageUrls);
+  const zipBuffer = await createZipBuffer(imageUrls, jobId);
 
   // Upload the zip file to Firebase Storage.
   const bucket = getStorage().bucket();
@@ -142,7 +148,7 @@ export async function trainCustomModel(
         const last = (update as any).logs.at(-1)?.message ?? "";
         const m = last.match(/Step (\d+)\/(\d+)/);
         if (m) {
-          const pct = (Number(m[1]) / Number(m[2])) * 55; // 0–55 %
+          const pct = 5 + (Number(m[1]) / Number(m[2])) * 55; // 0–55 %
           jobTracker.set(jobId, {
             phase: "training",
             pct,

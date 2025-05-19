@@ -35,6 +35,8 @@ function transformBookPages(book: any) {
       imageUrl: book.coverUrl,
       content: book.title, // e.g. display the book title
       isCover: true,
+      loraScale: (book as any).coverLoraScale,
+      controlLoraStrength: (book as any).coverControlLoraStrength,
     });
   }
 
