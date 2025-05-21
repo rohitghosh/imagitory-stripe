@@ -192,7 +192,7 @@ export function BookPreview({
                           onClick={() => onRegenerate(page.id, "vanilla")}
                           className="w-full py-1.5 px-4 rounded-md text-sm font-medium normal-case"
                         >
-                          Randomize Visuals
+                          Different Visuals
                         </Button>
                         <Button
                           size="sm"
@@ -201,7 +201,7 @@ export function BookPreview({
                           onClick={() => onRegenerate(page.id, "consistent")}
                           className="w-full py-1.5 px-4 rounded-md text-sm font-medium normal-case"
                         >
-                          Make Consistent
+                          More Consistent
                         </Button>
                       </div>
                     )}

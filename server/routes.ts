@@ -530,12 +530,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   });
 
-  app.get("/api/generateStatus/:jobId", (req, res) => {
-    const st = jobTracker.get(req.params.jobId);
-    if (!st) return res.status(404).json({ error: "Job not found" });
-    res.set("Cache-Control", "no-store");
-    res.json(st);
-  });
+  // app.get("/api/generateStatus/:jobId", (req, res) => {
+  //   const st = jobTracker.get(req.params.jobId);
+  //   if (!st) return res.status(404).json({ error: "Job not found" });
+  //   res.set("Cache-Control", "no-store");
+  //   res.json(st);
+  // });
 
   app.post("/api/regenerateImage", async (req: Request, res: Response) => {
     try {

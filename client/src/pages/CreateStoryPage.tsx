@@ -307,24 +307,21 @@ export default function CreateStoryPage() {
       });
       log("Story jobId:", jobId);
 
+      let jobResp: any;
       while (true) {
-        const statusResp = await fetch(`/api/jobs/${jobId}/progress`, {
-          credentials: "include",
+       const r = await fetch(`/api/jobs/${jobId}/progress`, {
+         credentials: "include",
         });
-        const status = await statusResp.json();
+       jobResp = await r.json();
 
-        if (status.phase === "complete") break;
-        if (status.phase === "error") {
-          throw new Error(status.error || "Story generation failed");
-        }
+       if (jobResp.phase === "error") {
+         throw new Error(jobResp.error || "Story generation failed");
+       }
+        // Exit only when the server has attached the payload we need
+        if (jobResp.phase === "complete" && jobResp.pages) break;
 
-        // throttle the loop
-        await new Promise((r) => setTimeout(r, 1500));
+        await new Promise(r => setTimeout(r, 1500));
       }
-
-      const jobResp = await fetch(`/api/generateStatus/${jobId}`).then((r) =>
-        r.json(),
-      );
 
       const data = {
         pages: jobResp.pages,
