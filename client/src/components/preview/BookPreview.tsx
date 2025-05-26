@@ -194,7 +194,7 @@ export function BookPreview({
                         >
                           Different Visuals
                         </Button>
-                        <Button
+                        {/* <Button
                           size="sm"
                           variant="outline"
                           disabled={!avatarFinalized}
@@ -202,7 +202,7 @@ export function BookPreview({
                           className="w-full py-1.5 px-4 rounded-md text-sm font-medium normal-case"
                         >
                           More Consistent
-                        </Button>
+                        </Button> */}
                       </div>
                     )}
                   </div>

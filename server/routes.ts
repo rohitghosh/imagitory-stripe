@@ -10,6 +10,7 @@ import {
   insertStorySchema,
   insertBookSchema,
   insertOrderSchema,
+  updateBookSchema,
   shippingFormSchema,
 } from "@shared/schema";
 import { generatePDF } from "./utils/pdf";
@@ -27,8 +28,10 @@ import {
   generateImage,
   buildFullPrompt,
   generateBackCoverImage,
-  regenerateImagePromptsFromScenes,
   generateGuidedImage,
+  generateAvatarImage,
+  generateSceneData,
+  generateStoryImagesWithAvatar,
 } from "./utils/trainAndGenerate";
 import admin from "./firebaseAdmin";
 import createMemoryStore from "memorystore";
@@ -474,68 +477,259 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // New Endpoint: Generate Story
   // Expects kidName, modelId, baseStoryPrompt, and moral in the request body.
   // POST /api/generateStory
-  app.post("/api/generateStory", authenticate, async (req, res) => {
-    let {
-      jobId,
+  // app.post("/api/generateStory", authenticate, async (req, res) => {
+  //   let {
+  //     jobId,
+  //     kidName,
+  //     modelId,
+  //     baseStoryPrompt,
+  //     moral,
+  //     title,
+  //     age,
+  //     gender,
+  //     stylePreference,
+  //     storyRhyming,
+  //     storyTheme,
+  //   } = req.body;
+
+  //   if (!jobId) jobId = jobTracker.newJob();
+
+  //   // 1) Quick validation
+  //   if (!kidName || !modelId || !baseStoryPrompt || !moral || !title) {
+  //     return res.status(400).json({
+  //       error:
+  //         "kidName, modelId, baseStoryPrompt, moral and title are required.",
+  //     });
+  //   }
+
+  //   if (!jobId) return res.status(400).json({ error: "jobId required" });
+  //   jobTracker.set(jobId, {
+  //     phase: "prompting",
+  //     pct: 60,
+  //     message: "LLM scene prompts…",
+  //   });
+  //   res.status(202).json({ jobId });
+
+  //   if (DEBUG_LOGGING) console.log("[/api/generateStory] jobId:", jobId);
+
+  //   const seed = 3.0;
+
+  //   generateStoryImages(
+  //     jobId,
+  //     modelId,
+  //     kidName,
+  //     baseStoryPrompt,
+  //     moral,
+  //     title,
+  //     age,
+  //     gender,
+  //     stylePreference,
+  //     storyRhyming,
+  //     storyTheme,
+  //     seed,
+  //   ).catch((err) => {
+  //     console.error("[/api/generateStory] background error:", err);
+  //     jobTracker.set(jobId, { phase: "error", pct: 100, error: err.message });
+  //   });
+  // });
+
+  // ────────────────────────────────────────────────────────
+  // Generate Avatar Only (with DB checkpoint)
+  // ────────────────────────────────────────────────────────
+  app.post("/api/generateAvatar", authenticate, async (req, res) => {
+    console.log("[/api/generateAvatar] Request received", { body: req.body });
+    const { bookId, modelId, kidName, age, gender, stylePreference } = req.body;
+    if (!bookId || !modelId) {
+      console.error("[/api/generateAvatar] Missing bookId or modelId");
+      return res.status(400).json({ error: "bookId + modelId are required" });
+    }
+
+    const jobId = jobTracker.newJob();
+    console.log(`[/api/generateAvatar] New job ${jobId} for book ${bookId}`);
+    res.status(202).json({ jobId });
+
+    (async () => {
+      try {
+        const { avatarUrl, avatarLora } = await generateAvatarImage(
+          modelId,
+          kidName,
+          age,
+          gender,
+          stylePreference,
+        );
+        console.log(`[/api/generateAvatar] Job ${jobId} complete`, {
+          avatarUrl,
+          avatarLora,
+        });
+
+        // 1) update tracker
+        jobTracker.set(jobId, {
+          phase: "complete",
+          pct: 100,
+          avatarUrl,
+          avatarLora,
+        });
+
+        // 2) persist to Firestore
+        await storage.updateBook(bookId, {
+          avatarUrl,
+          avatarLora,
+          avatarFinalized: false, // mark that avatar exists but isn’t “locked in”
+        });
+        console.log(`[/api/generateAvatar] Book ${bookId} updated with avatar`);
+      } catch (err: any) {
+        console.error(`[/api/generateAvatar] Job ${jobId} error`, err);
+        jobTracker.set(jobId, { phase: "error", pct: 100, error: err.message });
+      }
+    })();
+  });
+
+  // ────────────────────────────────────────────────────────
+  // Generate Skeleton (sceneTexts + imagePrompts) (with DB checkpoint)
+  // ────────────────────────────────────────────────────────
+  app.post("/api/storySkeleton", authenticate, async (req, res) => {
+    console.log("[/api/storySkeleton] Request received", { body: req.body });
+    const {
+      bookId,
       kidName,
-      modelId,
       baseStoryPrompt,
       moral,
-      title,
       age,
       gender,
-      stylePreference,
       storyRhyming,
       storyTheme,
     } = req.body;
 
-    if (!jobId) jobId = jobTracker.newJob();
-
-    // 1) Quick validation
-    if (!kidName || !modelId || !baseStoryPrompt || !moral || !title) {
-      return res.status(400).json({
-        error:
-          "kidName, modelId, baseStoryPrompt, moral and title are required.",
-      });
+    if (!bookId) {
+      console.error("[/api/storySkeleton] Missing bookId");
+      return res.status(400).json({ error: "bookId is required" });
     }
 
-    if (!jobId) return res.status(400).json({ error: "jobId required" });
-    jobTracker.set(jobId, {
-      phase: "prompting",
-      pct: 60,
-      message: "LLM scene prompts…",
-    });
+    const jobId = jobTracker.newJob();
+    await storage.updateBook(bookId, { skeletonJobId: jobId });
+    console.log(`[/api/storySkeleton] New job ${jobId} for book ${bookId}`);
     res.status(202).json({ jobId });
 
-    if (DEBUG_LOGGING) console.log("[/api/generateStory] jobId:", jobId);
+    (async () => {
+      try {
+        const { sceneTexts, imagePrompts } = await generateSceneData(
+          jobId,
+          kidName,
+          age,
+          gender,
+          baseStoryPrompt,
+          moral,
+          storyRhyming,
+          storyTheme,
+        );
+        console.log(`[/api/storySkeleton] Job ${jobId} complete`, {
+          sceneTexts,
+        });
 
-    const seed = 3.0;
+        // 1) update tracker
+        jobTracker.set(jobId, {
+          phase: "complete",
+          pct: 100,
+          sceneTexts,
+          imagePrompts,
+        });
 
-    generateStoryImages(
-      jobId,
+        // 2) persist to Firestore
+        await storage.updateBook(bookId, {
+          sceneTexts, // array<string>
+          imagePrompts, // array<string>
+        });
+        console.log(
+          `[/api/storySkeleton] Book ${bookId} updated with skeleton`,
+        );
+      } catch (err: any) {
+        console.error(`[/api/storySkeleton] Job ${jobId} error`, err);
+        jobTracker.set(jobId, { phase: "error", pct: 100, error: err.message });
+      }
+    })();
+  });
+
+  // ────────────────────────────────────────────────────────
+  // Final Image Batch (with DB checkpoint)
+  // ────────────────────────────────────────────────────────
+  app.post("/api/generateStoryImages", authenticate, async (req, res) => {
+    console.log("[/api/generateStoryImages] Request received", {
+      body: req.body,
+    });
+    const {
+      bookId,
       modelId,
       kidName,
-      baseStoryPrompt,
-      moral,
       title,
       age,
       gender,
       stylePreference,
-      storyRhyming,
-      storyTheme,
-      seed,
-    ).catch((err) => {
-      console.error("[/api/generateStory] background error:", err);
-      jobTracker.set(jobId, { phase: "error", pct: 100, error: err.message });
-    });
-  });
+      sceneTexts,
+      imagePrompts,
+      avatarUrl,
+      avatarLora,
+    } = req.body;
 
-  // app.get("/api/generateStatus/:jobId", (req, res) => {
-  //   const st = jobTracker.get(req.params.jobId);
-  //   if (!st) return res.status(404).json({ error: "Job not found" });
-  //   res.set("Cache-Control", "no-store");
-  //   res.json(st);
-  // });
+    if (
+      !bookId ||
+      !modelId ||
+      !Array.isArray(sceneTexts) ||
+      !Array.isArray(imagePrompts) ||
+      typeof avatarUrl !== "string" ||
+      typeof avatarLora !== "number"
+    ) {
+      console.error("[/api/generateStoryImages] Incomplete payload");
+      return res.status(400).json({ error: "Incomplete request payload" });
+    }
+
+    const jobId = jobTracker.newJob();
+    await storage.updateBook(bookId, { imagesJobId: jobId });
+    console.log(
+      `[/api/generateStoryImages] New job ${jobId} for book ${bookId}`,
+    );
+    res.status(202).json({ jobId });
+
+    (async () => {
+      try {
+        const result = await generateStoryImagesWithAvatar(
+          jobId,
+          modelId,
+          kidName,
+          sceneTexts,
+          imagePrompts,
+          title,
+          age,
+          gender,
+          stylePreference,
+          avatarUrl,
+          avatarLora,
+          3.0, // seed
+        );
+        console.log(`[/api/generateStoryImages] Job ${jobId} complete`);
+
+        // 1) update tracker
+        jobTracker.set(jobId, {
+          phase: "complete",
+          pct: 100,
+          pages: result.pages,
+          coverUrl: result.coverUrl,
+          backCoverUrl: result.backCoverUrl,
+        });
+
+        // 2) persist to Firestore
+        await storage.updateBook(bookId, {
+          pages: result.pages,
+          coverUrl: result.coverUrl,
+          backCoverUrl: result.backCoverUrl,
+          avatarFinalized: true, // now the book is “finished”
+        });
+        console.log(`[/api/generateStoryImages] Book ${bookId} fully updated`);
+      } catch (err: any) {
+        console.error(`[/api/generateStoryImages] Job ${jobId} error`, err);
+        jobTracker.set(jobId, { phase: "error", pct: 100, error: err.message });
+      }
+    })();
+  });
 
   app.post("/api/regenerateImage", async (req: Request, res: Response) => {
     try {
@@ -555,13 +749,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         randomSeed,
       } = req.body;
 
-      const seed = randomSeed ? Math.floor(Math.random() * 1_000_000) : 3.0;
+      const book = await storage.getBookById(bookId);
+      if (!book) return res.status(404).json({ error: "Book not found" });
+
+      const oldPage = book.pages?.find((p: any) => p.id === pageId);
+
+      let seed: number;
+      if (randomSeed) {
+        seed = Math.floor(Math.random() * 1_000_000);
+      } else {
+        seed = oldPage?.seed ?? 3.0;
+      }
+
       const fullPrompt = buildFullPrompt(stylePreference, age, gender, prompt);
       const width = isCover ? 512 : 1024;
       const newUrl = await generateGuidedImage(
         fullPrompt,
         avatarUrl,
         modelId,
+        gender,
         loraScale,
         seed,
         controlLoraStrength,
@@ -574,9 +780,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         controlLoraStrength,
       );
 
-      const book = await storage.getBookById(bookId);
-      if (!book) return res.status(404).json({ error: "Book not found" });
-
       // Build new pages array
       let updatedPages = book.pages;
       if (isCover) {
@@ -586,18 +789,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else {
         updatedPages = book.pages.map((p: any) =>
           p.id === pageId
-            ? { ...p, imageUrl: newUrl, loraScale, controlLoraStrength }
+            ? { ...p, imageUrl: newUrl, loraScale, controlLoraStrength, seed }
             : p,
         );
       }
 
-      await storage.updateBook(bookId, {
+      const updateData: any = {
         coverUrl: book.coverUrl,
         backCoverUrl: book.backCoverUrl,
         pages: updatedPages,
-        coverLoraScale: (book as any).coverLoraScale,
-        coverControlLoraStrength: (book as any).coverControlLoraStrength,
-      });
+      };
+
+      if (isCover) {
+        updateData.coverLoraScale = loraScale;
+        updateData.coverControlLoraStrength = controlLoraStrength;
+      }
+
+      await storage.updateBook(bookId, updateData);
       res.status(200).json({ newUrl });
     } catch (error: any) {
       if (DEBUG_LOGGING)
@@ -1007,7 +1215,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const bookId = req.params.id;
 
       // Validate the incoming data using insertBookSchema (or a dedicated update schema)
-      const updatedData = insertBookSchema.parse({
+      const updatedData = updateBookSchema.parse({
         ...req.body,
         userId,
       });
@@ -1028,14 +1236,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch("/api/books/:id/meta", authenticate, async (req, res) => {
-    const { id } = req.params;
-    const { avatarFinalized } = req.body;
+  app.patch("/api/books/:id", authenticate, async (req, res) => {
     try {
-      const updated = await storage.updateBook(id, { avatarFinalized });
+      const { id } = req.params;
+      const userId = req.session!.userId!.toString();
+
+      const existing = await storage.getBookById(id);
+      if (!existing || existing.userId !== userId) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+
+      const updated = await storage.updateBook(id, { ...req.body });
       res.json(updated);
-    } catch (e) {
-      res.status(500).json({ error: "Failed to update book meta" });
+    } catch (err: any) {
+      console.error("[books PATCH] error:", err);
+      res
+        .status(500)
+        .json({ message: "Failed to update book", error: err.message });
     }
   });
 

@@ -18,7 +18,10 @@ const DEBUG_LOGGING = process.env.DEBUG_LOGGING === "true";
  * Helper: Given an array of image URLs, downloads each image,
  * creates a zip archive in memory, and returns a Buffer for that zip.
  */
-async function createZipBuffer(imageUrls: string[], jobId: string): Promise<Buffer> {
+async function createZipBuffer(
+  imageUrls: string[],
+  jobId: string,
+): Promise<Buffer> {
   return new Promise(async (resolve, reject) => {
     const bufferStream = new WritableStreamBuffer({
       initialSize: 100 * 1024, // start at 100KB
@@ -48,11 +51,11 @@ async function createZipBuffer(imageUrls: string[], jobId: string): Promise<Buff
         // Determine file extension from URL
         const ext = getExtension(url);
         archive.append(imageBuffer, { name: `image_${i + 1}${ext}` });
-        const pct = (i + 1) / imageUrls.length * 5;
+        const pct = ((i + 1) / imageUrls.length) * 5;
         jobTracker.set(jobId, {
-          phase : "uploading",
+          phase: "uploading",
           pct,
-          message : `Uploading image ${i + 1}/${imageUrls.length}`
+          message: `Uploading image ${i + 1}/${imageUrls.length}`,
         });
       } catch (err) {
         return reject(err);
@@ -140,60 +143,56 @@ export async function trainCustomModel(
 
   jobTracker.set(jobId, { message: "Uploading images…", pct: 5 });
 
-  const sub = await fal.subscribe("fal-ai/turbo-flux-trainer", {
-    input,
-    logs: true,
-    onQueueUpdate(update) {
-      if (update.status === "IN_PROGRESS" && "logs" in update) {
-        const last = (update as any).logs.at(-1)?.message ?? "";
-        const m = last.match(/Step (\d+)\/(\d+)/);
-        if (m) {
-          const pct = 5 + (Number(m[1]) / Number(m[2])) * 55; // 0–55 %
-          jobTracker.set(jobId, {
-            phase: "training",
-            pct,
-            message: last,
-          });
-        }
-      }
-    },
-  });
+  // const sub = await fal.subscribe("fal-ai/turbo-flux-trainer", {
+  //   input,
+  //   logs: true,
+  //   onQueueUpdate(update) {
+  //     if (update.status === "IN_PROGRESS" && "logs" in update) {
+  //       const last = (update as any).logs.at(-1)?.message ?? "";
+  //       const m = last.match(/Step (\d+)\/(\d+)/);
+  //       if (m) {
+  //         const pct = 5 + (Number(m[1]) / Number(m[2])) * 55; // 0–55 %
+  //         jobTracker.set(jobId, {
+  //           phase: "training",
+  //           pct,
+  //           message: last,
+  //         });
+  //       }
+  //     }
+  //   },
+  // });
 
-  if (DEBUG_LOGGING) {
-    console.log("[trainCustomModel] Training result data:", sub.data);
-    console.log("[trainCustomModel] Request ID:", sub.requestId);
-  }
+  // if (DEBUG_LOGGING) {
+  //   console.log("[trainCustomModel] Training result data:", sub.data);
+  //   console.log("[trainCustomModel] Request ID:", sub.requestId);
+  // }
 
-  let data = sub.data;
-  const rid = sub.requestId;
-  const deadline = Date.now() + 30 * 60_000;
-  while (!data?.diffusers_lora_file && Date.now() < deadline) {
-    await new Promise((r) => setTimeout(r, 5000));
-    data = await fal.queue
-      .result("fal-ai/turbo-flux-trainer", {
-        requestId: rid,
-      })
-      .then((r) => r.data)
-      .catch(() => null);
-  }
-  if (!data?.diffusers_lora_file)
-    throw new Error("Fal job timed-out without a LoRA file.");
+  // let data = sub.data;
+  // const rid = sub.requestId;
+  // const deadline = Date.now() + 30 * 60_000;
+  // while (!data?.diffusers_lora_file && Date.now() < deadline) {
+  //   await new Promise((r) => setTimeout(r, 5000));
+  //   data = await fal.queue
+  //     .result("fal-ai/turbo-flux-trainer", {
+  //       requestId: rid,
+  //     })
+  //     .then((r) => r.data)
+  //     .catch(() => null);
+  // }
+  // if (!data?.diffusers_lora_file)
+  //   throw new Error("Fal job timed-out without a LoRA file.");
 
-  jobTracker.set(jobId, {
-    phase: "training",
-    pct: 60,
-    message: "Model ready",
-    modelId: data.diffusers_lora_file.url,
-  });
-  return data.diffusers_lora_file.url;
+  // jobTracker.set(jobId, {
+  //   phase: "training",
+  //   pct: 60,
+  //   message: "Model ready",
+  //   modelId: data.diffusers_lora_file.url,
+  // });
+  // return data.diffusers_lora_file.url;
 
   // Assume result.data contains the modelId.
-  // await new Promise((resolve) => setTimeout(resolve, 10000));
-  // return {
-  //   modelId:
-  //     "https://v3.fal.media/files/panda/q3C2L2ukMOD-XR0XCNLiO_pytorch_lora_weights.safetensors",
-  //   requestId: "66115f6e-7f18-459a-abbb-184253c769e8",
-  // };
+  await new Promise((resolve) => setTimeout(resolve, 10000));
+  return "https://v3.fal.media/files/panda/q3C2L2ukMOD-XR0XCNLiO_pytorch_lora_weights.safetensors";
 }
 
 /**
@@ -204,6 +203,7 @@ export async function generateGuidedImage(
   prompt: string,
   cartoonAvatarUrl: string,
   modelId: string,
+  gender: string,
   loraScale: number,
   seed: number,
   controlLoraStrength?: number,
@@ -218,53 +218,19 @@ export async function generateGuidedImage(
   );
 
   // Build payload matching the API docs
-  const payload = {
-    loras: [
-      {
-        path: modelId, // This is the URL returned from training.
-        scale: loraScale,
-      },
-    ],
-    prompt, // The generation prompt.
-    embeddings: [], // No extra embeddings.
-    model_name: null, // As required.
-    enable_safety_checker: true,
-    num_inference_steps: 28,
-    control_lora_strength: controlLoraStrength ? controlLoraStrength : 0.5,
-    control_lora_image_url: cartoonAvatarUrl,
-    seed: seed,
-    image_size: {
-      width: width ? width : 1024,
-      height: height ? height : 512,
-    },
-  };
-
-  console.log(
-    "[generateGuidedImage] Payload:",
-    JSON.stringify(payload, null, 2),
+  const sceneUrl = await generateImage(
+    prompt,
+    modelId,
+    0.8,
+    seed,
+    width,
+    height,
   );
 
-  // Use fal.subscribe to trigger image generation.
-  const result = await fal.subscribe("fal-ai/flux-control-lora-canny", {
-    input: payload,
-    logs: true,
-    onQueueUpdate: (update) => {
-      if (update.status === "IN_PROGRESS") {
-        update.logs.map((log) =>
-          console.log("[generateGuidedImage] Queue update:", log.message),
-        );
-      }
-    },
-  });
+  // 🔹 Step 2 – swap the kid’s face in
+  const finalUrl = await faceSwapWithAvatar(cartoonAvatarUrl, sceneUrl, gender);
 
-  console.log("[generateGuidedImage] Generation result data:", result.data);
-  console.log("[generateGuidedImage] Request ID:", result.requestId);
-
-  if (result.data && result.data.images && result.data.images.length > 0) {
-    return result.data.images[0].url;
-  } else {
-    throw new Error("No image returned from generation");
-  }
+  return finalUrl;
 
   // return "https://v3.fal.media/files/monkey/HIB4Or6Y7JZ0IbQtKiwas_84ff96cd1fb94937b4e261b339a0da7a.jpg";
 }
@@ -299,8 +265,8 @@ export async function generateImage(
     num_inference_steps: 28,
     seed: seed,
     image_size: {
-      width: width ? width : 1024,
-      height: height ? height : 512,
+      width: width ? width : 512,
+      height: height ? height : 256,
     },
   };
 
@@ -328,6 +294,42 @@ export async function generateImage(
     throw new Error("No image returned from generation");
   }
   // return "https://v3.fal.media/files/monkey/HIB4Or6Y7JZ0IbQtKiwas_84ff96cd1fb94937b4e261b339a0da7a.jpg";
+}
+
+async function faceSwapWithAvatar(
+  avatarUrl: string,
+  sceneUrl: string,
+  gender: string,
+  workflow: "user_hair" | "target_hair" = "user_hair",
+): Promise<string> {
+  const genderForApi = normaliseGender(gender);
+  const swapInput = {
+    face_image_0: avatarUrl, // hero’s face
+    gender_0: genderForApi, // empty is allowed
+    target_image: sceneUrl, // scene from step-1
+    workflow_type: workflow, // keep user-hair by default
+    upscale: true, // model default
+  };
+
+  const swap = await fal.subscribe("easel-ai/advanced-face-swap", {
+    input: swapInput,
+    logs: true,
+    onQueueUpdate(u) {
+      if (u.status === "IN_PROGRESS")
+        u.logs.forEach((l) => console.log("[faceSwap]", l.message));
+    },
+  });
+
+  if (swap.data?.image?.url) return swap.data.image.url;
+  throw new Error("Face-swap returned no image");
+}
+
+function normaliseGender(g: string): "" | "male" | "female" | "non-binary" {
+  const s = (g || "").trim().toLowerCase();
+  if (s === "boy" || s === "male" || s === "man") return "male";
+  if (s === "girl" || s === "female" || s === "woman") return "female";
+  if (s === "non-binary" || s === "nonbinary") return "non-binary";
+  return ""; // safest fall-back → model guesses
 }
 
 /**
@@ -581,38 +583,38 @@ export function buildFullPrompt(
   switch (style) {
     case "pixar":
       fullPrompt = `
-        Pixar-style 3D rendered, vibrant colors, expressive characters, ultra-detailed textures, cinematic lighting, joyful emotions, ${prompt}`;
+        Pixar-style 3D rendered, expressive characters, ultra-detailed textures, cinematic lighting, joyful emotions, ${prompt}, face clearly visible`;
       break;
 
     case "handdrawn":
       fullPrompt = `
-      Detailed hand-drawn illustration, warm gentle colors, fine pencil or ink outlines, inviting textures, storybook charm, ${prompt}`;
+      Detailed hand-drawn illustration, warm gentle colors, fine pencil or ink outlines, storybook charm, ${prompt}, face clearly visible`;
       break;
 
     case "watercolor":
       fullPrompt = `
-        Whimsical watercolor illustration, pastel color palette, smooth gradients, textured paper background, dream-like atmosphere, ${prompt}`;
+        Whimsical watercolor illustration, pastel color palette, smooth gradients, textured paper background, ${prompt}, face clearly visible`;
       break;
 
     case "claymotion":
       fullPrompt = `
-            Claymation-style detailed scene, realistic handmade clay textures, subtle imperfections, vibrant tactile appearance, playful composition, ${prompt}`;
+            Claymation-style detailed scene, realistic handmade clay textures, tactile appearance, ${prompt}, face clearly visible`;
       break;
 
     case "crayonart":
       fullPrompt = `
-            Bright, playful crayon-style drawing, vivid bold colors, childlike rough textures, joyful simplicity, ${prompt}`;
+            Bright, playful crayon-style drawing, vivid bold colors, childlike rough textures, ${prompt}, face clearly visible`;
       break;
 
     case "pastelsketch":
       fullPrompt = `
-              Gentle pastel sketch, soft smudged textures, calming color tones, soothing, artistic sketch quality, ${prompt}`;
+              Gentle pastel sketch, soft smudged textures, calming color tones, soothing, artistic sketch quality, ${prompt}, face clearly visible`;
       break;
 
     default:
       // Fallback or handle unknown style
       fullPrompt = `
-      Pixar-style 3D rendered, vibrant colors, expressive characters, ultra-detailed textures, cinematic lighting, joyful emotions, ${prompt}`;
+      Pixar-style 3D rendered, vibrant colors, expressive characters, ultra-detailed textures, cinematic lighting, joyful emotions, ${prompt},face clearly visible`;
       break;
   }
 
@@ -640,309 +642,309 @@ export async function generateBackCoverImage(
  * It first generates scene prompts using the LLM (incorporating base prompt and moral)
  * and then generates an image for each prompt.
  */
-export async function generateStoryImages(
-  jobId: string,
-  modelId: string,
-  kidName: string,
-  baseStoryPrompt: string,
-  moral: string,
-  title: string,
-  age: number,
-  gender: string,
-  stylePreference: string,
-  storyRhyming: boolean,
-  storyTheme: string,
-  seed: number,
-): Promise<{
-  pages: string[];
-  coverUrl: string;
-  backCoverUrl: string;
-  avatarUrl: string;
-  avatarLora: number;
-}> {
-  if (DEBUG_LOGGING) {
-    console.log("[generateStoryImages] Starting story generation for:", {
-      kidName,
-      baseStoryPrompt,
-      moral,
-      title,
-      stylePreference,
-    });
-  }
+// export async function generateStoryImages(
+//   jobId: string,
+//   modelId: string,
+//   kidName: string,
+//   baseStoryPrompt: string,
+//   moral: string,
+//   title: string,
+//   age: number,
+//   gender: string,
+//   stylePreference: string,
+//   storyRhyming: boolean,
+//   storyTheme: string,
+//   seed: number,
+// ): Promise<{
+//   pages: string[];
+//   coverUrl: string;
+//   backCoverUrl: string;
+//   avatarUrl: string;
+//   avatarLora: number;
+// }> {
+//   if (DEBUG_LOGGING) {
+//     console.log("[generateStoryImages] Starting story generation for:", {
+//       kidName,
+//       baseStoryPrompt,
+//       moral,
+//       title,
+//       stylePreference,
+//     });
+//   }
 
-  jobTracker.set(jobId, {
-    phase: "prompting",
-    pct: 60,
-    message: "Generating stories",
-  });
+//   jobTracker.set(jobId, {
+//     phase: "prompting",
+//     pct: 60,
+//     message: "Generating stories",
+//   });
 
-  const mode = "refine";
-  const controlLoraStrength = 0.5;
+//   const mode = "refine";
+//   const controlLoraStrength = 0.5;
 
-  const loraScale =
-    stylePreference === "predefined"
-      ? 0.9
-      : stylePreference.startsWith("hyper")
-        ? 0.7
-        : 0.6;
+//   const loraScale =
+//     stylePreference === "predefined"
+//       ? 0.9
+//       : stylePreference.startsWith("hyper")
+//         ? 0.7
+//         : 0.6;
 
-  const scenePrompts = await generateScenePromptsLLM(
-    kidName,
-    age,
-    gender,
-    baseStoryPrompt,
-    moral,
-    storyRhyming,
-    storyTheme,
-  );
-  if (scenePrompts.length < 9) {
-    throw new Error("LLM did not return enough scene prompts.");
-  }
-  if (DEBUG_LOGGING)
-    console.log("[generateStoryImages] Final scene prompts:", scenePrompts);
+//   const scenePrompts = await generateScenePromptsLLM(
+//     kidName,
+//     age,
+//     gender,
+//     baseStoryPrompt,
+//     moral,
+//     storyRhyming,
+//     storyTheme,
+//   );
+//   if (scenePrompts.length < 9) {
+//     throw new Error("LLM did not return enough scene prompts.");
+//   }
+//   if (DEBUG_LOGGING)
+//     console.log("[generateStoryImages] Final scene prompts:", scenePrompts);
 
-  jobTracker.set(jobId, {
-    phase: "prompting",
-    pct: 67,
-    message: "Generating prompts for images",
-  });
+//   jobTracker.set(jobId, {
+//     phase: "prompting",
+//     pct: 67,
+//     message: "Generating prompts for images",
+//   });
 
-  const imageGenerationPrompts = await createImagePromptsFromScenes(
-    kidName,
-    age,
-    gender,
-    scenePrompts,
-    baseStoryPrompt,
-    moral,
-    storyRhyming,
-    storyTheme,
-  );
+//   const imageGenerationPrompts = await createImagePromptsFromScenes(
+//     kidName,
+//     age,
+//     gender,
+//     scenePrompts,
+//     baseStoryPrompt,
+//     moral,
+//     storyRhyming,
+//     storyTheme,
+//   );
 
-  console.log(
-    "[generateStoryImages] Image generation prompts length:",
-    imageGenerationPrompts.length,
-  );
+//   console.log(
+//     "[generateStoryImages] Image generation prompts length:",
+//     imageGenerationPrompts.length,
+//   );
 
-  console.log(
-    "[generateStoryImages] Image generation prompts length:",
-    imageGenerationPrompts,
-  );
-  
-  jobTracker.set(jobId, {
-    phase: "prompting",
-    pct: 72,
-    message: "Generating prompts for images",
-  });
-  
-  let avatarUrl = "";
-  if (mode === "refine") {
-    const avatarPrompt = `closeup photo of ${age} year old ${gender} kid <${kidName}kidName>,  imagined as pixar cartoon character,  clearly visible against a white background`;
-    avatarUrl = await generateImage(avatarPrompt, modelId, loraScale, seed);
-  }
+//   console.log(
+//     "[generateStoryImages] Image generation prompts length:",
+//     imageGenerationPrompts,
+//   );
 
-  jobTracker.set(jobId, {
-    phase: "generating",
-    pct: 75,
-    message: "Generating images…",
-  });
-  const total = 11;
-  let done = 0;
+//   jobTracker.set(jobId, {
+//     phase: "prompting",
+//     pct: 72,
+//     message: "Generating prompts for images",
+//   });
 
-  const pages = await Promise.all(
-    imageGenerationPrompts.map(async (promptText, i) => {
-      const fullPrompt = buildFullPrompt(
-        stylePreference,
-        age,
-        gender,
-        promptText,
-      );
-      const imageUrl =
-        mode === "refine"
-          ? await generateGuidedImage(
-              fullPrompt,
-              avatarUrl,
-              modelId,
-              loraScale,
-              seed,
-              controlLoraStrength,
-            )
-          : await generateImage(fullPrompt, modelId, loraScale, seed);
-      done += 1;
-      jobTracker.set(jobId, {
-        phase: "generating",
-        pct: 75 + (done / total) * 20, // 65-95
-      });
+//   let avatarUrl = "";
+//   if (mode === "refine") {
+//     const avatarPrompt = `closeup photo of ${age} year old ${gender} kid <${kidName}kidName>,  imagined as pixar cartoon character,  clearly visible against a white background`;
+//     avatarUrl = await generateImage(avatarPrompt, modelId, loraScale, seed);
+//   }
 
-      return {
-        imageUrl,
-        prompt: promptText,
-        sceneText: scenePrompts[i], // <- was in sceneTexts[]
-        loraScale,
-        controlLoraStrength: mode === "refine" ? controlLoraStrength : 1, //
-      };
-    }),
-  );
-  if (DEBUG_LOGGING)
-    console.log("[generateStoryImages] Generated images:", pages);
+//   jobTracker.set(jobId, {
+//     phase: "generating",
+//     pct: 75,
+//     message: "Generating images…",
+//   });
+//   const total = 11;
+//   let done = 0;
 
-  jobTracker.set(jobId, {
-    phase: "generating",
-    pct: 95,
-    message: "Generating cover images…",
-  });
+//   const pages = await Promise.all(
+//     imageGenerationPrompts.map(async (promptText, i) => {
+//       const fullPrompt = buildFullPrompt(
+//         stylePreference,
+//         age,
+//         gender,
+//         promptText,
+//       );
+//       const imageUrl =
+//         mode === "refine"
+//           ? await generateGuidedImage(
+//               fullPrompt,
+//               avatarUrl,
+//               modelId,
+//               loraScale,
+//               seed,
+//               controlLoraStrength,
+//             )
+//           : await generateImage(fullPrompt, modelId, loraScale, seed);
+//       done += 1;
+//       jobTracker.set(jobId, {
+//         phase: "generating",
+//         pct: 75 + (done / total) * 20, // 65-95
+//       });
 
-  const coverPrompt = `A captivating front cover photo which is apt for title: ${title} featuring <${kidName}kidName> as hero. It should clearly display the text "${title}" on top of the photo in a bold and colourful font`;
+//       return {
+//         imageUrl,
+//         prompt: promptText,
+//         sceneText: scenePrompts[i], // <- was in sceneTexts[]
+//         loraScale,
+//         controlLoraStrength: mode === "refine" ? controlLoraStrength : 1, //
+//       };
+//     }),
+//   );
+//   if (DEBUG_LOGGING)
+//     console.log("[generateStoryImages] Generated images:", pages);
 
-  if (DEBUG_LOGGING) console.log("[generateStoryImages] loraScale:", loraScale);
+//   jobTracker.set(jobId, {
+//     phase: "generating",
+//     pct: 95,
+//     message: "Generating cover images…",
+//   });
 
-  const coverPromptFull = buildFullPrompt(
-    stylePreference,
-    age,
-    gender,
-    coverPrompt,
-  );
+//   const coverPrompt = `A captivating front cover photo which is apt for title: ${title} featuring <${kidName}kidName> as hero. It should clearly display the text "${title}" on top of the photo in a bold and colourful font`;
 
-  const coverUrl = await generateGuidedImage(
-    coverPromptFull,
-    avatarUrl,
-    modelId,
-    loraScale,
-    seed,
-    controlLoraStrength,
-    512,
-  );
-  const backCoverFileName = `books/backCover/${kidName}_${baseStoryPrompt}.png`;
-  const backCoverUrl = await generateBackCoverImage(
-    coverUrl,
-    backCoverFileName,
-  );
+//   if (DEBUG_LOGGING) console.log("[generateStoryImages] loraScale:", loraScale);
 
-  if (DEBUG_LOGGING) {
-    console.log(
-      "[generateStoryImages] Generated cover image:",
-      coverUrl,
-      backCoverUrl,
-    );
-  }
+//   const coverPromptFull = buildFullPrompt(
+//     stylePreference,
+//     age,
+//     gender,
+//     coverPrompt,
+//   );
 
-  const result = {
-    pages: pages,
-    coverUrl: coverUrl,
-    backCoverUrl: backCoverUrl,
-    avatarUrl: avatarUrl,
-    avatarLora: loraScale,
-  };
+//   const coverUrl = await generateGuidedImage(
+//     coverPromptFull,
+//     avatarUrl,
+//     modelId,
+//     loraScale,
+//     seed,
+//     controlLoraStrength,
+//     512,
+//   );
+//   const backCoverFileName = `books/backCover/${kidName}_${baseStoryPrompt}.png`;
+//   const backCoverUrl = await generateBackCoverImage(
+//     coverUrl,
+//     backCoverFileName,
+//   );
 
-  jobTracker.set(jobId, {
-    phase: "complete",
-    pct: 100,
-    ...result,
-  });
+//   if (DEBUG_LOGGING) {
+//     console.log(
+//       "[generateStoryImages] Generated cover image:",
+//       coverUrl,
+//       backCoverUrl,
+//     );
+//   }
 
-  return result;
-}
+//   const result = {
+//     pages: pages,
+//     coverUrl: coverUrl,
+//     backCoverUrl: backCoverUrl,
+//     avatarUrl: avatarUrl,
+//     avatarLora: loraScale,
+//   };
 
-//   const dummyPages = [
-//     {
-//       imageUrl:
-//         "https://v3.fal.media/files/lion/BYulTnmCMtjoCWVxUo7xT_e6e032ba64ec4b39b11ce0449a6b7349.jpg",
-//       prompt:
-//         "1. As Adventure Alex entered the village, he spotted a dragon with colorful scales and a big smile, eagerly greeting everyone.",
-//       sceneText:
-//         "As Adventure Alex entered the village, he spotted a dragon with colorful scales and a big smile, eagerly greeting everyone.",
-//       loraScale: 0.8,
-//       controlLoraStrength: 0.7,
-//     },
-//     {
-//       imageUrl:
-//         "https://v3.fal.media/files/tiger/J5lzVpM_BqVbIhbUz2Hne_fe22e58aff3d4162af677c24bcd9bf1d.jpg",
-//       prompt:
-//         "2. The dragon, named Spark, playfully chased after children, blowing bubbles from his nostrils as they giggled and ran around him.",
-//       sceneText:
-//         "The dragon, named Spark, playfully chased after children, blowing bubbles from his nostrils as they giggled and ran around him.",
-//       loraScale: 0.8,
-//       controlLoraStrength: 0.7,
-//     },
-//     {
-//       imageUrl:
-//         "https://v3.fal.media/files/tiger/j9MS5iglRS18iSq98pG4g_d7187c2696b54619a7afa8e8f5547325.jpg",
-//       prompt:
-//         "3. Despite their initial fear, the villagers soon realized that Spark was gentle and kind, just looking for companionship.",
-//       sceneText:
-//         "Despite their initial fear, the villagers soon realized that Spark was gentle and kind, just looking for companionship.",
-//       loraScale: 0.8,
-//       controlLoraStrength: 0.7,
-//     },
-//     {
-//       imageUrl:
-//         "https://v3.fal.media/files/koala/wLuAkk35LqRsr3nh5J_KA_1b586234ad7142f097bcfe0f5f178ac5.jpg",
-//       prompt:
-//         "4. Spark led Adventure Alex to a hidden cave filled with sparkling crystals, where he liked to spend his time painting colorful murals on the walls.",
-//       sceneText:
-//         "Spark led Adventure Alex to a hidden cave filled with sparkling crystals, where he liked to spend his time painting colorful murals on the walls.",
-//       loraScale: 0.8,
-//       controlLoraStrength: 0.7,
-//     },
-//     {
-//       imageUrl:
-//         "https://v3.fal.media/files/lion/NBazttn8soarZVbGiTv_x_04fe3fa5b55843fb803014c40d26fe36.jpg",
-//       prompt:
-//         "5. Curious village cats and dogs approached Spark tentatively, only to end up curling around his massive paws, enjoying his warmth.",
-//       sceneText:
-//         "Curious village cats and dogs approached Spark tentatively, only to end up curling around his massive paws, enjoying his warmth.",
-//       loraScale: 0.8,
-//       controlLoraStrength: 0.7,
-//     },
-//     {
-//       imageUrl:
-//         "https://v3.fal.media/files/lion/X96gJElSTzsHbXLmULxCL_3702e907195e488092ce080a268cdcb5.jpg",
-//       prompt:
-//         "6. One day, a mischievous goblin tried to stir up trouble by spreading rumors about Spark being a dangerous monster, but the villagers defended their new friend.",
-//       sceneText:
-//         "One day, a mischievous goblin tried to stir up trouble by spreading rumors about Spark being a dangerous monster, but the villagers defended their new friend.",
-//       loraScale: 0.8,
-//       controlLoraStrength: 0.7,
-//     },
-//     {
-//       imageUrl:
-//         "https://v3.fal.media/files/lion/aDjdirA6IgoHqcIriUbZQ_aad543a4bd78401fb2ada69bb5decae6.jpg",
-//       prompt:
-//         "7. Adventure Alex and Spark went on a quest together, traversing lush forests and crossing bubbling streams, forming an unbreakable bond along the way.",
-//       sceneText:
-//         "Adventure Alex and Spark went on a quest together, traversing lush forests and crossing bubbling streams, forming an unbreakable bond along the way.",
-//       loraScale: 0.8,
-//       controlLoraStrength: 0.7,
-//     },
-//     {
-//       imageUrl:
-//         "https://v3.fal.media/files/kangaroo/-G8vLjMeKkosA1KoAfgAN_e114abaa9b1e43ccbcc62771f2c8a8da.jpg",
-//       prompt:
-//         "8. When a sudden storm hit the village, it was Spark who shielded the villagers with his massive wings, proving his loyalty and bravery.",
-//       sceneText:
-//         "When a sudden storm hit the village, it was Spark who shielded the villagers with his massive wings, proving his loyalty and bravery.",
-//       loraScale: 0.8,
-//       controlLoraStrength: 0.7,
-//     },
-//     {
-//       imageUrl:
-//         "https://v3.fal.media/files/tiger/8cqtxgKY_pEr7N--wddiH_d44b2b548ba84d049d6280e9367d970c.jpg",
-//       prompt:
-//         "9. As the sun set on the horizon, the villagers gathered around a bonfire, sharing stories and laughter with Spark, grateful for the lesson they had learned.",
-//       sceneText:
-//         "As the sun set on the horizon, the villagers gathered around a bonfire, sharing stories and laughter with Spark, grateful for the lesson they had learned.",
-//       loraScale: 0.8,
-//       controlLoraStrength: 0.7,
-//     },
-//   ];
+//   jobTracker.set(jobId, {
+//     phase: "complete",
+//     pct: 100,
+//     ...result,
+//   });
 
-//   const dummyBackCoverUrl =
-//     "https://v3.fal.media/files/koala/PtOeBiekDUU8eJ-z9cjFZ_d1a6e15d77464e5291b4bf6d7cf4424b.jpg";
+//   return result;
+// }
 
-//   const dummyAvatarUrl =
-//     "https://v3.fal.media/files/koala/PtOeBiekDUU8eJ-z9cjFZ_d1a6e15d77464e5291b4bf6d7cf4424b.jpg";
+// const dummyPages = [
+//   {
+//     imageUrl:
+//       "https://v3.fal.media/files/lion/BYulTnmCMtjoCWVxUo7xT_e6e032ba64ec4b39b11ce0449a6b7349.jpg",
+//     prompt:
+//       "1. As Adventure Alex entered the village, he spotted a dragon with colorful scales and a big smile, eagerly greeting everyone.",
+//     content:
+//       "As Adventure Alex entered the village, he spotted a dragon with colorful scales and a big smile, eagerly greeting everyone.",
+//     loraScale: 0.8,
+//     controlLoraStrength: 0.7,
+//   },
+//   {
+//     imageUrl:
+//       "https://v3.fal.media/files/tiger/J5lzVpM_BqVbIhbUz2Hne_fe22e58aff3d4162af677c24bcd9bf1d.jpg",
+//     prompt:
+//       "2. The dragon, named Spark, playfully chased after children, blowing bubbles from his nostrils as they giggled and ran around him.",
+//     content:
+//       "The dragon, named Spark, playfully chased after children, blowing bubbles from his nostrils as they giggled and ran around him.",
+//     loraScale: 0.8,
+//     controlLoraStrength: 0.7,
+//   },
+//   {
+//     imageUrl:
+//       "https://v3.fal.media/files/tiger/j9MS5iglRS18iSq98pG4g_d7187c2696b54619a7afa8e8f5547325.jpg",
+//     prompt:
+//       "3. Despite their initial fear, the villagers soon realized that Spark was gentle and kind, just looking for companionship.",
+//     content:
+//       "Despite their initial fear, the villagers soon realized that Spark was gentle and kind, just looking for companionship.",
+//     loraScale: 0.8,
+//     controlLoraStrength: 0.7,
+//   },
+//   {
+//     imageUrl:
+//       "https://v3.fal.media/files/koala/wLuAkk35LqRsr3nh5J_KA_1b586234ad7142f097bcfe0f5f178ac5.jpg",
+//     prompt:
+//       "4. Spark led Adventure Alex to a hidden cave filled with sparkling crystals, where he liked to spend his time painting colorful murals on the walls.",
+//     content:
+//       "Spark led Adventure Alex to a hidden cave filled with sparkling crystals, where he liked to spend his time painting colorful murals on the walls.",
+//     loraScale: 0.8,
+//     controlLoraStrength: 0.7,
+//   },
+//   {
+//     imageUrl:
+//       "https://v3.fal.media/files/lion/NBazttn8soarZVbGiTv_x_04fe3fa5b55843fb803014c40d26fe36.jpg",
+//     prompt:
+//       "5. Curious village cats and dogs approached Spark tentatively, only to end up curling around his massive paws, enjoying his warmth.",
+//     content:
+//       "Curious village cats and dogs approached Spark tentatively, only to end up curling around his massive paws, enjoying his warmth.",
+//     loraScale: 0.8,
+//     controlLoraStrength: 0.7,
+//   },
+//   {
+//     imageUrl:
+//       "https://v3.fal.media/files/lion/X96gJElSTzsHbXLmULxCL_3702e907195e488092ce080a268cdcb5.jpg",
+//     prompt:
+//       "6. One day, a mischievous goblin tried to stir up trouble by spreading rumors about Spark being a dangerous monster, but the villagers defended their new friend.",
+//     content:
+//       "One day, a mischievous goblin tried to stir up trouble by spreading rumors about Spark being a dangerous monster, but the villagers defended their new friend.",
+//     loraScale: 0.8,
+//     controlLoraStrength: 0.7,
+//   },
+//   {
+//     imageUrl:
+//       "https://v3.fal.media/files/lion/aDjdirA6IgoHqcIriUbZQ_aad543a4bd78401fb2ada69bb5decae6.jpg",
+//     prompt:
+//       "7. Adventure Alex and Spark went on a quest together, traversing lush forests and crossing bubbling streams, forming an unbreakable bond along the way.",
+//     content:
+//       "Adventure Alex and Spark went on a quest together, traversing lush forests and crossing bubbling streams, forming an unbreakable bond along the way.",
+//     loraScale: 0.8,
+//     controlLoraStrength: 0.7,
+//   },
+//   {
+//     imageUrl:
+//       "https://v3.fal.media/files/kangaroo/-G8vLjMeKkosA1KoAfgAN_e114abaa9b1e43ccbcc62771f2c8a8da.jpg",
+//     prompt:
+//       "8. When a sudden storm hit the village, it was Spark who shielded the villagers with his massive wings, proving his loyalty and bravery.",
+//     content:
+//       "When a sudden storm hit the village, it was Spark who shielded the villagers with his massive wings, proving his loyalty and bravery.",
+//     loraScale: 0.8,
+//     controlLoraStrength: 0.7,
+//   },
+//   {
+//     imageUrl:
+//       "https://v3.fal.media/files/tiger/8cqtxgKY_pEr7N--wddiH_d44b2b548ba84d049d6280e9367d970c.jpg",
+//     prompt:
+//       "9. As the sun set on the horizon, the villagers gathered around a bonfire, sharing stories and laughter with Spark, grateful for the lesson they had learned.",
+//     content:
+//       "As the sun set on the horizon, the villagers gathered around a bonfire, sharing stories and laughter with Spark, grateful for the lesson they had learned.",
+//     loraScale: 0.8,
+//     controlLoraStrength: 0.7,
+//   },
+// ];
 
-//   const dummyCoverUrl =
-//     "https://v3.fal.media/files/zebra/Ut7N9_NMY_xuRk1JddLog_006730264e5b40e784b80c543558d601.jpg";
+// const dummyBackCoverUrl =
+//   "https://v3.fal.media/files/koala/PtOeBiekDUU8eJ-z9cjFZ_d1a6e15d77464e5291b4bf6d7cf4424b.jpg";
+
+// const dummyCoverUrl =
+//   "https://v3.fal.media/files/zebra/Ut7N9_NMY_xuRk1JddLog_006730264e5b40e784b80c543558d601.jpg";
+
+// const dummyAvatarUrl =
+//   "https://v3.fal.media/files/monkey/HIB4Or6Y7JZ0IbQtKiwas_84ff96cd1fb94937b4e261b339a0da7a.jpg";
 
 //   const result = {
 //     pages: dummyPages,
@@ -960,3 +962,287 @@ export async function generateStoryImages(
 
 //   return result;
 // }
+
+/**
+ * Step 1: Generate a single avatar image as soon as the LoRA model is ready.
+ */
+export async function generateAvatarImage(
+  modelId: string,
+  kidName: string,
+  age: number,
+  gender: string,
+  stylePreference: string,
+): Promise<{ avatarUrl: string; avatarLora: number }> {
+  if (DEBUG_LOGGING) {
+    console.log(
+      "[generateAvatarImage] Generating avatar for",
+      kidName,
+      "using model",
+      modelId,
+    );
+  }
+
+  const seed = 3.0;
+  // Choose a friendly default starting LoRA scale
+  const avatarLora =
+    stylePreference === "predefined"
+      ? 0.9
+      : stylePreference.startsWith("hyper")
+        ? 0.7
+        : 0.6;
+  const prompt = `close-up passport size photo of ${age}-year-old ${gender} kid <${kidName}kidName> with shoulders visible, white background`;
+
+  const stylePrompt = buildFullPrompt(stylePreference, age, gender, prompt);
+
+  // Uses the same low-latency endpoint you already have
+  const avatarUrl = await generateImage(
+    stylePrompt,
+    modelId,
+    avatarLora,
+    seed,
+    512,
+    512,
+  );
+  return { avatarUrl, avatarLora };
+  // return { avatarUrl: dummyAvatarUrl, avatarLora: 0.8 };
+}
+
+/**
+ * Step 2: In parallel, call GPT-4 to get the scene texts and
+ * a matched list of image-generation prompts.
+ */
+export async function generateSceneData(
+  jobId: string,
+  kidName: string,
+  age: number,
+  gender: string,
+  baseStoryPrompt: string,
+  moral: string,
+  storyRhyming: boolean,
+  storyTheme: string,
+): Promise<{ sceneTexts: string[]; imagePrompts: string[] }> {
+  if (DEBUG_LOGGING) {
+    console.log(
+      "[generateSceneData] Generating scene texts & prompts for",
+      kidName,
+    );
+  }
+
+  jobTracker.set(jobId, {
+    phase: "prompting",
+    pct: 10,
+    message: "Generating scene texts…",
+  });
+
+  // 1) Nine scene descriptions
+  const sceneTexts = await generateScenePromptsLLM(
+    kidName,
+    age,
+    gender,
+    baseStoryPrompt,
+    moral,
+    storyRhyming,
+    storyTheme,
+  );
+
+  jobTracker.set(jobId, {
+    phase: "prompting",
+    pct: 50,
+    message: "Scene texts ready",
+  });
+
+  jobTracker.set(jobId, {
+    phase: "prompting",
+    pct: 60,
+    message: "Generating image prompts…",
+  });
+
+  // 2) Nine image prompts that match those scenes
+  const imagePrompts = await createImagePromptsFromScenes(
+    kidName,
+    age,
+    gender,
+    sceneTexts,
+    baseStoryPrompt,
+    moral,
+    storyRhyming,
+    storyTheme,
+  );
+
+  jobTracker.set(jobId, {
+    phase: "prompting",
+    pct: 80,
+    message: "Image prompts ready",
+  });
+
+  return { sceneTexts, imagePrompts };
+  // return {
+  //   sceneTexts: dummyPages.map((p) => p.content),
+  //   imagePrompts: dummyPages.map((p) => p.prompt),
+  // };
+}
+
+/**
+ * Step 3: The heavy-lifting batch of 9+2 images, using the final avatar.
+ * This is essentially your existing generateStoryImages() logic,
+ * minus the GPT-4 steps (they’re now inputs).
+ */
+export async function generateStoryImagesWithAvatar(
+  jobId: string,
+  modelId: string,
+  kidName: string,
+  sceneTexts: string[],
+  imagePrompts: string[],
+  title: string,
+  age: number,
+  gender: string,
+  stylePreference: string,
+  avatarUrl: string,
+  avatarLora: number,
+  seed: number,
+): Promise<{
+  pages: Array<{
+    imageUrl: string;
+    prompt: string;
+    content: string;
+    loraScale: number;
+    controlLoraStrength: number;
+  }>;
+  coverUrl: string;
+  backCoverUrl: string;
+  avatarUrl: string;
+  avatarLora: number;
+}> {
+  if (DEBUG_LOGGING) {
+    console.log(
+      "[generateStoryImagesWithAvatar] Starting image batch for",
+      kidName,
+      "jobId",
+      jobId,
+    );
+  }
+
+  // 1) Kick off the main image generation phase
+  jobTracker.set(jobId, {
+    phase: "generating",
+    pct: 75,
+    message: "Generating story images…",
+  });
+
+  const controlLoraStrength = 0.5;
+
+  const totalImages = imagePrompts.length + 2; // 9 scenes + cover + back cover
+  let done = 0;
+
+  // 2) Generate the 9 interior images in parallel
+  const pages = await Promise.all(
+    imagePrompts.map(async (promptText, idx) => {
+      const fullPrompt = buildFullPrompt(
+        stylePreference,
+        age,
+        gender,
+        promptText,
+      );
+      const imageUrl = await generateGuidedImage(
+        fullPrompt,
+        avatarUrl,
+        modelId,
+        gender,
+        avatarLora,
+        seed,
+        controlLoraStrength,
+        1024,
+        512,
+      );
+
+      done += 1;
+      jobTracker.set(jobId, {
+        phase: "generating",
+        pct: 75 + (done / totalImages) * 20,
+        message: `Generated image ${done}/${totalImages}`,
+      });
+
+      return {
+        imageUrl,
+        prompt: promptText,
+        content: sceneTexts[idx],
+        loraScale: avatarLora,
+        controlLoraStrength,
+      };
+    }),
+  );
+
+  // 3) Generate the cover
+  jobTracker.set(jobId, {
+    phase: "generating",
+    pct: 95,
+    message: "Generating cover image…",
+  });
+
+  const coverPrompt = `A captivating front cover photo for "${title}" featuring <${kidName}kidName> as hero, with the title text "${title}" in bold colorful font.`;
+  const coverFullPrompt = buildFullPrompt(
+    stylePreference,
+    age,
+    gender,
+    coverPrompt,
+  );
+  const coverUrl = await generateGuidedImage(
+    coverFullPrompt,
+    avatarUrl,
+    modelId,
+    gender,
+    avatarLora,
+    seed,
+    controlLoraStrength,
+    512,
+    512,
+  );
+
+  // 4) Generate the back-cover
+  jobTracker.set(jobId, {
+    phase: "generating",
+    pct: 98,
+    message: "Generating back cover image…",
+  });
+
+  const backCoverFileName = `books/backCover/${kidName}_${title.replace(
+    /\s+/g,
+    "_",
+  )}.png`;
+
+  const backCoverUrl = await generateBackCoverImage(
+    coverUrl,
+    backCoverFileName,
+  );
+
+  // 5) Done!
+  jobTracker.set(jobId, {
+    phase: "complete",
+    pct: 100,
+    pages,
+    coverUrl,
+    backCoverUrl,
+    avatarUrl,
+    avatarLora,
+  });
+
+  return { pages, coverUrl, backCoverUrl, avatarUrl, avatarLora };
+
+  // jobTracker.set(jobId, {
+  //   phase: "complete",
+  //   pct: 100,
+  //   pages,
+  //   coverUrl,
+  //   backCoverUrl,
+  //   avatarUrl,
+  //   avatarLora,
+  // });
+
+  // return {
+  //   pages,
+  //   coverUrl: dummyCoverUrl,
+  //   backCoverUrl: dummyBackCoverUrl,
+  //   avatarUrl,
+  //   avatarLora,
+  // };
+}

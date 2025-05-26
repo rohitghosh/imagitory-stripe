@@ -1,4 +1,9 @@
-import { useState, useEffect, useRef } from "react";
+// src/pages/CreateStoryPage.tsx
+
+import React, { useState, useEffect, useRef } from "react";
+import { useLocation, useParams } from "wouter";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { StepIndicator } from "@/components/StepIndicator";
@@ -11,9 +16,9 @@ import { CustomStory } from "@/components/story/CustomStory";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { useLocation } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
-import { Progress } from "@/components/ui/progress";
+import { useJobProgress } from "@/hooks/use-job-progress";
+import { ProgressDisplay } from "@/components/ui/progress-display";
 
 const STEPS = [
   { id: 1, name: "Choose Character" },
@@ -21,588 +26,707 @@ const STEPS = [
   { id: 3, name: "Preview & Download" },
 ];
 
-const DEBUG_LOGGING = true;
-
-// util hook placed above component definition
-function useJobProgress(jobId?: string) {
-  const [state, setState] = useState<{
-    pct: number;
-    phase: string;
-    message?: string;
-    error?: string;
-  }>();
-
-  useEffect(() => {
-    if (!jobId) return;
-    let cancel = false;
-
-    const poll = async () => {
-      const r = await fetch(`/api/jobs/${jobId}/progress`, {
-        credentials: "include",
-      });
-      const j = await r.json();
-      if (!cancel) {
-        setState(j);
-        if (j.phase !== "complete" && j.phase !== "error")
-          setTimeout(poll, 3000);
-      }
-    };
-    poll();
-
-    return () => {
-      cancel = true;
-    };
-  }, [jobId]);
-
-  return state;
-}
-
-function ProgressDisplay({ prog }: { prog: any }) {
-  return (
-    <div className="max-w-md mx-auto my-6 space-y-2">
-      <Progress value={prog.pct ?? 0} />
-      <p className="text-center text-sm text-muted-foreground">
-        {prog.message ?? prog.phase} – {Math.round(prog.pct ?? 0)}%
-      </p>
-      {prog.phase === "error" && (
-        <p className="text-destructive text-center text-sm">{prog.error}</p>
-      )}
-    </div>
-  );
-}
+const DEBUG = true;
+const log = (...args: any[]) =>
+  DEBUG && console.log("[CreateStoryPage]", ...args);
 
 export default function CreateStoryPage() {
-  // User Authentication
   const { user } = useAuth();
-
-  // Navigation & UI States
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-  const [currentStep, setCurrentStep] = useState(1);
+  const queryClient = useQueryClient();
 
-  // Character & Story States
+  const { id } = useParams();
+  useEffect(() => {
+    if (id && !bookId) {
+      setBookId(id);
+    }
+  }, [id]);
+
+  // --- Wizard step & Book persistence ---
+  const [currentStep, setCurrentStep] = useState(1);
+  const [bookId, setBookId] = useState<string | null>(null);
+
+  const lastAvatarInteraction = useRef<number>(Date.now());
+  const STORAGE_KEY = (bookId?: string) => `book:${bookId}:lastAvatarTouch`;
+  const DELTA = 0.05; // how much loraScale nudges
+  type AvatarMode = "cartoon" | "hyper";
+
+  useEffect(() => {
+    if (!bookId) return;
+    const saved = sessionStorage.getItem(STORAGE_KEY(bookId));
+    if (saved) lastAvatarInteraction.current = Number(saved);
+  }, [bookId]);
+
+  const createBookM = useMutation({
+    mutationFn: (payload: any) => apiRequest("POST", "/api/books", payload),
+    onSuccess(data) {
+      log("Draft Book created:", data.id);
+      setBookId(data.id);
+      setLocation(`/create/${data.id}`, { replace: true });
+    },
+    onError(err) {
+      log("Create Book error:", err);
+      toast({
+        title: "Error",
+        description: "Could not start story.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const patchBookM = useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: any }) =>
+      apiRequest("PATCH", `/api/books/${id}`, payload),
+    onSuccess() {
+      log("Book patched");
+      queryClient.invalidateQueries(["book", bookId]);
+    },
+    onError(err) {
+      log("Patch Book error:", err);
+      toast({
+        title: "Error",
+        description: "Could not save progress.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // --- Load existing draft if user reloads ---
+  const { data: book, isLoading: loadingBook } = useQuery({
+    queryKey: ["book", bookId],
+    queryFn: async () => {
+      const res = await fetch(`/api/books/${bookId}`, {
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Book not found");
+      return res.json();
+    },
+    enabled: !!bookId,
+  });
+
+  useEffect(() => {
+    if (book && typeof book.avatarFinalized === "boolean") {
+      setAvatarFinalized(book.avatarFinalized);
+    }
+  }, [book]);
+
+  const { data: hero, isSuccess: heroLoaded } = useQuery({
+    queryKey: ["character", book?.characterId],
+    queryFn: async () => {
+      const res = await fetch(`/api/characters/${book!.characterId}`, {
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Character not found");
+      return res.json();
+    },
+    enabled: !!book?.characterId,
+  });
+
+  // --- Step 1: Character & Model training ---
   const [characterType, setCharacterType] = useState<"predefined" | "custom">(
     "predefined",
   );
-  const [storyType, setStoryType] = useState<"predefined" | "custom">(
-    "predefined",
-  );
-  const [activeCharacter, setActiveCharacter] = useState<any | null>(null);
-  const [activeStory, setActiveStory] = useState<any | null>(null);
-
-  // Story Metadata
-  const [bookTitle, setBookTitle] = useState("");
-  const [storyPages, setStoryPages] = useState<any[]>([]);
-  const [storyData, setStoryData] = useState<any | null>(null);
-
-  // Book Parameters
-  const [bookStyle, setBookStyle] = useState<
-    | "hyper-pixar"
-    | "hyper-handdrawn"
-    | "hyper-watercolor"
-    | "hyper-crayonart"
-    | "hyper-claymotion"
-    | "hyper-pastelsketch"
-    | "cartoon-pixar"
-    | "cartoon-handdrawn"
-    | "cartoon-watercolor"
-    | "cartoon-crayonart"
-    | "cartoon-claymotion"
-    | "cartoon-pastelsketch"
-    | null
-  >(null);
-  const [storyPrompt, setStoryPrompt] = useState("");
-  const [storyMoral, setStoryMoral] = useState("");
-  const [storyRhyming, setStoryRhyming] = useState(false);
-  const [storyTheme, setStoryTheme] = useState<string>("none");
-
-  // Training & Generation States
+  const [activeCharacter, setActiveCharacter] = useState<any>(null);
+  const [kidName, setKidName] = useState("");
   const [modelId, setModelId] = useState("");
   const modelIdRef = useRef(modelId);
-  const [kidName, setKidName] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [generatingStory, setGeneratingStory] = useState(false);
   const [trainJobId, setTrainJobId] = useState<string>();
-  const [storyJobId, setStoryJobId] = useState<string>();
   const trainProg = useJobProgress(trainJobId);
-  const storyProg = useJobProgress(storyJobId);
 
-  // Book Management
-  const [bookId, setBookId] = useState<number | null>(null);
+  async function handleTrainModel(character: any) {
+    log("Starting training for", character);
+    const resp = await fetch("/api/trainModel", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        imageUrls: character.imageUrls,
+        captions: character.imageUrls.map(() => character.name),
+        kidName: character.name,
+        characterId: character.id,
+      }),
+    });
+    if (!resp.ok) throw new Error("Train kickoff failed");
+    const { jobId } = await resp.json();
+    setTrainJobId(jobId);
 
-  // Logging helper
-  const log = (...args: any[]) => {
-    if (DEBUG_LOGGING) {
-      console.log("[CreateStoryPage]", ...args);
-    }
-  };
+    // Poll until character.modelId is available in DB
+    // or you can watch trainProg for completion then fetch /api/trainStatus
+  }
 
-  useEffect(() => {
-    modelIdRef.current = modelId;
-    log("useEffect: modelId updated:", modelId);
-  }, [modelId]);
-
-  useEffect(() => {
-    if (
-      currentStep === 3 &&
-      modelId &&
-      storyPrompt &&
-      storyMoral &&
-      activeCharacter &&
-      activeStory &&
-      !storyData
-    ) {
-      // Model training is complete and all data is available.
-      log("useEffect: Triggering story generation", {
-        kidName,
-        modelId,
-        storyPrompt,
-        storyMoral,
-      });
-
-      const storyTitle =
-        storyType === "predefined"
-          ? `${activeCharacter.name} and ${activeStory.title}`
-          : `${activeStory.title}`;
-      log("useEffect: storyTitle:", storyTitle);
-      handleGenerateStoryWithData(
-        kidName,
-        modelId,
-        storyPrompt,
-        storyMoral,
-        storyTitle,
-        storyRhyming,
-        storyTheme,
-      )
-        .then(() => setGeneratingStory(false))
-        .catch((err) => {
-          setGeneratingStory(false);
-          log("Error in story generation:", err);
-        });
-    }
-  }, [currentStep, modelId, storyPrompt, storyMoral, storyData]);
-
-  // Update preview when storyResult is updated.
-  useEffect(() => {
-    log("useEffect: storyData changed:", storyData);
-    if (storyData) {
-      const title =
-        storyType === "predefined"
-          ? `${activeCharacter.name} and ${activeStory.title}`
-          : `${activeStory.title}`;
-      setBookTitle(title);
-    }
-  }, [storyData]);
-
-  // STEP 1: When a character is selected, start training asynchronously.
-  const handleSelectCharacter = (character: any) => {
-    log("Character selected:", character);
+  const handleSelectCharacter = async (character: any) => {
+    log("Character selected", character);
     setActiveCharacter(character);
     setKidName(character.name);
     setBookStyle(
       character.type === "custom" ? character.stylePreference : "predefined",
     );
-    // Kick off training without awaiting.
-    handleTrainModel(character);
+
+    // 1) Create or patch draft Book
+    if (!bookId) {
+      createBookM.mutate({
+        title: "",
+        pages: [],
+        coverUrl: null,
+        backCoverUrl: null,
+        avatarUrl: null,
+        avatarLora: null,
+        userId: user!.uid,
+        characterId: String(character.id),
+        storyId: null,
+        stylePreference:
+          character.type === "custom"
+            ? character.stylePreference
+            : "predefined",
+        createdAt: new Date().toISOString(),
+      });
+    } else {
+      patchBookM.mutate({
+        id: bookId!,
+        payload: { characterId: String(character.id) },
+      });
+    }
+
+    // 2) Kick off training
+    if (character.modelId) {
+      // ✔ character was pretrained
+      setModelId(character.modelId); // triggers avatar generation effect
+    } else {
+      // ❌ needs training first
+      await handleTrainModel(character);
+    }
     setCurrentStep(2);
   };
 
+  useEffect(() => {
+    modelIdRef.current = modelId;
+  }, [modelId]);
+
+  // When modelId arrives (from trainProg or trainStatus), patch Book
+  useEffect(() => {
+    if (!activeCharacter || !modelId || !bookId) return;
+
+    if (modelId && bookId) {
+      log("Patching modelId", modelId);
+      patchBookM.mutate({ id: bookId, payload: { modelId } });
+      // 3) Start avatar generation automatically
+      apiRequest("POST", "/api/generateAvatar", {
+        bookId,
+        modelId,
+        kidName,
+        age: activeCharacter.age,
+        gender: activeCharacter.gender,
+        stylePreference: bookStyle,
+      })
+        .then((r) => setAvatarJobId(r.jobId))
+        .catch((err) => log("Avatar kickoff error", err));
+    }
+  }, [activeCharacter, modelId, bookId]);
+
+  useEffect(() => {
+    if (trainProg?.phase === "complete" && activeCharacter?.id) {
+      log("Training done — fetching modelId from server");
+      apiRequest("GET", `/api/trainStatus/${activeCharacter.id}`, {})
+        .then((data: any) => {
+          if (data.modelId) {
+            log("Received modelId", data.modelId);
+            setModelId(data.modelId);
+            // (we’ll patch it to the Book in your existing effect)
+          }
+        })
+        .catch((err) => {
+          console.error("Failed to fetch modelId:", err);
+          toast({
+            title: "Error",
+            description: "Could not retrieve trained model. Try again?",
+            variant: "destructive",
+          });
+        });
+    }
+  }, [trainProg?.phase, activeCharacter]);
+
+  // --- Avatar job ---
+  const [avatarJobId, setAvatarJobId] = useState<string>();
+  const avatarProg = useJobProgress(avatarJobId);
+  const [avatarUrlState, setAvatarUrlState] = useState<string>();
+  const [avatarLoraState, setAvatarLoraState] = useState<number>(1);
+  const [avatarRegenerating, setAvatarRegenerating] = useState(false);
+  const imagesJobIdRef = useRef<string | null>(null);
+  const [avatarFinalized, setAvatarFinalized] = useState<boolean>(
+    () => book?.avatarFinalized ?? false,
+  );
+
+  function touchAvatar() {
+    lastAvatarInteraction.current = Date.now();
+    if (bookId)
+      sessionStorage.setItem(
+        STORAGE_KEY(bookId),
+        String(lastAvatarInteraction.current),
+      );
+  }
+
+  useEffect(() => {
+    if (avatarProg?.phase === "complete" && avatarProg.avatarUrl) {
+      touchAvatar();
+      log("Avatar ready", avatarProg.avatarUrl, avatarProg.avatarLora);
+      setAvatarUrlState(avatarProg.avatarUrl);
+      setAvatarLoraState(avatarProg.avatarLora!);
+    }
+  }, [avatarProg]);
+
+  // --- Step 2: Story & Skeleton generation ---
+  const [storyType, setStoryType] = useState<"predefined" | "custom">(
+    "predefined",
+  );
+  const [activeStory, setActiveStory] = useState<any>(null);
+  const [storyPrompt, setStoryPrompt] = useState("");
+  const [storyMoral, setStoryMoral] = useState("");
+  const [storyRhyming, setStoryRhyming] = useState(false);
+  const [storyTheme, setStoryTheme] = useState("none");
+  const [bookStyle, setBookStyle] = useState<string>("predefined");
+  const [bookTitle, setBookTitle] = useState<string>("");
+
   const handleSelectStory = (story: any) => {
-    log("Story selected:", story);
+    log("Story selected", story);
     setActiveStory(story);
-    // Use instructions if available; if not, fallback to description.
     const prompt = story.instructions || story.description || "";
-    const moralValue = story.moral || "";
-    console.log(story.rhyming, story.theme, story.moral);
-    setStoryRhyming(story.rhyming);
-    setStoryTheme(story.theme || "none");
     setStoryPrompt(prompt);
-    setStoryMoral(moralValue);
-    setGeneratingStory(true);
+    const resolvedTitle =
+      storyType === "predefined"
+        ? `${kidName} and ${story.title}`
+        : story.title;
+    setBookTitle(resolvedTitle);
+    setStoryMoral(story.moral || "");
+    setStoryRhyming(!!story.rhyming);
+    setStoryTheme(story.theme || "none");
+
+    // patch Book
+    patchBookM.mutate({
+      id: bookId!,
+      payload: { storyId: String(story.id), title: resolvedTitle },
+    });
+
+    // kick off skeleton job
+    apiRequest("POST", "/api/storySkeleton", {
+      bookId,
+      kidName,
+      baseStoryPrompt: prompt,
+      moral: story.moral,
+      age: activeCharacter.age,
+      gender: activeCharacter.gender,
+      storyRhyming: !!story.rhyming,
+      storyTheme: story.theme || "none",
+    })
+      .then((r) => setSkeletonJobId(r.jobId))
+      .catch((err) => log("Skeleton kickoff error", err));
+
     setCurrentStep(3);
   };
 
-  const handleGenerateStoryWithData = async (
-    kidName: string,
-    modelId: string,
-    prompt: string,
-    moralValue: string,
-    currentBookTitle: string,
-    storyRhyming: boolean,
-    storyTheme: string,
-  ) => {
-    log("handleGenerateStoryWithData triggered", {
-      kidName,
-      modelId,
-      prompt,
-      moralValue,
-      currentBookTitle,
-      storyRhyming,
-      storyTheme,
-    });
+  // Skeleton job
+  const [skeletonJobId, setSkeletonJobId] = useState<string>();
+  const skeletonProg = useJobProgress(skeletonJobId);
+  const [skeletonData, setSkeletonData] = useState<{
+    sceneTexts: string[];
+    imagePrompts: string[];
+  }>();
+
+  // --- Step 3: Final image batch ---
+  const [imagesJobId, setImagesJobId] = useState<string>();
+  const imagesProg = useJobProgress(imagesJobId);
+
+  useEffect(() => {
+    if (skeletonProg?.phase === "complete" && skeletonProg.sceneTexts) {
+      log("Skeleton ready", skeletonProg.sceneTexts);
+      setSkeletonData({
+        sceneTexts: skeletonProg.sceneTexts,
+        imagePrompts: skeletonProg.imagePrompts!,
+      });
+    }
+  }, [skeletonProg?.phase]);
+
+  useEffect(() => {
+    if (
+      skeletonProg?.phase === "complete" &&
+      avatarFinalized &&
+      skeletonData &&
+      !imagesJobIdRef.current &&
+      activeCharacter
+    ) {
+      startPageGeneration();
+    }
+  }, [avatarFinalized, skeletonData, activeCharacter]);
+
+  useEffect(() => {
+    imagesJobIdRef.current = imagesJobId ?? null;
+  }, [imagesJobId]);
+
+  async function regenerateAvatar(mode: AvatarMode) {
+    if (avatarRegenerating) return;
+    setAvatarRegenerating(true);
+
+    const newLora =
+      mode === "cartoon"
+        ? Math.max(0, avatarLoraState - DELTA)
+        : Math.min(1, avatarLoraState + DELTA);
 
     try {
-      // Wait for model training to finish
-      await waitForModelId();
-    } catch (err) {
-      toast({
-        title: "Model Training Delay",
-        description: "Your model is still training. Please wait and try again.",
-        variant: "destructive",
-      });
-      log("Model training timeout:", err);
-      return;
-    }
-
-    // Validate necessary data before proceeding
-    if (!kidName || !modelId || !prompt || !moralValue || !currentBookTitle) {
-      toast({
-        title: "Incomplete Data",
-        description: "Missing kid name, modelId, prompt, or moral.",
-        variant: "destructive",
-      });
-      log("handleGenerateStoryWithData: Missing data", {
-        kidName,
-        modelId,
-        prompt,
-        moralValue,
-        currentBookTitle,
-      });
-      return;
-    }
-
-    const payload = {
-      ...(trainJobId ? { jobId: trainJobId } : {}),
-      kidName,
-      modelId,
-      baseStoryPrompt: prompt,
-      moral: moralValue,
-      title: currentBookTitle,
-      stylePreference:
-        activeCharacter.type === "custom" ? bookStyle : "predefined",
-      age: activeCharacter.age,
-      gender: activeCharacter.gender,
-      storyRhyming: storyRhyming || false,
-      storyTheme: storyTheme || "none",
-    };
-
-    try {
-      setLoading(true);
-
-      // Generate the story
-      const kickoff = await fetch("/api/generateStory", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (!kickoff.ok) {
-        const text = await kickoff.text();
-        throw new Error(`Kickoff failed: ${kickoff.status} ${text}`);
-      }
-      const { jobId } = await kickoff.json();
-      setStoryJobId(jobId);
-      toast({
-        title: "Story generation started",
-        description: "This may take a few minutes.",
-      });
-      log("Story jobId:", jobId);
-
-      let jobResp: any;
-      while (true) {
-       const r = await fetch(`/api/jobs/${jobId}/progress`, {
-         credentials: "include",
-        });
-       jobResp = await r.json();
-
-       if (jobResp.phase === "error") {
-         throw new Error(jobResp.error || "Story generation failed");
-       }
-        // Exit only when the server has attached the payload we need
-        if (jobResp.phase === "complete" && jobResp.pages) break;
-
-        await new Promise(r => setTimeout(r, 1500));
-      }
-
-      const data = {
-        pages: jobResp.pages,
-        coverUrl: jobResp.coverUrl,
-        backCoverUrl: jobResp.backCoverUrl,
-        avatarUrl: jobResp.avatarUrl,
-        avatarLora: jobResp.avatarLora,
-      };
-
-      const pages = data.pages.map((p, index) => ({
-        id: index + 2,
-        imageUrl: p.imageUrl,
-        content: storyRhyming ? p.sceneText.split("\n") : p.sceneText,
-        prompt: p.prompt,
-        loraScale: p.loraScale,
-        controlLoraStrength: p.controlLoraStrength,
-      }));
-
-      log("handleGenerateStoryWithData: Response received:", data);
-      setStoryData(data);
-
-      // Immediately save the generated story as a book
-      if (user) {
-        const newBook = {
-          title: currentBookTitle,
-          pages: pages,
-          avatarUrl: data.avatarUrl,
-          coverUrl: data.coverUrl,
-          backCoverUrl: data.backCoverUrl,
-          createdAt: new Date().toISOString(),
-          userId: String(user.uid),
-          userName: user.displayName,
-          avatarLora: data.avatarLora,
-          characterId: String(activeCharacter?.id),
-          storyId: String(activeStory?.id),
-          stylePreference:
-            activeCharacter.type === "custom" ? bookStyle : "predefined",
-        };
-
-        try {
-          log("Sending newBook to /api/books:", newBook); // extra logging for debugging
-          const savedBook = await apiRequest("POST", "/api/books", newBook);
-          setBookId(savedBook.id);
-          console.log(bookId);
-          log("Book saved via API to Firestore successfully.");
-          toast({
-            title: "Book saved!",
-            description: "Your story has been successfully saved.",
-          });
-          setLocation(`/book/${savedBook.id}`);
-          return;
-        } catch (error) {
-          log("Error saving book via API:", error);
-          toast({
-            title: "Save Error",
-            description: "Failed to save your book.",
-            variant: "destructive",
-          });
-        }
-      }
-    } catch (err: any) {
-      log("handleGenerateStoryWithData: Generation error:", err);
-      toast({
-        title: "Generation Error",
-        description: err.message,
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Trigger model training using the provided character data.
-  const handleTrainModel = async (character: any) => {
-    log("handleTrainModel triggered", character);
-
-    if (character.modelId) {
-      setModelId(character.modelId);
-      toast({
-        title: "Model already trained",
-        description: "Using the existing trained model for this character.",
-      });
-      return;
-    }
-
-    if (!character.imageUrls || character.imageUrls.length === 0) {
-      toast({
-        title: "Images required",
-        description: "Please upload at least one image of your character",
-        variant: "destructive",
-      });
-      log("handleTrainModel: No images found on character");
-      return;
-    }
-
-    toast({
-      title: "Training started",
-      description: "Your model is now training. This can take a few minutes.",
-    });
-
-    try {
-      // Kick off
-      const kickoffResp = await fetch("/api/trainModel", {
+      const res = await fetch("/api/regenerateAvatar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          imageUrls: character.imageUrls,
-          captions: character.imageUrls.map(() => character.name),
-          kidName: character.name,
-          characterId: character.id,
+          bookId,
+          modelId,
+          prompt: `close-up photo of ${activeCharacter.age} year old ${activeCharacter.gender} kid <${kidName}kidName>, pixar cartoon style, white bg`,
+          loraScale: newLora,
         }),
       });
-      if (!kickoffResp.ok) {
-        const text = await kickoffResp.text();
-        throw new Error(
-          `Training kickoff failed: ${kickoffResp.status} ${text}`,
-        );
-      }
-      const { characterId, jobId } = await kickoffResp.json();
-      setTrainJobId(jobId);
-      log("handleTrainModel: Training job accepted for", characterId);
-
-      // Poll
-      let trainedModelId = "";
-      while (!trainedModelId) {
-        log("handleTrainModel: Polling status for", characterId);
-        await new Promise((r) => setTimeout(r, 3000));
-
-        const statusResp = await fetch(`/api/trainStatus/${characterId}`);
-
-        const raw = await statusResp.text();
-        const ct = statusResp.headers.get("content-type");
-        log(
-          "handleTrainModel: statusResp:",
-          statusResp.status,
-          "content-type:",
-          ct,
-        );
-        log("handleTrainModel: raw body (200 chars):", raw.slice(0, 200));
-
-        if (!statusResp.ok) {
-          const text = await statusResp.text();
-          throw new Error(`Status check failed: ${statusResp.status} ${text}`);
-        }
-
-        let json: any;
-        try {
-          json = JSON.parse(raw);
-        } catch (err) {
-          throw new Error(
-            `Failed to parse JSON from /api/trainStatus: ${err}\nRaw body: ${raw}`,
-          );
-        }
-
-        const { status, modelId } = json;
-        log("handleTrainModel: Status response", { status, modelId });
-
-        if (status === "complete" && modelId) {
-          trainedModelId = modelId;
-        }
-      }
-
-      log(
-        "handleTrainModel: Training complete, setting modelId:",
-        trainedModelId,
-      );
-      setModelId(trainedModelId);
-
+      if (!res.ok) throw new Error(`API ${res.status}`);
+      const { avatarUrl } = await res.json();
+      setAvatarUrlState(avatarUrl);
+      setAvatarLoraState(newLora);
+    } catch (e) {
+      console.error("Avatar regen error", e);
       toast({
-        title: "Model Training Complete",
-        description: "Your custom model is ready to generate your story!",
-      });
-    } catch (err: any) {
-      log("handleTrainModel: Training error:", err);
-      toast({
-        title: "Training Error",
-        description: err.message,
+        title: "Avatar error",
+        description: "Could not regenerate",
         variant: "destructive",
       });
+    } finally {
+      setAvatarRegenerating(false);
     }
-  };
+  }
 
-  // Trigger story generation using the trained model and provided story inputs.
-  const waitForModelId = async (timeout = 600000, interval = 2000) => {
-    const startTime = Date.now();
-    while (true) {
-      if (modelIdRef.current && modelIdRef.current !== "") {
-        return;
-      }
-      if (Date.now() - startTime > timeout) {
-        throw new Error("Model training did not complete in time.");
-      }
-      log("Waiting for modelId... current value:", modelIdRef.current);
-      await new Promise((resolve) => setTimeout(resolve, interval));
+  function finalizeAvatar() {
+    touchAvatar(); // mark recent activity
+
+    // write the flag once (skip network traffic on repeat clicks)
+    if (!avatarFinalized) {
+      setAvatarFinalized(true); // optimistic UI
+      patchBookM.mutate({ id: bookId!, payload: { avatarFinalized: true } });
     }
-  };
+
+    // if the outline already exists, kick off the page batch now
+    if (
+      skeletonProg?.phase === "complete" &&
+      skeletonData &&
+      !imagesJobIdRef.current
+    ) {
+      startPageGeneration();
+    }
+  }
+
+  function startPageGeneration() {
+    if (imagesJobIdRef.current) return;
+    const payload = {
+      bookId,
+      modelId,
+      kidName,
+      title: book?.title || "Untitled",
+      age: activeCharacter.age,
+      gender: activeCharacter.gender,
+      stylePreference: bookStyle,
+      avatarUrl: avatarUrlState,
+      avatarLora: avatarLoraState,
+      ...skeletonData,
+    };
+    console.log("🚀 generateStoryImages payload:", payload);
+    apiRequest("POST", "/api/generateStoryImages", payload)
+      .then((r) => setImagesJobId(r.jobId))
+      .catch((err) => log("Images kickoff error", err));
+  }
+
+  // --- Hydrate local state from fetched book ---
+  useEffect(() => {
+    if (!book) return; // wait for book fetch
+
+    log("Hydrating from Book:", bookId, book);
+
+    /* 1️⃣ Character + kidName ----------------------------------------- */
+    if (book.characterId && !activeCharacter && heroLoaded && hero) {
+      setActiveCharacter({ id: hero.id, name: hero.name });
+      setKidName(hero.name);
+      setBookStyle(book.stylePreference);
+      setBookTitle(book.title);
+    }
+
+    if (book.skeletonJobId) setSkeletonJobId(book.skeletonJobId);
+    if (book.imagesJobId) setImagesJobId(book.imagesJobId);
+
+    /* 2️⃣ ModelId ----------------------------------------------------- */
+    const modelFromBook = book.modelId;
+    const modelFromHero = heroLoaded && hero ? hero.modelId : null;
+
+    if (modelFromBook && modelFromBook !== modelId) {
+      setModelId(modelFromBook); // normal path
+    } else if (!modelId && modelFromHero) {
+      setModelId(modelFromHero); // legacy fallback
+    }
+
+    /* 3️⃣ Avatar & meta ---------------------------------------------- */
+    if (book.avatarUrl && !avatarUrlState) {
+      setAvatarUrlState(book.avatarUrl);
+      setAvatarLoraState(book.avatarLora ?? 1);
+    }
+    if (book.avatarFinalized !== undefined) {
+      setAvatarFinalized(book.avatarFinalized);
+    }
+
+    /* 4️⃣ Skeleton ---------------------------------------------------- */
+    if (
+      Array.isArray(book.sceneTexts) &&
+      book.sceneTexts.length > 0 &&
+      Array.isArray(book.imagePrompts) &&
+      book.imagePrompts.length > 0 &&
+      !skeletonData
+    ) {
+      setSkeletonData({
+        sceneTexts: book.sceneTexts,
+        imagePrompts: book.imagePrompts,
+      });
+    }
+
+    /* 5️⃣ Story ------------------------------------------------------- */
+    if (book.storyId && !activeStory) {
+      setActiveStory({ id: book.storyId, title: book.title });
+    }
+
+    /* 6️⃣ Decide current step ---------------------------------------- */
+    if (book.pages?.length > 0) {
+      setCurrentStep(3); // finished book
+    } else if (book.imagePrompts?.length > 0 || book.storyId) {
+      setCurrentStep(3); // waiting for images
+    } else if (book.characterId) {
+      setCurrentStep(2); // character done
+    } else {
+      setCurrentStep(1); // fresh start
+    }
+  }, [
+    book,
+    book?.avatarFinalized,
+    heroLoaded,
+    hero,
+    activeCharacter,
+    activeStory,
+    kidName,
+    modelId,
+    skeletonData,
+  ]);
+
+  // When images arrive, patch Book and navigate
+  useEffect(() => {
+    if (imagesProg?.phase === "complete" && imagesProg.pages) {
+      log("Images batch complete", imagesProg.pages.length);
+      // patch final pages & covers
+      apiRequest("PUT", `/api/books/${bookId}`, {
+        title: bookTitle || book?.title || "Untitled",
+        pages: imagesProg.pages.map((p: any, idx: number) => ({
+          id: idx + 2,
+          ...p,
+        })),
+        coverUrl: imagesProg.coverUrl,
+        backCoverUrl: imagesProg.backCoverUrl,
+        avatarFinalized: avatarFinalized,
+      })
+        .then(() => {
+          toast({ title: "All done!", description: "Your book is ready." });
+          setLocation(`/book/${bookId}`);
+        })
+        .catch((err) => {
+          log("Final patch error", err);
+          toast({
+            title: "Error",
+            description: "Could not save final book.",
+            variant: "destructive",
+          });
+        });
+    }
+  }, [imagesProg]);
+
+  const warnedRef = useRef(false);
+
+  useEffect(() => {
+    if (
+      !imagesJobIdRef.current &&
+      skeletonData &&
+      avatarUrlState &&
+      skeletonProg?.phase === "complete"
+    ) {
+      const msSinceLastTouch = Date.now() - lastAvatarInteraction.current;
+      const remaining = 5 * 60_000 - msSinceLastTouch; // may be < 0
+
+      // warn 30 s before kick-off
+      if (remaining > 0 && remaining <= 30_000 && !warnedRef.current) {
+        warnedRef.current = true;
+        toast({
+          title: "Generating pages soon…",
+          description:
+            "No interaction detected. Page generation will start in 30 seconds.",
+        });
+      }
+
+      const tid = setTimeout(
+        () => {
+          // run only if a job still hasn’t started and nothing changed meanwhile
+          if (!imagesJobIdRef.current) startPageGeneration();
+        },
+        Math.max(0, remaining),
+      );
+
+      return () => clearTimeout(tid); // clean up if deps change
+    }
+  }, [skeletonData, avatarUrlState, imagesJobId]);
+
+  // --- Render ---
+  if (loadingBook) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        Loading draft…
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col">
       <Header />
-      <main className="flex-grow">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <StepIndicator currentStep={currentStep} steps={STEPS} />
+      <main className="flex-grow max-w-4xl mx-auto p-6">
+        <StepIndicator steps={STEPS} currentStep={currentStep} />
 
-          {currentStep === 1 && (
-            <section>
-              <h2 className="text-3xl font-heading font-bold text-center mb-2">
-                Step 1: Choose Your Character
-              </h2>
-              <p className="text-center text-text-secondary mb-8">
-                Select a predefined character or create your own custom hero!
-              </p>
-              <CharacterToggle
-                type={characterType}
-                onToggle={setCharacterType}
+        {currentStep === 1 && (
+          <section>
+            <h2 className="text-2xl font-bold mb-4">
+              Step 1: Choose Character
+            </h2>
+            <CharacterToggle type={characterType} onToggle={setCharacterType} />
+            {characterType === "predefined" ? (
+              <PredefinedCharacters onSelectCharacter={handleSelectCharacter} />
+            ) : (
+              <CustomCharacter onSubmit={handleSelectCharacter} />
+            )}
+            {trainProg && trainProg.phase !== "complete" && (
+              <ProgressDisplay prog={trainProg} />
+            )}
+          </section>
+        )}
+
+        {currentStep === 2 && (
+          <section>
+            <h2 className="text-2xl font-bold mb-4">Step 2: Select Story</h2>
+            <StoryToggle type={storyType} onToggle={setStoryType} />
+            {storyType === "predefined" ? (
+              <PredefinedStories
+                onSelectStory={handleSelectStory}
+                characterName={kidName}
               />
-              {characterType === "predefined" ? (
-                <PredefinedCharacters
-                  onSelectCharacter={handleSelectCharacter}
-                />
-              ) : (
-                <CustomCharacter onSubmit={handleSelectCharacter} />
-              )}
-            </section>
-          )}
+            ) : (
+              <CustomStory onSubmit={handleSelectStory} />
+            )}
+          </section>
+        )}
 
-          {currentStep === 2 && (
-            <section>
-              <h2 className="text-3xl font-heading font-bold text-center mb-2">
-                Step 2: Choose Your Story
-              </h2>
-              <p className="text-center text-text-secondary mb-8">
-                Select a predefined story or create your own custom adventure!
-              </p>
-              <StoryToggle type={storyType} onToggle={setStoryType} />
-              {storyType === "predefined" ? (
-                <PredefinedStories
-                  onSelectStory={handleSelectStory}
-                  characterName={activeCharacter?.name}
-                />
-              ) : (
-                <CustomStory onSubmit={handleSelectStory} />
-              )}
-              <div className="flex justify-center mt-8">
-                <Button
-                  variant="outline"
-                  onClick={() => setCurrentStep(1)}
-                  className="border border-gray-300 bg-white hover:bg-gray-50 text-text-primary font-bold py-3 px-6 rounded-full text-lg shadow-sm hover:shadow-md transition-all"
-                >
-                  Back
-                </Button>
+        {currentStep === 3 && (
+          <section>
+            <h2 className="text-2xl font-bold mb-4">
+              Step 3: Preview & Download
+            </h2>
+
+            {/* Avatar preview */}
+            {avatarUrlState && !loadingBook && (
+              <div className="flex flex-col items-center gap-3 mb-4">
+                <div className="relative w-32 h-32 rounded-full overflow-hidden shadow">
+                  <img
+                    src={avatarUrlState}
+                    alt="Avatar"
+                    className="w-full h-full object-cover"
+                  />
+                  {avatarRegenerating && (
+                    <div className="absolute inset-0 bg-white/60 flex items-center justify-center rounded-full">
+                      <i className="fas fa-spinner fa-spin text-gray-600 text-2xl" />
+                    </div>
+                  )}
+                </div>
+
+                {/* tweak buttons shown only before finalisation */}
+                {!avatarFinalized && (
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      disabled={avatarRegenerating}
+                      onClick={() => {
+                        touchAvatar();
+                        regenerateAvatar("cartoon");
+                      }}
+                    >
+                      More Cartoonish
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={avatarRegenerating}
+                      onClick={() => {
+                        touchAvatar();
+                        regenerateAvatar("hyper");
+                      }}
+                    >
+                      More Realistic
+                    </Button>
+                  </div>
+                )}
+
+                {/* Finalise / status label */}
+                {!avatarFinalized ? (
+                  <Button
+                    className="mt-2"
+                    disabled={avatarRegenerating}
+                    onClick={finalizeAvatar}
+                  >
+                    Looks good → Generate Pages
+                  </Button>
+                ) : (
+                  <span className="text-sm text-gray-500">Avatar locked ✓</span>
+                )}
               </div>
-            </section>
-          )}
+            )}
 
-          {currentStep === 3 && (
-            <section>
-              <h2 className="text-3xl font-heading font-bold text-center mb-2">
-                Step 3: Preview Your Story
-              </h2>
-              <p className="text-center text-text-secondary mb-8">
-                Review your book, make edits, and prepare to download or print.
-              </p>
+            {/* PROGRESS BARS */}
+            {/* 1) Avatar generation */}
+            {!avatarUrlState && avatarProg && (
+              <div className="mb-4">
+                <p className="text-center text-sm text-gray-500">
+                  Generating avatar… — {avatarProg.pct}%
+                </p>
+                <ProgressDisplay prog={avatarProg} />
+              </div>
+            )}
 
-              {trainProg && trainProg.phase !== "complete" && (
-                <ProgressDisplay prog={trainProg} />
-              )}
-
-              {storyProg && <ProgressDisplay prog={storyProg} />}
-
-              {generatingStory && (
-                <div className="flex justify-center mt-8">
-                  <p className="text-lg text-center">
-                    Creating the perfect story... making your character
-                    life-like and magical...
+            {/* 2) Skeleton (outline) */}
+            {avatarUrlState &&
+              avatarFinalized &&
+              !skeletonData &&
+              skeletonProg && (
+                <div className="mb-4">
+                  <p className="text-center text-sm text-gray-500">
+                    Generating story outline… — {skeletonProg.pct}%
                   </p>
+                  <ProgressDisplay prog={skeletonProg} />
                 </div>
               )}
-            </section>
-          )}
-        </div>
+
+            {/* 3) Pages & covers */}
+            {avatarUrlState &&
+              avatarFinalized &&
+              skeletonData &&
+              imagesProg && (
+                <div className="mb-4">
+                  <p className="text-center text-sm text-gray-500">
+                    Generating pages & covers… — {imagesProg.pct}%
+                  </p>
+                  <ProgressDisplay prog={imagesProg} />
+                </div>
+              )}
+          </section>
+        )}
       </main>
       <Footer />
     </div>

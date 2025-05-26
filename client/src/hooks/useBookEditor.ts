@@ -126,7 +126,7 @@ export function useBookEditor({
     const promptForCover = (isFront: boolean, kidName = "Hero") => {
       const safeTitle = pages[0]?.content ?? title;
       return isFront
-        ? `A captivating front-cover illustration for "${safeTitle}" featuring <${kidName}> as the hero. The title text "${safeTitle}" should appear boldly on the cover.`
+        ? `A captivating front-cover illustration for "${safeTitle}" featuring <${kidName}kidName> as the hero. The title text "${safeTitle}" should appear boldly on the cover.`
         : `A minimal, portrait-style back-cover illustration for the story "${safeTitle}".`;
     };
 
@@ -265,7 +265,7 @@ export function useBookEditor({
     setDirty(true); // so Save button lights up (optional)
 
     try {
-      await apiRequest("PATCH", `/api/books/${bookId}/meta`, {
+      await apiRequest("PATCH", `/api/books/${bookId}`, {
         avatarFinalized: true,
       });
       const hadOriginal =

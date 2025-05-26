@@ -66,6 +66,9 @@ function Router() {
     <Switch>
       <Route path="/" component={HomePage} />
       <Route path="/login" component={LoginPage} />
+      <Route path="/create/:id">
+        {(params) => <ProtectedRoute component={CreateStoryPage} {...params} />}
+      </Route>
       <Route path="/create">
         {(params) => <ProtectedRoute component={CreateStoryPage} {...params} />}
       </Route>

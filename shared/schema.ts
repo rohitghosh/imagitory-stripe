@@ -1,142 +1,129 @@
-import {
-  pgTable,
-  text,
-  serial,
-  integer,
-  boolean,
-  timestamp,
-  jsonb,
-  real,
-} from "drizzle-orm/pg-core";
-import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-export const users = pgTable("users", {
-  id: serial("id").primaryKey(),
-  uid: text("uid").notNull().unique(),
-  email: text("email").notNull(),
-  displayName: text("display_name"),
-  photoURL: text("photo_url"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+// --------------------
+// Firestore Data Schemas
+// --------------------
 
-export const characters = pgTable("characters", {
-  id: serial("id").primaryKey(),
-  userId: text("user_id").notNull(),
-  name: text("name").notNull(),
-  type: text("type").notNull(), // 'predefined' or 'custom'
-  age: integer("age"),
-  gender: text("gender"),
-  predefinedId: text("predefined_id"), // Only for predefined characters
-  description: text("description"),
-  imageUrls: text("image_urls").array(), // For custom characters
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  modelId: text("model_id"),
+// Users collection
+export const userSchema = z.object({
+  uid: z.string(),
+  email: z.string(),
+  displayName: z.string().optional(),
+  photoURL: z.string().optional(),
+  createdAt: z.date(),
 });
+export type User = z.infer<typeof userSchema>;
 
-export const stories = pgTable("stories", {
-  id: serial("id").primaryKey(),
-  userId: text("user_id").notNull(),
-  title: text("title").notNull(),
-  type: text("type").notNull(), // 'predefined' or 'custom'
-  predefinedId: text("predefined_id"), // Only for predefined stories
-  genre: text("genre"),
-  instructions: text("instructions"),
-  rhyming: boolean("rhyming").default(false),
-  moral: text("moral").default(""),
-  theme: text("theme").default(""),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+// Characters collection
+export const characterSchema = z.object({
+  id: z.string(),
+  userId: z.string(),
+  name: z.string(),
+  type: z.enum(["predefined", "custom"]),
+  age: z.number().optional(),
+  gender: z.enum(["boy", "girl", "other"]).optional(),
+  predefinedId: z.string().optional(),
+  description: z.string().optional(),
+  imageUrls: z.array(z.string()).optional(),
+  createdAt: z.date(),
+  modelId: z.string().optional(),
 });
+export type Character = z.infer<typeof characterSchema>;
 
-export const books = pgTable("books", {
-  id: serial("id").primaryKey(),
-  userId: text("user_id").notNull(),
-  characterId: text("character_id").notNull(),
-  storyId: text("story_id").notNull(),
-  title: text("title").notNull(),
-  coverUrl: text("coverUrl").notNull(),
-  backCoverUrl: text("backCoverUrl").notNull(),
-  pages: jsonb("pages").notNull(), // Array of { imageUrl, content }
-  stylePreference: text("stylePreference"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  avatarUrl: text("avatarUrl"),
-  avatarLora: real("avatarLora"),
-  avatarFinalized: boolean("avatarFinalized").default(false),
+// Stories collection
+export const storySchema = z.object({
+  id: z.string(),
+  userId: z.string(),
+  title: z.string(),
+  type: z.enum(["predefined", "custom"]),
+  predefinedId: z.string().optional(),
+  genre: z.string().optional(),
+  instructions: z.string().optional(),
+  rhyming: z.boolean().optional(),
+  moral: z.string().optional(),
+  theme: z.string().optional(),
+  createdAt: z.date(),
 });
+export type Story = z.infer<typeof storySchema>;
 
-export const orders = pgTable("orders", {
-  id: serial("id").primaryKey(),
-  userId: text("user_id").notNull(),
-  bookId: text("book_id").notNull(),
-  firstName: text("first_name").notNull(),
-  lastName: text("last_name").notNull(),
-  address: text("address").notNull(),
-  city: text("city").notNull(),
-  state: text("state").notNull(),
-  zip: text("zip").notNull(),
-  country: text("country").notNull(),
-  status: text("status").notNull().default("pending"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
-
-// Insert schemas
-export const insertUserSchema = createInsertSchema(users).omit({
-  id: true,
-  createdAt: true,
-});
-export const insertCharacterSchema = createInsertSchema(characters).omit({
-  id: true,
-  createdAt: true,
-});
-export const insertStorySchema = createInsertSchema(stories).omit({
-  id: true,
-  createdAt: true,
-});
-export const insertBookSchema = createInsertSchema(books).omit({
-  id: true,
-  createdAt: true,
-});
-export const insertOrderSchema = createInsertSchema(orders).omit({
-  id: true,
-  createdAt: true,
-  status: true,
-});
-
-// Select types
-export type User = typeof users.$inferSelect;
-export type Character = typeof characters.$inferSelect;
-export type Story = typeof stories.$inferSelect;
-export type Book = typeof books.$inferSelect;
-export type Order = typeof orders.$inferSelect;
-
-// Insert types
-export type InsertUser = z.infer<typeof insertUserSchema>;
-export type InsertCharacter = z.infer<typeof insertCharacterSchema>;
-export type InsertStory = z.infer<typeof insertStorySchema>;
-export type InsertBook = z.infer<typeof insertBookSchema>;
-export type InsertOrder = z.infer<typeof insertOrderSchema>;
-
-// Additional schemas for frontend forms
-export const customCharacterSchema = z.object({
-  name: z.string().min(1, "Name is required"),
-  age: z
-    .number()
-    .min(1, "Age must be at least 1")
-    .max(15, "Age must be at most 15")
+// Books collection
+export const bookSchema = z.object({
+  id: z.string(),
+  userId: z.string(),
+  characterId: z.string(),
+  pages: z
+    .array(
+      z.object({
+        id: z.number().optional(),
+        imageUrl: z.string().nullable().optional(),
+        content: z.string().nullable().optional(),
+        prompt: z.string().optional(),
+        loraScale: z.number().optional(),
+        controlLoraStrength: z.number().optional(),
+        seed: z.number().optional(),
+      }),
+    )
     .optional(),
-  gender: z.enum(["boy", "girl", "other"]),
-  imageUrls: z
-    .array(z.string())
-    .min(1, "At least one image is required")
-    .max(10, "Maximum 10 images allowed"),
+  createdAt: z.date(),
+  avatarLora: z.number().nullable().optional(),
+  avatarFinalized: z.boolean().default(false),
+  sceneTexts: z.array(z.string()).optional(),
+  imagePrompts: z.array(z.string()).optional(),
+  modelId: z.string().optional(),
+  storyId: z.string().nullable().optional(), // allow null | string
+  title: z.string(),
+  coverUrl: z.string().nullable().optional(),
+  backCoverUrl: z.string().nullable().optional(),
+  stylePreference: z.string().optional(),
+  avatarUrl: z.string().nullable().optional(),
+  skeletonJobId: z.string().optional(),
+  imagesJobId: z.string().optional(),
+});
+export type Book = z.infer<typeof bookSchema>;
+
+// Orders collection
+export const orderSchema = z.object({
+  id: z.string(),
+  userId: z.string(),
+  bookId: z.string(),
+  firstName: z.string(),
+  lastName: z.string(),
+  address: z.string(),
+  city: z.string(),
+  state: z.string(),
+  zip: z.string(),
+  country: z.string(),
+  status: z.enum(["pending", "shipped", "completed", "cancelled"]).optional(),
+  createdAt: z.date(),
+});
+export type Order = z.infer<typeof orderSchema>;
+
+// --------------------
+// Frontend Form Schemas (Zod)
+// --------------------
+export const insertUserSchema = userSchema.pick({
+  uid: true,
+  email: true,
+  displayName: true,
+  photoURL: true,
 });
 
-export const customStorySchema = z.object({
-  title: z.string().min(1, "Title is required"),
-  genre: z.string().min(1, "Genre is required"),
-  instructions: z.string().min(1, "Instructions are required"),
-  elements: z.array(z.string()),
+export const insertCharacterSchema = characterSchema
+  .omit({ id: true, createdAt: true })
+  .extend({ storyId: z.string().optional() });
+
+export const insertStorySchema = storySchema.omit({
+  id: true,
+  createdAt: true,
 });
+
+export const insertBookSchema = bookSchema
+  .omit({ id: true, createdAt: true, sceneTexts: true, imagePrompts: true })
+  .partial({ storyId: true, coverUrl: true, backCoverUrl: true, pages: true });
+
+export const insertOrderSchema = orderSchema
+  .omit({ id: true, createdAt: true })
+  .partial({ status: true });
 
 export const shippingFormSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
@@ -147,3 +134,40 @@ export const shippingFormSchema = z.object({
   zip: z.string().min(1, "Zip code is required"),
   country: z.string().min(1, "Country is required"),
 });
+
+export const updateBookSchema = z
+  .object({
+    // the 4 you were already sending
+    title: z.string().optional(),
+    coverUrl: z.string().nullable().optional(),
+    backCoverUrl: z.string().nullable().optional(),
+
+    // plus any other fields you might patch in future…
+    avatarFinalized: z.boolean().optional(),
+    avatarUrl: z.string().nullable().optional(),
+    avatarLora: z.number().optional(),
+    storyId: z.string().optional(),
+    modelId: z.string().optional(),
+    sceneTexts: z.array(z.string()).optional(),
+    imagePrompts: z.array(z.string()).optional(),
+    stylePreference: z.string().optional(),
+    skeletonJobId: z.string().optional(),
+    imagesJobId: z.string().optional(),
+    pages: z
+      .array(
+        z
+          .object({
+            id: z.number().optional(),
+            imageUrl: z.string().nullable().optional(),
+            content: z.string().nullable().optional(),
+            prompt: z.string().optional(),
+            loraScale: z.number().optional(),
+            controlLoraStrength: z.number().optional(),
+            seed: z.number().optional(),
+          })
+          .passthrough(),
+      )
+      .optional(),
+  })
+  .partial() // make every key optional
+  .passthrough();
