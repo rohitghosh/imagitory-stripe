@@ -577,12 +577,16 @@ export function buildFullPrompt(
   gender: string,
   prompt: string,
 ) {
-  const cleanPrompt = prompt
+  const adjustedPrompt = prompt
     .trim()
     .replace(/^["'“”]+/, "")
     .replace(/["'“”]+$/, "")
     .replace(/["'“”]/g, "");
-  
+
+  const cleanPrompt = adjustedPrompt.startsWith("<")
+    ? adjustedPrompt
+    : adjustedPrompt.charAt(0).toLowerCase() + adjustedPrompt.slice(1);
+
   let fullPrompt = "";
   const style = stylePreference.split("-").pop();
 
@@ -620,7 +624,7 @@ export function buildFullPrompt(
     default:
       // Fallback or handle unknown style
       fullPrompt = `
-      Pixar-style 3D rendered, vibrant colors, expressive characters, ultra-detailed textures, cinematic lighting, joyful emotions, ${cleanPrompt},face clearly visible`;
+      Pixar-style 3D rendered, vibrant colors, expressive characters, ultra-detailed textures, cinematic lighting, joyful emotions, ${cleanPrompt}, face clearly visible`;
       break;
   }
 
