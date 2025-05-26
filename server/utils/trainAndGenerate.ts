@@ -577,44 +577,50 @@ export function buildFullPrompt(
   gender: string,
   prompt: string,
 ) {
+  const cleanPrompt = prompt
+    .trim()
+    .replace(/^["'“”]+/, "")
+    .replace(/["'“”]+$/, "")
+    .replace(/["'“”]/g, "");
+  
   let fullPrompt = "";
   const style = stylePreference.split("-").pop();
 
   switch (style) {
     case "pixar":
       fullPrompt = `
-        Pixar-style 3D rendered, expressive characters, ultra-detailed textures, cinematic lighting, joyful emotions, ${prompt}, face clearly visible`;
+        Pixar-style 3D rendered, expressive characters, ultra-detailed textures, cinematic lighting, joyful emotions, ${cleanPrompt}, face clearly visible`;
       break;
 
     case "handdrawn":
       fullPrompt = `
-      Detailed hand-drawn illustration, warm gentle colors, fine pencil or ink outlines, storybook charm, ${prompt}, face clearly visible`;
+      Detailed hand-drawn illustration, warm gentle colors, fine pencil or ink outlines, storybook charm, ${cleanPrompt}, face clearly visible`;
       break;
 
     case "watercolor":
       fullPrompt = `
-        Whimsical watercolor illustration, pastel color palette, smooth gradients, textured paper background, ${prompt}, face clearly visible`;
+        Whimsical watercolor illustration, pastel color palette, smooth gradients, textured paper background, ${cleanPrompt}, face clearly visible`;
       break;
 
     case "claymotion":
       fullPrompt = `
-            Claymation-style detailed scene, realistic handmade clay textures, tactile appearance, ${prompt}, face clearly visible`;
+            Claymation-style detailed scene, realistic handmade clay textures, tactile appearance, ${cleanPrompt}, face clearly visible`;
       break;
 
     case "crayonart":
       fullPrompt = `
-            Bright, playful crayon-style drawing, vivid bold colors, childlike rough textures, ${prompt}, face clearly visible`;
+            Bright, playful crayon-style drawing, vivid bold colors, childlike rough textures, ${cleanPrompt}, face clearly visible`;
       break;
 
     case "pastelsketch":
       fullPrompt = `
-              Gentle pastel sketch, soft smudged textures, calming color tones, soothing, artistic sketch quality, ${prompt}, face clearly visible`;
+              Gentle pastel sketch, soft smudged textures, calming color tones, soothing, artistic sketch quality, ${cleanPrompt}, face clearly visible`;
       break;
 
     default:
       // Fallback or handle unknown style
       fullPrompt = `
-      Pixar-style 3D rendered, vibrant colors, expressive characters, ultra-detailed textures, cinematic lighting, joyful emotions, ${prompt},face clearly visible`;
+      Pixar-style 3D rendered, vibrant colors, expressive characters, ultra-detailed textures, cinematic lighting, joyful emotions, ${cleanPrompt},face clearly visible`;
       break;
   }
 
