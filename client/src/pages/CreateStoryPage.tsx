@@ -694,7 +694,7 @@ export default function CreateStoryPage() {
             {!avatarUrlState && avatarProg && (
               <div className="mb-4">
                 <p className="text-center text-sm text-gray-500">
-                  Generating avatar… — {avatarProg.pct}%
+                  Generating avatar… — {avatarProg.pct.toFixed(0)}%
                 </p>
                 <ProgressDisplay prog={avatarProg} />
               </div>
@@ -707,7 +707,7 @@ export default function CreateStoryPage() {
               skeletonProg && (
                 <div className="mb-4">
                   <p className="text-center text-sm text-gray-500">
-                    Generating story outline… — {skeletonProg.pct}%
+                    Generating story outline… — {skeletonProg.pct.toFixed(0)}%
                   </p>
                   <ProgressDisplay prog={skeletonProg} />
                 </div>
@@ -720,7 +720,7 @@ export default function CreateStoryPage() {
               imagesProg && (
                 <div className="mb-4">
                   <p className="text-center text-sm text-gray-500">
-                    Generating pages & covers… — {imagesProg.pct}%
+                    Generating pages & covers… — {imagesProg.pct.toFixed(0)}%
                   </p>
                   <ProgressDisplay prog={imagesProg} />
                 </div>
