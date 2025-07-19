@@ -32,7 +32,10 @@ import {
   generateAvatarImage,
   generateSceneData,
   generateStoryImagesWithAvatar,
+  cartoonifyImage,
+  generateStoryPackage,
 } from "./utils/trainAndGenerate";
+import { generateCompleteStory } from "./utils/story-generation-api/src/services/storyGeneration";
 import admin from "./firebaseAdmin";
 import createMemoryStore from "memorystore";
 import { splitImageInHalf } from "./utils/elementGeneration";
@@ -40,6 +43,22 @@ import { pickContrastingTextColor } from "./utils/textColorUtils";
 import { loadBase64Image } from "./utils/layouts";
 import { uploadBase64ToFirebase } from "./utils/uploadImage";
 import { jobTracker } from "./lib/jobTracker";
+
+import { validateStoryInputs } from "./utils/story-generation-api/src/routes/validation";
+import { validateCharacterArrays } from "./utils/story-generation-api/src/utils/helpers";
+import {
+  regenerateScene,
+  regenerateBaseCover,
+  regenerateFinalCover,
+  regenerateFullCover,
+} from "./utils/story-generation-api/src/routes/regeneration";
+
+import {
+  regenerateSceneImage,
+  regenerateCoverImage,
+  regenerateBaseCoverImage,
+  generateFinalCoverWithTitle,
+} from "./utils/story-generation-api/src/services/imageGeneration";
 
 type StoryResult = {
   pages: string[];
@@ -472,260 +491,122 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // New Endpoint: Generate Story
-  // Expects: kidName, modelId, baseStoryPrompt, and moral in the request body.
-  // New Endpoint: Generate Story
-  // Expects kidName, modelId, baseStoryPrompt, and moral in the request body.
-  // POST /api/generateStory
-  // app.post("/api/generateStory", authenticate, async (req, res) => {
-  //   let {
-  //     jobId,
-  //     kidName,
-  //     modelId,
-  //     baseStoryPrompt,
-  //     moral,
-  //     title,
-  //     age,
-  //     gender,
-  //     stylePreference,
-  //     storyRhyming,
-  //     storyTheme,
-  //   } = req.body;
+  app.post("/api/runValidation", validateStoryInputs);
+  app.post("/api/regenerateScene", regenerateScene);
+  app.post("/api/regenerateBaseCover", regenerateBaseCover);
+  app.post("/api/regenerateFinalCover", regenerateFinalCover);
+  app.post("/api/regenerateFullCover", regenerateFullCover);
 
-  //   if (!jobId) jobId = jobTracker.newJob();
-
-  //   // 1) Quick validation
-  //   if (!kidName || !modelId || !baseStoryPrompt || !moral || !title) {
-  //     return res.status(400).json({
-  //       error:
-  //         "kidName, modelId, baseStoryPrompt, moral and title are required.",
-  //     });
-  //   }
-
-  //   if (!jobId) return res.status(400).json({ error: "jobId required" });
-  //   jobTracker.set(jobId, {
-  //     phase: "prompting",
-  //     pct: 60,
-  //     message: "LLM scene prompts…",
-  //   });
-  //   res.status(202).json({ jobId });
-
-  //   if (DEBUG_LOGGING) console.log("[/api/generateStory] jobId:", jobId);
-
-  //   const seed = 3.0;
-
-  //   generateStoryImages(
-  //     jobId,
-  //     modelId,
-  //     kidName,
-  //     baseStoryPrompt,
-  //     moral,
-  //     title,
-  //     age,
-  //     gender,
-  //     stylePreference,
-  //     storyRhyming,
-  //     storyTheme,
-  //     seed,
-  //   ).catch((err) => {
-  //     console.error("[/api/generateStory] background error:", err);
-  //     jobTracker.set(jobId, { phase: "error", pct: 100, error: err.message });
-  //   });
-  // });
-
-  // ────────────────────────────────────────────────────────
-  // Generate Avatar Only (with DB checkpoint)
-  // ────────────────────────────────────────────────────────
-  app.post("/api/generateAvatar", authenticate, async (req, res) => {
-    console.log("[/api/generateAvatar] Request received", { body: req.body });
-    const { bookId, modelId, kidName, age, gender, stylePreference } = req.body;
-    if (!bookId || !modelId) {
-      console.error("[/api/generateAvatar] Missing bookId or modelId");
-      return res.status(400).json({ error: "bookId + modelId are required" });
-    }
-
-    const jobId = jobTracker.newJob();
-    console.log(`[/api/generateAvatar] New job ${jobId} for book ${bookId}`);
-    res.status(202).json({ jobId });
-
-    (async () => {
-      try {
-        const { avatarUrl, avatarLora } = await generateAvatarImage(
-          modelId,
-          kidName,
-          age,
-          gender,
-          stylePreference,
-        );
-        console.log(`[/api/generateAvatar] Job ${jobId} complete`, {
-          avatarUrl,
-          avatarLora,
-        });
-
-        // 1) update tracker
-        jobTracker.set(jobId, {
-          phase: "complete",
-          pct: 100,
-          avatarUrl,
-          avatarLora,
-        });
-
-        // 2) persist to Firestore
-        await storage.updateBook(bookId, {
-          avatarUrl,
-          avatarLora,
-          avatarFinalized: false, // mark that avatar exists but isn’t “locked in”
-        });
-        console.log(`[/api/generateAvatar] Book ${bookId} updated with avatar`);
-      } catch (err: any) {
-        console.error(`[/api/generateAvatar] Job ${jobId} error`, err);
-        jobTracker.set(jobId, { phase: "error", pct: 100, error: err.message });
-      }
-    })();
-  });
-
-  // ────────────────────────────────────────────────────────
-  // Generate Skeleton (sceneTexts + imagePrompts) (with DB checkpoint)
-  // ────────────────────────────────────────────────────────
-  app.post("/api/storySkeleton", authenticate, async (req, res) => {
-    console.log("[/api/storySkeleton] Request received", { body: req.body });
+  app.post("/api/generateFullStory", authenticate, async (req, res) => {
+    console.log("Received request to generate full story with:", req);
     const {
       bookId,
       kidName,
-      baseStoryPrompt,
-      moral,
+      pronoun,
       age,
-      gender,
+      moral,
       storyRhyming,
-      storyTheme,
+      kidInterests,
+      storyThemes,
+      characters,
+      characterDescriptions,
+      characterImageMap,
     } = req.body;
 
     if (!bookId) {
-      console.error("[/api/storySkeleton] Missing bookId");
       return res.status(400).json({ error: "bookId is required" });
     }
 
-    const jobId = jobTracker.newJob();
-    await storage.updateBook(bookId, { skeletonJobId: jobId });
-    console.log(`[/api/storySkeleton] New job ${jobId} for book ${bookId}`);
-    res.status(202).json({ jobId });
-
-    (async () => {
-      try {
-        const { sceneTexts, imagePrompts } = await generateSceneData(
-          jobId,
-          kidName,
-          age,
-          gender,
-          baseStoryPrompt,
-          moral,
-          storyRhyming,
-          storyTheme,
-        );
-        console.log(`[/api/storySkeleton] Job ${jobId} complete`, {
-          sceneTexts,
-        });
-
-        // 1) update tracker
-        jobTracker.set(jobId, {
-          phase: "complete",
-          pct: 100,
-          sceneTexts,
-          imagePrompts,
-        });
-
-        // 2) persist to Firestore
-        await storage.updateBook(bookId, {
-          sceneTexts, // array<string>
-          imagePrompts, // array<string>
-        });
-        console.log(
-          `[/api/storySkeleton] Book ${bookId} updated with skeleton`,
-        );
-      } catch (err: any) {
-        console.error(`[/api/storySkeleton] Job ${jobId} error`, err);
-        jobTracker.set(jobId, { phase: "error", pct: 100, error: err.message });
-      }
-    })();
-  });
-
-  // ────────────────────────────────────────────────────────
-  // Final Image Batch (with DB checkpoint)
-  // ────────────────────────────────────────────────────────
-  app.post("/api/generateStoryImages", authenticate, async (req, res) => {
-    console.log("[/api/generateStoryImages] Request received", {
-      body: req.body,
-    });
-    const {
-      bookId,
-      modelId,
-      kidName,
-      title,
-      age,
-      gender,
-      stylePreference,
-      sceneTexts,
-      imagePrompts,
-      avatarUrl,
-      avatarLora,
-    } = req.body;
-
     if (
-      !bookId ||
-      !modelId ||
-      !Array.isArray(sceneTexts) ||
-      !Array.isArray(imagePrompts) ||
-      typeof avatarUrl !== "string" ||
-      typeof avatarLora !== "number"
+      !kidName ||
+      !pronoun ||
+      age === undefined ||
+      !moral ||
+      storyRhyming === undefined ||
+      !kidInterests ||
+      !storyThemes
     ) {
-      console.error("[/api/generateStoryImages] Incomplete payload");
-      return res.status(400).json({ error: "Incomplete request payload" });
+      console.log("Received request to generate full story with:", req.body);
+
+      res.status(400).json({
+        error:
+          "Missing required fields: kidName, pronoun, age, moral, storyRhyming, kidInterests, storyThemes",
+      });
+      return;
+    }
+
+    // Validate arrays
+    if (!Array.isArray(kidInterests) || kidInterests.length === 0) {
+      res.status(400).json({
+        error: "kidInterests must be a non-empty array",
+      });
+      return;
+    }
+
+    if (!Array.isArray(storyThemes) || storyThemes.length === 0) {
+      res.status(400).json({
+        error: "storyThemes must be a non-empty array",
+      });
+      return;
+    }
+
+    // Validate character arrays
+    if (!validateCharacterArrays(characters, characterDescriptions)) {
+      res.status(400).json({
+        error:
+          "characters and characterDescriptions arrays must have the same length",
+      });
+      return;
+    }
+
+    // Currently support max 1 side character
+    if (characters.length > 1) {
+      res.status(400).json({
+        error: "Currently only 0 or 1 side character is supported",
+      });
+      return;
     }
 
     const jobId = jobTracker.newJob();
     await storage.updateBook(bookId, { imagesJobId: jobId });
-    console.log(
-      `[/api/generateStoryImages] New job ${jobId} for book ${bookId}`,
-    );
-    res.status(202).json({ jobId });
+    res.status(202).json({ jobId }); // client begins polling
 
     (async () => {
       try {
-        const result = await generateStoryImagesWithAvatar(
-          jobId,
-          modelId,
-          kidName,
-          sceneTexts,
-          imagePrompts,
-          title,
-          age,
-          gender,
-          stylePreference,
-          avatarUrl,
-          avatarLora,
-          3.0, // seed
-        );
-        console.log(`[/api/generateStoryImages] Job ${jobId} complete`);
-
-        // 1) update tracker
         jobTracker.set(jobId, {
-          phase: "complete",
-          pct: 100,
-          pages: result.pages,
-          coverUrl: result.coverUrl,
-          backCoverUrl: result.backCoverUrl,
+          phase: "initializing",
+          pct: 0,
+          message: "Starting story generation...",
         });
 
-        // 2) persist to Firestore
+        const { scenes, cover } = await generateCompleteStory(
+          {
+            kidName,
+            pronoun,
+            age,
+            moral,
+            storyRhyming,
+            kidInterests,
+            storyThemes,
+            characters,
+            characterDescriptions,
+          },
+          characterImageMap,
+          (phase, pct, message) => {
+            jobTracker.set(jobId, { phase, pct, message });
+          },
+        );
+
+        // persist & maybe enqueue PDF generation, etc…
         await storage.updateBook(bookId, {
-          pages: result.pages,
-          coverUrl: result.coverUrl,
-          backCoverUrl: result.backCoverUrl,
-          avatarFinalized: true, // now the book is “finished”
+          pages: scenes,
+          cover: cover,
+          title: cover.story_title,
+          imagesJobId: null,
         });
-        console.log(`[/api/generateStoryImages] Book ${bookId} fully updated`);
+        jobTracker.set(jobId, { phase: "complete", pct: 100 });
       } catch (err: any) {
-        console.error(`[/api/generateStoryImages] Job ${jobId} error`, err);
+        console.error("[/api/generateFullStory] error", err);
         jobTracker.set(jobId, { phase: "error", pct: 100, error: err.message });
       }
     })();
@@ -733,80 +614,124 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/regenerateImage", async (req: Request, res: Response) => {
     try {
-      const {
-        bookId,
-        pageId,
-        modelId,
-        prompt,
-        isCover,
-        kidName,
-        age,
-        gender,
-        stylePreference,
-        loraScale,
-        avatarUrl,
-        controlLoraStrength,
-        randomSeed,
-      } = req.body;
+      const { bookId, pageId, sceneInputs, randomSeed } = req.body;
 
       const book = await storage.getBookById(bookId);
       if (!book) return res.status(404).json({ error: "Book not found" });
 
-      const oldPage = book.pages?.find((p: any) => p.id === pageId);
-
-      let seed: number;
-      if (randomSeed) {
-        seed = Math.floor(Math.random() * 1_000_000);
-      } else {
-        seed = oldPage?.seed ?? 3.0;
+      /* 1️⃣   identify the page by scene_number */
+      const oldPage = book.pages?.find((p: any) => p.scene_number === pageId);
+      if (!oldPage) {
+        return res.status(400).json({ error: "Page not found" });
       }
 
-      const fullPrompt = buildFullPrompt(stylePreference, age, gender, prompt);
-      const width = isCover ? 512 : 1024;
-      const newUrl = await generateGuidedImage(
-        fullPrompt,
-        avatarUrl,
-        modelId,
-        gender,
-        loraScale,
+      /* 2️⃣   choose seed */
+      const seed = randomSeed
+        ? Math.floor(Math.random() * 1_000_000)
+        : (oldPage.seed ?? 3);
+
+      /* 3️⃣   call your image service */
+      const newUrl = await regenerateSceneImage(sceneInputs, seed);
+
+      /* 4️⃣   build the updated list */
+      const updatedPages = book.pages.map((p: any) =>
+        p.scene_number === pageId ? { ...p, scene_url: newUrl, seed } : p,
+      );
+
+      /* 5️⃣   persist */
+      await storage.updateBook(bookId, { pages: updatedPages });
+
+      res.status(200).json({ newUrl });
+    } catch (error: any) {
+      if (DEBUG_LOGGING) console.error("[/api/regenerateImage] error:", error);
+      res.status(500).json({
+        error: error.message || "Image regeneration failed",
+      });
+    }
+  });
+
+  app.post("/api/regenerateCover", async (req: Request, res: Response) => {
+    try {
+      const { bookId, coverInputs, title, randomSeed } = req.body;
+
+      const book = await storage.getBookById(bookId);
+      if (!book) return res.status(404).json({ error: "Book not found" });
+
+      const prevSeed =
+        book.cover?.base_cover_inputs?.seed ??
+        book.cover?.final_cover_inputs?.seed ??
+        3;
+
+      const seed = randomSeed
+        ? Math.floor(Math.random() * 1_000_000)
+        : prevSeed;
+
+      const newBaseCoverUrl = await regenerateBaseCoverImage(coverInputs, seed);
+
+      // Then add title to create final cover
+      const newFinalCoverUrl = await generateFinalCoverWithTitle(
+        newBaseCoverUrl,
+        title,
         seed,
-        controlLoraStrength,
-        width,
       );
 
-      console.log(
-        "lorascale and controlStrength",
-        loraScale,
-        controlLoraStrength,
-      );
-
-      // Build new pages array
-      let updatedPages = book.pages;
-      if (isCover) {
-        book.coverUrl = newUrl;
-        (book as any).coverLoraScale = loraScale;
-        (book as any).coverControlLoraStrength = controlLoraStrength;
-      } else {
-        updatedPages = book.pages.map((p: any) =>
-          p.id === pageId
-            ? { ...p, imageUrl: newUrl, loraScale, controlLoraStrength, seed }
-            : p,
-        );
-      }
-
-      const updateData: any = {
-        coverUrl: book.coverUrl,
-        backCoverUrl: book.backCoverUrl,
-        pages: updatedPages,
+      const updatedCover = {
+        ...book.cover,
+        base_cover_inputs: { ...coverInputs, seed },
+        final_cover_inputs: { ...(book.cover?.final_cover_inputs ?? {}), seed },
+        base_cover_url: newBaseCoverUrl,
+        final_cover_url: newFinalCoverUrl,
       };
 
-      if (isCover) {
-        updateData.coverLoraScale = loraScale;
-        updateData.coverControlLoraStrength = controlLoraStrength;
-      }
+      console.log("updatedCover:", updatedCover);
+      await storage.updateBook(bookId, { cover: updatedCover });
 
-      await storage.updateBook(bookId, updateData);
-      res.status(200).json({ newUrl });
+      res.status(200).json({ newUrl: newFinalCoverUrl });
+    } catch (error: any) {
+      if (DEBUG_LOGGING)
+        console.error(
+          "[/api/regenerateImage] Image regeneration error:",
+          error,
+        );
+      res
+        .status(500)
+        .json({ error: error.message || "Image regeneration failed" });
+    }
+  });
+
+
+  app.post("/api/regenerateCoverTitle", async (req: Request, res: Response) => {
+    try {
+      const { bookId, baseCoverUrl, title, randomSeed } = req.body;
+
+      const book = await storage.getBookById(bookId);
+      if (!book) return res.status(404).json({ error: "Book not found" });
+
+      const prevSeed =
+        book.cover?.final_cover_inputs?.seed ??
+        3;
+
+      const seed = randomSeed
+        ? Math.floor(Math.random() * 1_000_000)
+        : prevSeed;
+
+      // Then add title to create final cover
+      const newFinalCoverUrl = await generateFinalCoverWithTitle(
+        baseCoverUrl,
+        title,
+        seed,
+      );
+
+      const updatedCover = {
+        ...book.cover,
+        final_cover_inputs: { ...(book.cover?.final_cover_inputs ?? {}), seed, story_title: title },
+        final_cover_url: newFinalCoverUrl,
+      };
+
+      console.log("updatedCover:", updatedCover);
+      await storage.updateBook(bookId, { cover: updatedCover, title: title });
+
+      res.status(200).json({ newUrl: newFinalCoverUrl });
     } catch (error: any) {
       if (DEBUG_LOGGING)
         console.error(
@@ -820,9 +745,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/regenerateAvatar", async (req, res) => {
-    const { bookId, modelId, prompt, loraScale } = req.body;
+    const { bookId, modelId, prompt, loraScale, stylePreference } = req.body;
     const seed = 3.0;
-    const url = await generateImage(prompt, modelId, loraScale, seed);
+    const fullPrompt = buildFullPrompt(stylePreference, prompt, false);
+    const url = await generateImage(fullPrompt, modelId, loraScale, seed);
 
     await storage.updateBook(bookId, {
       avatarUrl: url,
@@ -832,16 +758,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ avatarUrl: url });
   });
 
-  app.put("/api/characters/:id", async (req, res) => {
-    const { id } = req.params;
-    const payload = req.body; // This could include { modelId: 'newId', trainedAt: Date.now(), ... }
-    try {
-      const updatedCharacter = await storage.updateCharacter(id, payload);
-      res.status(200).json(updatedCharacter);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to update character" });
-    }
-  });
+  app.put(
+    "/api/characters/:id",
+    authenticate, // ensure only the logged-in user can update
+    async (req: Request, res: Response) => {
+      const { id } = req.params;
+      // 1) Strip out any userId (or other fields) that we don't want to allow clients to override
+      const { userId, ...updates } = req.body;
+
+      try {
+        // 2) Fetch the existing record and verify ownership
+        const existing = await storage.getCharacter(id);
+        if (!existing) {
+          return res.status(404).json({ message: "Character not found" });
+        }
+        if (existing.userId !== req.session!.userId) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+
+        // 3) Merge only the allowed fields
+        await storage.updateCharacter(id, updates);
+
+        // 4) Re-fetch the full, merged document and return it
+        const full = await storage.getCharacter(id);
+        return res.status(200).json(full);
+      } catch (err: any) {
+        console.error("[PUT /api/characters/:id] error:", err);
+        return res.status(500).json({ error: "Failed to update character" });
+      }
+    },
+  );
 
   // Character routes with authentication middleware
   app.post(
@@ -1256,6 +1202,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post(
+    "/api/cartoonify",
+    authenticate,
+    async (req: Request, res: Response) => {
+      const { characterId, imageUrl } = req.body;
+      if (!characterId || !imageUrl) {
+        return res
+          .status(400)
+          .json({ error: "characterId + imageUrl required" });
+      }
+
+      try {
+        const toonUrl = await cartoonifyImage(imageUrl);
+        await storage.updateCharacter(characterId, { toonUrl });
+
+        return res.status(200).json({ toonUrl });
+      } catch (err: any) {
+        console.error("[/api/cartoonify] error:", err);
+        return res
+          .status(500)
+          .json({ error: "Cartoonify failed", details: err.message });
+      }
+    },
+  );
+
   // Order routes with authentication
   app.post("/api/orders", authenticate, async (req: Request, res: Response) => {
     try {
@@ -1317,48 +1288,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     }
   });
-
-  // PDF generation - no authentication required
-  // app.post("/api/pdf/generate", async (req: Request, res: Response) => {
-  //   try {
-  //     const { title, pages, coverUrl, backCoverUrl, storyPrompt } = req.body;
-
-  //     // const newPages = pages.slice(0, 8);
-  //     const newPages = pages;
-
-  //     // const layout = "side-by-side";
-  //     let borderImages = undefined;
-  //     // let backgroundImageBase64 = undefined;
-
-  //     // if (layout == "side-by-side") {
-  //     //   pageBackgrounds = await generatePageBackgrounds(newPages, "side-by-side");
-  //     // }
-
-  //     // const theme = inferTheme(storyPrompt);
-  //     borderImages = await generateDecorativeBordersForPages(8, "space");
-
-  //     // console.log(pageBackgrounds);
-
-  //     const buffer = await generateStackedPDF(
-  //       title,
-  //       newPages,
-  //       coverUrl,
-  //       backCoverUrl,
-  //       borderImages,
-  //     );
-
-  //     res.setHeader("Content-Type", "application/pdf");
-  //     res.setHeader(
-  //       "Content-Disposition",
-  //       `attachment; filename="${title.replace(/\s+/g, "_")}.pdf"`,
-  //     );
-
-  //     res.send(buffer);
-  //   } catch (error) {
-  //     console.error("PDF generation error:", error);
-  //     res.status(500).json({ message: "Failed to generate PDF", error });
-  //   }
-  // });
 
   // PDF generation - no authentication required
   app.post("/api/pdf/generate", async (req: Request, res: Response) => {
@@ -1471,8 +1400,3 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   return httpServer;
 }
-
-//   app.post("/api/pdf/generate", async (req: Request, res: Response) => {
-//      const { id, title, pages, coverUrl, backCoverUrl, storyPrompt } = req.body;
-//       setLocation(`/pdf-editor/${id}`);
-// }

@@ -1,5 +1,13 @@
 import { z } from "zod";
 
+const INTEREST_OPTIONS = [
+  "Reading",
+  "Sports",
+  "Music",
+  "Art",
+  "Science",
+] as const;
+
 // --------------------
 // Firestore Data Schemas
 // --------------------
@@ -25,8 +33,18 @@ export const characterSchema = z.object({
   predefinedId: z.string().optional(),
   description: z.string().optional(),
   imageUrls: z.array(z.string()).optional(),
+  interests: z.array(z.enum(INTEREST_OPTIONS)).optional(),
+  relations: z
+    .array(
+      z.object({
+        primaryCharacterId: z.string(),
+        relation: z.string().min(1),
+      }),
+    )
+    .optional(),
   createdAt: z.date(),
   modelId: z.string().optional(),
+  toonUrl: z.string().url().optional(),
 });
 export type Character = z.infer<typeof characterSchema>;
 

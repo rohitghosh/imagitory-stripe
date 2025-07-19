@@ -1,5 +1,5 @@
-// CustomCharacterForm.tsx
-import { useState } from "react";
+// src/components/character/CustomCharacterForm.tsx
+import React, { useEffect, useState, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -18,24 +18,23 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Slider } from "@/components/ui/slider";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
-/* 
-  Zod schema for validation:
-  - name: required string
-  - age: number between 1 and 15
-  - gender: must be one of ["boy", "girl", "other"]
-*/
-const formSchema = z.object({
+// allowed interests
+const INTEREST_OPTIONS = ["Reading", "Sports", "Music", "Art", "Science"] as const;
+
+export const formSchema = z.object({
   name: z.string().min(1, "Name is required"),
-  age: z.coerce
-    .number()
-    .min(1, "Age must be at least 1")
-    .max(15, "Age must be at most 15"),
-  gender: z.enum(["boy", "girl", "other"], {
-    required_error: "Please select a gender",
-  }),
+  age: z.coerce.number().min(1, "Min age is 1").max(16, "Max age is 16"),
+  gender: z.enum(["boy", "girl", "other"], { required_error: "Select gender" }),
+  interests: z
+    .array(z.enum(INTEREST_OPTIONS))
+    .min(1, "Select at least one interest"),
 });
+export type FormValues = z.infer<typeof formSchema>;
+
 interface UploadedImage {
   localUrl: string;
   finalUrl: string | null;
@@ -43,352 +42,397 @@ interface UploadedImage {
 }
 
 interface CustomCharacterFormProps {
-  // Called when the character is successfully created
   onSubmit: (character: any) => void;
-  // (Optional) If you want to let the user cancel and go back to carousel
   onCancel?: () => void;
+  initialData?: Partial<FormValues> & { imageUrls?: string[]; id?: string };
+  autoOpenUpload?: boolean;
 }
 
 export function CustomCharacterForm({
   onSubmit,
   onCancel,
+  initialData,
+  autoOpenUpload = false,
 }: CustomCharacterFormProps) {
   const { user } = useAuth();
   const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]);
-
-  // React Hook Form setup
-  const form = useForm<z.infer<typeof formSchema>>({
+  const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      name: "",
-      age: 5,
-      gender: "boy",
+      name: initialData?.name ?? "",
+      age: initialData?.age ?? 5,
+      gender: initialData?.gender ?? "boy",
+      interests: initialData?.interests ?? [],
     },
   });
 
-  // Handle file uploads to Firebase Storage
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files) return;
+  const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]);
+  const [step, setStep] = useState<"upload" | "details">("upload");
+  const [cartoonPending, setCartoonPending] = useState(false);
+  const [cartoonUrl, setCartoonUrl] = useState<string | null>(null);
+  const [draftChar, setDraftChar] = useState<{
+    id: string;
+    imageUrls: string[];
+  } | null>(
+    initialData && initialData.id
+      ? { id: initialData.id, imageUrls: initialData.imageUrls || [] }
+      : null
+  );
 
-    if (uploadedImages.length + files.length > 10) {
-      toast({
-        title: "Maximum images reached",
-        description: "You can upload a maximum of 10 images",
-        variant: "destructive",
-      });
-      return;
+  // seed previews when editing
+  useEffect(() => {
+    if (initialData?.imageUrls) {
+      setUploadedImages(
+        initialData.imageUrls.map((url) => ({
+          localUrl: url,
+          finalUrl: url,
+          uploading: false,
+        }))
+      );
+      if (initialData.imageUrls.length > 0) {
+        setStep("details");
+      }
     }
-    const filesArray = Array.from(files);
-    const newPreviews: UploadedImage[] = filesArray.map((file) => ({
+  }, [initialData]);
+
+  // advance to details once any image finishes uploading
+  useEffect(() => {
+    if (
+      step === "upload" &&
+      uploadedImages.some((img) => img.finalUrl && !img.uploading)
+    ) {
+      setStep("details");
+    }
+  }, [uploadedImages, step]);
+
+  // auto-open file picker on first render of upload step
+  useEffect(() => {
+    if (autoOpenUpload && step === "upload") {
+      fileInputRef.current?.click();
+    }
+  }, [autoOpenUpload, step]);
+
+  async function uploadFile(file: File): Promise<string> {
+    const ts = Date.now();
+    const ext = file.name.split(".").pop();
+    const base = file.name.replace(/\.[^/.]+$/, "");
+    const storageRef = getStorage();
+    const fileRef = ref(storageRef, `customCharacters/${base}-${ts}.${ext}`);
+    await uploadBytes(fileRef, file);
+    return getDownloadURL(fileRef);
+  }
+
+  const handleImageUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const files = e.target.files;
+    if (!files?.length) return;
+    const arr = Array.from(files);
+    const previews = arr.map((file) => ({
       localUrl: URL.createObjectURL(file),
-      finalUrl: null,
+      finalUrl: null as string | null,
       uploading: true,
     }));
+    setUploadedImages((prev) => [...prev, ...previews]);
 
-    setUploadedImages((prev) => [...prev, ...newPreviews]);
     try {
-      const storage = getStorage(); // your initialized Firebase app
+      // STEP A: upload first file
+      const firstFile = arr[0];
+      const firstUrl = await uploadFile(firstFile);
+      setUploadedImages((prev) => {
+        const cp = [...prev];
+        cp[prev.length - arr.length] = {
+          localUrl: cp[prev.length - arr.length].localUrl,
+          finalUrl: firstUrl,
+          uploading: false,
+        };
+        return cp;
+      });
 
-      // Upload each file and update its corresponding object in state
+      let charId = draftChar?.id;
+      if (!charId) {
+        const draft = await apiRequest("POST", "/api/characters", {
+          imageUrls: [firstUrl],
+          type: "custom",
+          userId: user!.uid,
+          name: "__DRAFT__",
+        });
+        charId = draft.id;
+        setDraftChar({ id: draft.id, imageUrls: draft.imageUrls });
+      }
+
+      // STEP B: cartoonify
+      setCartoonPending(true);
+      const { toonUrl } = await apiRequest("POST", "/api/cartoonify", {
+        characterId: charId,
+        imageUrl: firstUrl,
+      });
+      setUploadedImages((prev) => {
+        const idx = prev.findIndex((i) => i.finalUrl === firstUrl);
+        const before = prev.slice(0, idx + 1);
+        const after = prev.slice(idx + 1);
+        return [
+          ...before,
+          { localUrl: toonUrl, finalUrl: toonUrl, uploading: false },
+          ...after,
+        ];
+      });
+      setCartoonUrl(toonUrl);
+      setCartoonPending(false);
+
+      // STEP C: upload the rest in parallel
+      const rest = arr.slice(1);
       await Promise.all(
-        filesArray.map(async (file, index) => {
-          const timestamp = Date.now();
-          const fileExtension = file.name.split(".").pop(); // extract file extension
-          const fileNameWithoutExt = file.name.replace(/\.[^/.]+$/, ""); // remove existing extension
-
-          const fileRef = ref(
-            storage,
-            `customCharacters/${fileNameWithoutExt}-${timestamp}.${fileExtension}`,
-          );
-
-          // const fileRef = ref(
-          //   storage,
-          //   `customCharacters/${file.name}-${Date.now()}`,
-          // );
-          await uploadBytes(fileRef, file);
-          const finalUrl = await getDownloadURL(fileRef);
-
-          // Update the corresponding preview object
-          setUploadedImages((prevImages) => {
-            const newImages = [...prevImages];
-            // newPreviews were added at the end of prevImages
-            const imageIndex = prevImages.length - newPreviews.length + index;
-            newImages[imageIndex] = {
-              localUrl: newImages[imageIndex].localUrl, // Keep the local preview
-              finalUrl, // Set the final URL from Firebase
-              uploading: false, // Mark as uploaded
-            };
-            return newImages;
+        rest.map(async (file, i) => {
+          const url = await uploadFile(file);
+          setUploadedImages((prev) => {
+            const cp = [...prev];
+            const slot = prev.length - rest.length + i;
+            cp[slot] = { localUrl: cp[slot].localUrl, finalUrl: url, uploading: false };
+            return cp;
           });
-        }),
+        })
       );
-    } catch (error) {
-      console.error("Image upload error:", error);
+    } catch {
       toast({
-        title: "Upload Error",
-        description: "Failed to upload image(s)",
+        title: "Upload failed",
+        description: "Could not upload images",
         variant: "destructive",
       });
     }
   };
 
-  // Remove a single image from preview
-  const removeImage = (index: number) => {
-    setUploadedImages((prev) => prev.filter((_, i) => i !== index));
-  };
+  const isUploading = uploadedImages.some((i) => i.uploading);
 
-  // Submit handler for the entire form
-  const handleSubmitForm = async (values: z.infer<typeof formSchema>) => {
-    if (uploadedImages.length === 0) {
+  const onSubmitForm = form.handleSubmit(async (values) => {
+    const urls = uploadedImages
+      .filter((i) => !i.uploading && i.finalUrl)
+      .map((i) => i.finalUrl!);
+
+    if (!urls.length) {
       toast({
         title: "Images required",
-        description: "Please upload at least one image of your character",
+        description: "Upload at least one",
         variant: "destructive",
       });
       return;
     }
 
-    // Filter images to ensure all uploads are complete and URLs exist
-    const validImageUrls = uploadedImages
-      .filter((img) => !img.uploading && img.finalUrl)
-      .map((img) => img.finalUrl) as string[];
-
-    // Prepare payload for POST /api/characters
     const payload = {
       ...values,
+      imageUrls: urls,
       type: "custom",
-      imageUrls: validImageUrls,
-      userId: user?.uid || null,
-      createdAt: new Date().toISOString(),
+      userId: user!.uid,
+      createdAt: initialData?.id ? undefined : new Date().toISOString(),
     };
 
     try {
-      const newCharacter = await apiRequest("POST", "/api/characters", payload);
-      // Return the new character object to parent
-      onSubmit(newCharacter);
-    } catch (error) {
-      console.error("Failed to create custom character:", error);
+      const result = draftChar
+        ? await apiRequest("PUT", `/api/characters/${draftChar.id}`, payload)
+        : await apiRequest("POST", "/api/characters", payload);
+
+      toast({ title: "Saved", description: "Character is ready." });
+      onSubmit(result);
+    } catch {
       toast({
         title: "Error",
-        description: "Failed to create custom character.",
+        description: "Could not save character",
         variant: "destructive",
       });
     }
-  };
-
-  const isUploading = uploadedImages.some((image) => image.uploading);
+  });
 
   return (
-    <Card className="max-w-2xl mx-auto minimal-card">
-      <CardContent className="p-6">
-        <h3 className="text-xl font-heading font-bold mb-4">
-          Create Your Custom Character
+    <Card className="w-full max-w-2xl mx-auto overflow-hidden">
+      <CardContent className="px-4 py-6 sm:px-6 sm:py-8">
+        <h3 className="text-xl font-bold mb-6">
+          {initialData?.id ? "Edit Character" : "Create Your Character"}
         </h3>
 
-        <Form {...form}>
-          <form
-            onSubmit={form.handleSubmit(handleSubmitForm)}
-            className="space-y-6"
-          >
-            {/* Name and Age fields */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Character Name</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="Enter character name"
-                        className="minimal-input"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="age"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Age</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        placeholder="Enter age"
-                        min={1}
-                        max={15}
-                        className="minimal-input"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            {/* Gender radio buttons */}
-            <FormField
-              control={form.control}
-              name="gender"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Gender</FormLabel>
-                  <FormControl>
-                    <RadioGroup
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                      className="flex space-x-4"
-                    >
-                      <FormItem className="flex items-center space-x-2">
-                        <FormControl>
-                          <RadioGroupItem value="boy" />
-                        </FormControl>
-                        <FormLabel className="font-normal">Boy</FormLabel>
-                      </FormItem>
-                      <FormItem className="flex items-center space-x-2">
-                        <FormControl>
-                          <RadioGroupItem value="girl" />
-                        </FormControl>
-                        <FormLabel className="font-normal">Girl</FormLabel>
-                      </FormItem>
-                      <FormItem className="flex items-center space-x-2">
-                        <FormControl>
-                          <RadioGroupItem value="other" />
-                        </FormControl>
-                        <FormLabel className="font-normal">Other</FormLabel>
-                      </FormItem>
-                    </RadioGroup>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {/* Image uploader */}
-            <div>
-              <FormLabel className="block mb-1">
-                Upload Photos (up to 10)
-              </FormLabel>
-              <p className="text-xs text-gray-500 mb-4">
-                The more photos you upload, the better we can personalize your
-                story.
-              </p>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-                {/* ✅ DOs */}
-                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                  <p className="text-sm font-semibold text-green-700 mb-2">
-                    ✅ Good Examples
-                  </p>
-                  <ul className="list-disc pl-5 space-y-1 text-xs text-green-700">
-                    <li>
-                      Face the camera directly with eyes open and smiling.
-                    </li>
-                    <li>Use natural daylight or soft indoor lighting.</li>
-                    <li>Keep background plain or clutter-free.</li>
-                    <li>Upload multiple angles or expressions if possible.</li>
-                  </ul>
-                </div>
-
-                {/* ❌ DON'Ts */}
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                  <p className="text-sm font-semibold text-red-700 mb-2">
-                    ❌ Avoid These
-                  </p>
-                  <ul className="list-disc pl-5 space-y-1 text-xs text-red-700">
-                    <li>Blurry or pixelated images.</li>
-                    <li>Photos with other people.</li>
-                    <li>Extreme selfie angles.</li>
-                    <li>Sunglasses, hats, or face obstructions.</li>
-                  </ul>
-                </div>
-              </div>
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-                <div className="space-y-2">
-                  <div className="flex justify-center">
-                    <i className="fas fa-cloud-upload-alt text-4xl text-gray-400"></i>
-                  </div>
-                  <div className="text-sm text-gray-500">
-                    <label
-                      htmlFor="file-upload"
-                      className="relative cursor-pointer bg-white rounded-md font-medium text-primary hover:text-primary/90"
-                    >
-                      <span>Upload photos</span>
-                      <input
-                        id="file-upload"
-                        name="file-upload"
-                        type="file"
-                        className="sr-only"
-                        multiple
-                        accept="image/*"
-                        onChange={handleImageUpload}
-                      />
-                    </label>
-                    <p>or drag and drop</p>
-                  </div>
-                  <p className="text-xs text-gray-500">
-                    PNG, JPG, GIF up to 5MB
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Preview of uploaded images */}
-            {uploadedImages.length > 0 && (
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
-                {uploadedImages.map((image, index) => (
-                  <div
-                    key={index}
-                    className="relative h-24 bg-gray-100 rounded-md overflow-hidden"
+        {/* STEP 1: Upload */}
+        {step === "upload" && (
+          <>
+            
+              <>
+                <p className="font-semibold mb-2 text-center">
+                  Upload Photos (up to 10)
+                </p>
+                <div className="border-2 border-dashed rounded-lg p-4 sm:p-6 text-center mb-4">
+                  <button
+                    type="button"
+                    className="text-primary cursor-pointer"
+                    onClick={() => fileInputRef.current?.click()}
                   >
-                    <img
-                      src={image.localUrl}
-                      className="w-full h-full object-cover"
-                      alt={`Uploaded photo ${index + 1}`}
-                    />
-                    {image.uploading && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-white/60">
-                        <i className="fas fa-spinner fa-spin text-gray-500"></i>
-                      </div>
-                    )}
-                    <button
-                      type="button"
-                      className="absolute top-1 right-1 bg-white rounded-full p-1 shadow-sm"
-                      onClick={() => removeImage(index)}
-                    >
-                      <i className="fas fa-times text-xs text-gray-500"></i>
-                    </button>
-                  </div>
-                ))}
+                    Select Photos
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="sr-only"
+                    onChange={handleImageUpload}
+                  />
+                </div>
+              </>
+            
+            {isUploading && (
+              <div className="text-center text-gray-500 mb-4">
+                Uploading… <i className="fas fa-spinner fa-spin" />
               </div>
             )}
+          </>
+        )}
 
-            {/* Action buttons: "Create" and optional "Cancel" */}
-            <div className="flex justify-end space-x-4">
-              {onCancel && (
-                <Button variant="outline" onClick={onCancel}>
-                  Cancel
-                </Button>
-              )}
-              <Button
-                type="submit"
-                disabled={isUploading}
-                className="bg-primary hover:bg-primary/90 text-white font-bold py-3 px-8 rounded-md shadow-sm hover:shadow-md transition-all"
-              >
-                Create Character
-              </Button>
+        {/* STEP 2: Details */}
+        {step === "details" && (
+          <>
+            <div className="flex flex-col sm:flex-row gap-4 mb-6 items-start sm:items-center">
+              <h4 className="text-lg font-semibold">
+                Here’s how your cartoon avatar will look:
+              </h4>
+              <img
+                src={
+                  uploadedImages.find((i) => i.finalUrl && !i.uploading)!
+                    .localUrl
+                }
+                alt="Original"
+                className="h-20 w-20 sm:h-24 sm:w-24 object-cover rounded-md border"
+              />
+              {cartoonPending && !cartoonUrl ? (
+                <div className="h-20 w-20 sm:h-24 sm:w-24 flex items-center justify-center border rounded-md">
+                  <i className="fas fa-spinner fa-spin text-gray-500 text-xl" />
+                </div>
+              ) : cartoonUrl ? (
+                <img
+                  src={cartoonUrl}
+                  alt="Cartoon"
+                  className="h-20 w-20 sm:h-24 sm:w-24 object-cover rounded-md border"
+                />
+              ) : null}
             </div>
-          </form>
-        </Form>
+
+            <Form {...form}>
+              <form onSubmit={onSubmitForm} className="space-y-6">
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Name</FormLabel>
+                      <FormControl>
+                        <Input {...field} placeholder="Child’s name" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="age"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Age: {field.value}</FormLabel>
+                      <FormControl>
+                        <Slider
+                          value={[field.value]}
+                          onValueChange={(v) => field.onChange(v[0])}
+                          min={1}
+                          max={16}
+                          step={1}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="gender"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Gender</FormLabel>
+                      <FormControl>
+                        <RadioGroup
+                          onValueChange={field.onChange}
+                          value={field.value}
+                          className="flex flex-wrap gap-4"
+                        >
+                          <FormItem className="flex items-center space-x-2">
+                            <FormControl>
+                              <RadioGroupItem value="boy" />
+                            </FormControl>
+                            <FormLabel>Boy</FormLabel>
+                          </FormItem>
+                          <FormItem className="flex items-center space-x-2">
+                            <FormControl>
+                              <RadioGroupItem value="girl" />
+                            </FormControl>
+                            <FormLabel>Girl</FormLabel>
+                          </FormItem>
+                          <FormItem className="flex items-center space-x-2">
+                            <FormControl>
+                              <RadioGroupItem value="other" />
+                            </FormControl>
+                            <FormLabel>Other</FormLabel>
+                          </FormItem>
+                        </RadioGroup>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="interests"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Interests</FormLabel>
+                      <FormControl>
+                        <ToggleGroup
+                          type="multiple"
+                          value={field.value}
+                          onValueChange={field.onChange}
+                          className="flex flex-wrap gap-2"
+                        >
+                          {INTEREST_OPTIONS.map((opt) => (
+                            <ToggleGroupItem
+                              key={opt}
+                              value={opt}
+                              className="px-3 py-1 border rounded cursor-pointer"
+                            >
+                              {opt}
+                            </ToggleGroupItem>
+                          ))}
+                        </ToggleGroup>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <div className="flex justify-end space-x-4">
+                  {onCancel && (
+                    <Button variant="outline" onClick={onCancel}>
+                      Cancel
+                    </Button>
+                  )}
+                  <Button
+                    type="submit"
+                    disabled={isUploading || cartoonPending || !cartoonUrl}
+                  >
+                    {initialData?.id ? "Save Changes" : "Create Character"}
+                  </Button>
+                </div>
+              </form>
+            </Form>
+          </>
+        )}
       </CardContent>
     </Card>
   );

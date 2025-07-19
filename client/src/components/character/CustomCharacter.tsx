@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useSwipeable } from "react-swipeable";          
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
@@ -28,6 +29,9 @@ export function CustomCharacter({ onSubmit }: CustomCharactersProps) {
 
   // Whether to show the form below the carousel
   const [showForm, setShowForm] = useState<boolean>(false);
+  const [editing, setEditing] = useState<any | null>(null);
+
+  const [autoOpenUpload, setAutoOpenUpload] = useState(false);
 
   // Track the currently selected character
   const [selectedCharacterId, setSelectedCharacterId] = useState<string | null>(
@@ -109,15 +113,47 @@ export function CustomCharacter({ onSubmit }: CustomCharactersProps) {
   };
 
   // User clicks an existing character in the carousel
+  // src/components/character/CustomCharacter.tsx
   const handleSelectCharacter = (charId: string) => {
+    // mark which card is “active”
     setSelectedCharacterId(charId);
-    // Hide the form if it was open
-    setShowForm(false);
+
+    // look up the full object
+    const char = characters.find((c) => c.id === charId)!;
+
+    // what bits do we still need?
+    const missing: string[] = [];
+    if (!char.age) missing.push("age");
+    if (!char.gender) missing.push("gender");
+    if (!(char.interests?.length > 0)) missing.push("interests");
+    if (!(char.imageUrls?.length > 0)) missing.push("photos");
+
+    if (missing.length === 0) {
+      // ✅ everything’s filled in: hide any form, notify success, go next
+      setShowForm(false);
+      toast({
+        title: "All set!",
+        description: "Character profile complete.",
+        variant: "success",
+      });
+    } else {
+      // ⚠️ still missing some things: open the inline form
+      setShowForm(true);
+      setEditing(char);
+      toast({
+        title: "Please complete:",
+        description: missing.join(", "),
+        variant: "destructive",
+      });
+    }
   };
 
   // "Add Character" card in the carousel
   const handleAddCharacterClick = () => {
+    setEditing(null);
     setShowForm(true);
+    setSelectedCharacterId(null);
+    setAutoOpenUpload(true);
     // You could also reset selectedCharacterId if you want
     // setSelectedCharacterId(null);
   };
@@ -132,15 +168,15 @@ export function CustomCharacter({ onSubmit }: CustomCharactersProps) {
       });
       return;
     }
-    if (!selectedStyle) {
-      toast({
-        title: "Style not chosen",
-        description:
-          "Please select a style (hyper-realistic or cartoonish) for your book.",
-        variant: "destructive",
-      });
-      return;
-    }
+    // if (!selectedStyle) {
+    //   toast({
+    //     title: "Style not chosen",
+    //     description:
+    //       "Please select a style (hyper-realistic or cartoonish) for your book.",
+    //     variant: "destructive",
+    //   });
+    //   return;
+    // }
 
     const selectedCharacter = characters.find(
       (c) => c.id === selectedCharacterId,
@@ -165,7 +201,7 @@ export function CustomCharacter({ onSubmit }: CustomCharactersProps) {
   return (
     <div className="mb-8">
       {/* Carousel Container */}
-      <div className="relative px-8">
+      <div className="relative px-4 sm:px-8">
         {/* Left arrow */}
         <div className="absolute left-0 top-1/2 transform -translate-y-1/2 z-10">
           <button
@@ -180,9 +216,9 @@ export function CustomCharacter({ onSubmit }: CustomCharactersProps) {
         {/* Carousel with "Add Character" + existing characters */}
         <div
           ref={containerRef}
-          className="carousel-container overflow-x-auto hide-scrollbar py-4"
+          className="carousel-container overflow-x-auto hide-scrollbar snap-x snap-mandatory py-4"
         >
-          <div className="flex space-x-6 px-12">
+          <div className="flex space-x-6 px-4 sm:px-12">
             {/* Add Character card */}
             <Card
               className="flex-shrink-0 w-48 overflow-hidden hover:shadow-lg transition-all cursor-pointer border-2 border-dashed border-gray-300"
@@ -253,14 +289,34 @@ export function CustomCharacter({ onSubmit }: CustomCharactersProps) {
       {showForm && (
         <div className="mt-8">
           <CustomCharacterForm
-            onSubmit={handleFormSubmit}
-            onCancel={handleCancelForm}
+            initialData={editing ?? undefined}
+            onCancel={() => {
+              setShowForm(false);
+              setEditing(null);
+            }}
+            onSubmit={(char) => {
+              if (editing) {
+                // update existing
+                setCharacters((all) =>
+                  all.map((c) => (c.id === char.id ? char : c))
+                );
+              } else {
+                // new character
+                setCharacters((all) => [char, ...all]);
+              }
+              setShowForm(false);
+              setEditing(null);
+              setSelectedCharacterId(char.id);
+              onSubmit(char);
+            }}
+            autoOpenUpload={autoOpenUpload}
           />
         </div>
       )}
 
+
       {/* Import and use the StyleSelection component */}
-      {selectedCharacterId && (
+      {/* {selectedCharacterId && (
         <StyleSelection
           onStyleSelected={(style) => setSelectedStyle(style)}
           selectedStyle={selectedStyle}
@@ -279,19 +335,14 @@ export function CustomCharacter({ onSubmit }: CustomCharactersProps) {
           cartoonPastelsketchUrl="https://firebasestorage.googleapis.com/v0/b/kids-story-5eb1b.firebasestorage.app/o/website_photos%2FimagesGenerated%2Fpastel-cartoon.jpg?alt=media&token=433c5e25-4e89-4b55-b9b4-decb4eb232ee"
         />
       )}
-
+ */}
       {/* "Continue" button at the bottom */}
       <div className="flex justify-center mt-8">
         <Button
           variant="default"
           className="bg-primary text-white px-6 py-3 rounded-full"
           onClick={handleNextClick}
-          disabled={
-            !selectedCharacterId ||
-            (characters.find((c) => c.id === selectedCharacterId)?.type ===
-              "custom" &&
-              !selectedStyle)
-          }
+          disabled={showForm || !selectedCharacterId}
         >
           Continue to Story Selection
         </Button>

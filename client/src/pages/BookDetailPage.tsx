@@ -17,26 +17,22 @@ import { Spinner } from "@/components/ui/spinner";
 function transformBookPages(book: any) {
   const middlePages = book.pages.map((p: any, index: number) => ({
     id: index + 2, // start from 2 to leave slot #1 for the cover
-    imageUrl: p.imageUrl || "", // fallback if missing
-    content: p.content || "",
-    prompt: p.prompt ?? p.content ?? "", // fallback to content
-    loraScale: p.loraScale ?? undefined,
-    controlLoraStrength: p.controlLoraStrength ?? undefined,
+    imageUrl: p.scene_url || "", // fallback if missing
+    content: p.scene_text || "",
+    sceneInputs: p.scene_inputs ?? p.content ?? "", 
     isCover: false,
-    isBackCover: false,
   }));
 
   const pages = [];
 
   // Cover page
-  if (book.coverUrl) {
+  if (book.cover.final_cover_url) {
     pages.push({
       id: 1,
-      imageUrl: book.coverUrl,
-      content: book.title, // e.g. display the book title
+      imageUrl: book.cover.final_cover_url,
+      content: book.title,
+      coverInputs: book.cover,// e.g. display the book title
       isCover: true,
-      loraScale: (book as any).coverLoraScale,
-      controlLoraStrength: (book as any).coverControlLoraStrength,
     });
   }
 
@@ -291,7 +287,7 @@ export default function BookDetailPage() {
           )}
 
           <BookPreview
-            bookTitle={book.title}
+            bookTitle={pages.find(p => p.isCover)?.content || book.title}
             pages={pages}
             onDownload={disableDownload ? () => {} : handleDownloadPDF}
             onPrint={handlePrint}

@@ -1,0 +1,15 @@
+[
+  {
+    "testName": "Failing Story with Secondary Character",
+    "input": {
+      "kidName": "Teddy",
+      "pronoun": "he/his",
+      "age": 4,
+      "moral": "Sharing is caring",
+      "kidInterests": ["animals"],
+      "character1": "Tyler",
+      "character1_description": "Teddy's father",
+      "storyThemes": ["Teddy goes with Tyler on an US vacation."]
+    }
+  }
+]

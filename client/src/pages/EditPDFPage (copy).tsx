@@ -9,7 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ShippingForm } from "@/components/preview/ShippingForm";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiRequest } from "@/lib/queryClient";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { useIsMobile } from "@/hooks/use-mobile"; 
 
 // Configuration for the pages:
 const MOBILE_BREAKPOINT = 768;
@@ -28,8 +28,7 @@ function ScalablePreview({ children, onScaleChange }) {
   useEffect(() => {
     function handleResize() {
       if (containerRef.current) {
-        const available =
-          containerRef.current.getBoundingClientRect().width;
+        const available = containerRef.current.getBoundingClientRect().width - 12;;
         const scaleFactor = Math.min(1, available / pageConfig.finalWidth);
         setScale(scaleFactor);
         if (onScaleChange) onScaleChange(scaleFactor);
@@ -40,7 +39,7 @@ function ScalablePreview({ children, onScaleChange }) {
     return () => window.removeEventListener("resize", handleResize);
   }, [onScaleChange]);
   return (
-    <div ref={containerRef} style={{ width: "100%", overflow: "hidden" }}>
+    <div ref={containerRef} style={{ width: "100%", overflow: "auto" }}>
       <div
         style={{
           width: `${pageConfig.finalWidth}px`,
@@ -92,7 +91,7 @@ const ResizableTextBox = ({
 
   return (
     <Rnd
-      bounds="parent"
+      bounds="#spreadContainer"
       enableUserSelectHack={false}
       disableDragging={isEditingMode}
       size={{ width: width * scale, height: height * scale }}
@@ -264,22 +263,21 @@ export default function EditPDFPage() {
 
   const singlePageMode = isMobile && orientation === "portrait";
 
-  const viewerRef = useRef<HTMLDivElement | null>(null);
-  const spreadRef = useRef<HTMLDivElement | null>(null);
+  const viewerRef = useRef<HTMLDivElement | null>(null);    // gray frame
+  const spreadRef  = useRef<HTMLDivElement | null>(null); 
 
-  // FIXED: Remove the problematic minWidth and calculate proper container width
-  const getContainerWidth = () => {
-    if (singlePageMode) {
-      return Math.min(availableWidth - 32, pageConfig.finalWidth); // 32px for padding
-    }
-    return Math.min(availableWidth - 64, pageConfig.idealMinContainerWidth);
-  };
-
-  const effectivePageWidth = singlePageMode
-    ? getContainerWidth()
-    : pageConfig.finalWidth;
-
-  const effectivePageHeight = pageConfig.finalHeight;
+  const effectiveMinContainerWidth =
+    availableWidth < pageConfig.idealMinContainerWidth
+      ? availableWidth
+      : pageConfig.idealMinContainerWidth;
+  const effectivePageWidth =
+    availableWidth < pageConfig.idealMinContainerWidth
+      ? (availableWidth - 50) / 2
+      : pageConfig.finalWidth;
+  const effectivePageHeight =
+    availableWidth < pageConfig.idealMinContainerWidth
+      ? (availableWidth - 50) / 2
+      : pageConfig.finalHeight;
 
   useEffect(() => {
     async function fetchBook() {
@@ -342,14 +340,10 @@ export default function EditPDFPage() {
   useEffect(() => {
     const logWidths = () => {
       const viewport = window.innerWidth;
-      const viewer = viewerRef.current?.getBoundingClientRect().width ?? 0;
-      const spread = spreadRef.current?.getBoundingClientRect().width ?? 0;
-      const scaled = spreadRef.current
-        ? ((
-            spreadRef.current.querySelector(
-              '[style*="transform: scale"]',
-            ) as HTMLElement
-          )?.offsetWidth ?? 0)
+      const viewer   = viewerRef.current?.getBoundingClientRect().width ?? 0;
+      const spread   = spreadRef.current?.getBoundingClientRect().width ?? 0;
+      const scaled   = spreadRef.current
+        ? (spreadRef.current.querySelector('[style*="transform: scale"]') as HTMLElement)?.offsetWidth ?? 0
         : 0;
       console.table({
         viewport,
@@ -360,7 +354,7 @@ export default function EditPDFPage() {
       });
     };
 
-    logWidths();
+    logWidths();                 // first paint
     window.addEventListener("resize", logWidths);
     return () => window.removeEventListener("resize", logWidths);
   }, [currentScale, singlePageMode]);
@@ -467,7 +461,7 @@ export default function EditPDFPage() {
     disabled: !singlePageMode,
     trackMouse: true,
   });
-
+  
   function updatePageLayout(fp, newLayout) {
     const origPageId = Math.floor(fp.id / 1000);
     setBook((prev) => {
@@ -545,11 +539,7 @@ export default function EditPDFPage() {
     }
   }
 
-  function handleUpdateStyle(
-    fontSize: number,
-    color: string,
-    fontFamily: string,
-  ) {
+  function handleUpdateStyle(fontSize: number, color: string, fontFamily: string) {
     if (!book) return;
     const visibleIds = singlePageMode
       ? [flipPages[currentPageIdx].id]
@@ -565,10 +555,9 @@ export default function EditPDFPage() {
           p.id * 1000 + 1,
         ].filter(Boolean);
 
-        const shouldApply =
-          selectedPageIdx !== null
-            ? pageHits.includes(selectedPageIdx)
-            : pageHits.some((id) => visibleIds.includes(id as number));
+        const shouldApply = selectedPageIdx !== null
+          ? pageHits.includes(selectedPageIdx)
+          : pageHits.some((id) => visibleIds.includes(id as number));
 
         if (!shouldApply) return p;
 
@@ -586,6 +575,7 @@ export default function EditPDFPage() {
       return { ...prev, pages: updated };
     });
   }
+
 
   const handlePrint = () => {
     setShowShippingForm(true);
@@ -671,8 +661,6 @@ export default function EditPDFPage() {
     if (currentSpreadIdx > 0) setCurrentSpreadIdx(currentSpreadIdx - 1);
   }
 
-  
-
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -694,53 +682,46 @@ export default function EditPDFPage() {
   }
 
   const pagesToRender = singlePageMode
-    ? [flipPages[currentPageIdx]]
-    : spreads[currentSpreadIdx];
-
-  const spreadPx = pagesToRender.length === 1
-  ? pageConfig.finalWidth
-  : pageConfig.finalWidth * 2 + 32;
+  ? [flipPages[currentPageIdx]]
+  : spreads[currentSpreadIdx];
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
       <Header />
-      <main className="flex-grow mx-auto px-4 py-8 w-full max-w-full overflow-hidden">
+      <main
+        className="flex-grow mx-auto px-4 py-8"
+        style={{ minWidth: effectiveMinContainerWidth }}
+      >
         <h1 className="text-2xl font-bold mb-4 text-center">{book.title}</h1>
 
         {/* Spread Viewer */}
         <div
           ref={viewerRef}
-          className="flex justify-center bg-gray-50 p-4 shadow-lg rounded relative mx-auto overflow-hidden"
-          style={{
-            maxWidth: "100%" ,
-            width: singlePageMode ? "100%" : pagesToRender.length * pageConfig.finalWidth + (pagesToRender.length > 1 ? 32 : 0),
-          }}
+          className="flex justify-center bg-gray-50 p-4 shadow-lg rounded relative"
           {...swipeHandlers}
         >
           <div
             id="spreadContainer"
-            ref={spreadRef}
-            className="relative flex justify-center"
+            ref={spreadRef}   
+            className="relative"
             style={{
-              width: singlePageMode
-                ? "100%"
+              width:
+                singlePageMode
+                ? "100%"                                   
                 : pagesToRender.length * pageConfig.finalWidth +
                   (pagesToRender.length > 1 ? 32 : 0),
-              height: singlePageMode ? "auto" : pageConfig.finalHeight,
-              maxWidth: "100%",
-              overflow: "hidden", // Add this
-                position: "relative" 
+              height: pageConfig.finalHeight,
+              
             }}
           >
-            <div className="flex gap-0.5 justify-center w-full">
+            <div className="flex gap-0.5">
               {pagesToRender.map((fp) => (
                 <div
                   key={fp.id}
-                  className="relative bg-white overflow-hidden flex-shrink-0"
+                  className="relative bg-white overflow-hidden"
                   style={{
                     width: singlePageMode ? "100%" : pageConfig.finalWidth,
-                    height: singlePageMode ? pageConfig.finalHeight/2 : pageConfig.finalHeight,
-                    maxWidth: singlePageMode ? "100%" : pageConfig.finalWidth,
+                    height: pageConfig.finalHeight,
                   }}
                   onClick={(e) => {
                     if (isEditing) return;
@@ -787,7 +768,7 @@ export default function EditPDFPage() {
             disabled={
               singlePageMode ? currentPageIdx === 0 : currentSpreadIdx === 0
             }
-            className="absolute left-2 top-1/2 -translate-y-1/2 bg-white p-2 rounded-full shadow disabled:opacity-40 z-10"
+            className="absolute left-2 top-1/2 -translate-y-1/2 bg-white p-2 rounded-full shadow disabled:opacity-40"
           >
             ◀
           </button>
@@ -798,7 +779,7 @@ export default function EditPDFPage() {
                 ? currentPageIdx === flipPages.length - 1
                 : currentSpreadIdx === spreads.length - 1
             }
-            className="absolute right-2 top-1/2 -translate-y-1/2 bg-white p-2 rounded-full shadow disabled:opacity-40 z-10"
+            className="absolute right-2 top-1/2 -translate-y-1/2 bg-white p-2 rounded-full shadow disabled:opacity-40"
           >
             ▶
           </button>
@@ -806,72 +787,47 @@ export default function EditPDFPage() {
 
         {/* Controls */}
         {singlePageMode ? (
-          /* FIXED BOTTOM SHEET for mobile */
-      <div
-        className="fixed bottom-0 left-0 right-0 bg-white border-t-2 border-gray-200 shadow-2xl z-50"
-        style={{
-          paddingBottom: "max(env(safe-area-inset-bottom), 20px)",
-          paddingLeft: "16px",
-          paddingRight: "16px",
-          paddingTop: "16px",
-          maxHeight: "200vh",
-          minHeight: "180px",
-          overflow: "visible"
-        }}
-      >
-        <div className="w-full space-y-3">
-          <div className="mx-auto h-1.5 w-12 bg-gray-300 rounded-full mb-3" />
+          /* BOTTOM SHEET for mobile */
+          <div className="fixed bottom-0 inset-x-0 bg-white border-t-2 border-gray-200 shadow-2xl p-5 space-y-5 pb-7 h-56">
+            <div className="mx-auto h-1.5 w-12 bg-gray-300 rounded-full mb-3" />
+            <div className="flex justify-between items-center">
+              <span className="font-medium">Font size</span>
+              <input
+                type="range"
+                min={8}
+                max={72}
+                value={editingFontSize}
+                onChange={(e) => {
+                  const v = +e.target.value;
+                  setEditingFontSize(v);
+                  handleUpdateStyle(v, editingColor, editingFontFamily);
+                }}
+                className="flex-1 mx-4"
+              />
+              <span className="w-10 text-right">{editingFontSize}</span>
+            </div>
 
-          <div className="grid grid-cols-3 gap-2 items-center">
-            <span className="font-medium text-sm">Font size</span>
-            <input
-              type="range"
-              min={8}
-              max={72}
-              value={editingFontSize}
-              onChange={(e) => {
-                const v = +e.target.value;
-                setEditingFontSize(v);
-                handleUpdateStyle(v, editingColor, editingFontFamily);
-              }}
-              className="w-full"
-            />
-            <span className="text-right text-sm font-mono">
-              {editingFontSize}
-            </span>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4 items-center">
-            <div className="flex items-center justify-between">
-              <span className="font-medium text-sm">Color</span>
+            <div className="flex justify-between items-center">
+              <span className="font-medium">Color</span>
               <input
                 type="color"
                 value={editingColor}
                 onChange={(e) => {
                   setEditingColor(e.target.value);
-                  handleUpdateStyle(
-                    editingFontSize,
-                    e.target.value,
-                    editingFontFamily,
-                  );
+                  handleUpdateStyle(editingFontSize, e.target.value, editingFontFamily);
                 }}
-                className="w-8 h-8 rounded border"
               />
             </div>
 
-            <div className="flex items-center justify-between">
-              <span className="font-medium text-sm">Font</span>
+            <div className="flex justify-between items-center">
+              <span className="font-medium">Font</span>
               <select
                 value={editingFontFamily}
                 onChange={(e) => {
                   setEditingFontFamily(e.target.value);
-                  handleUpdateStyle(
-                    editingFontSize,
-                    editingColor,
-                    e.target.value,
-                  );
+                  handleUpdateStyle(editingFontSize, editingColor, e.target.value);
                 }}
-                className="border rounded p-1 text-sm min-w-0 flex-1 ml-2"
+                className="border rounded p-1 w-1/2"
               >
                 <option value="Nunito">Nunito</option>
                 <option value="Baloo 2">Baloo 2</option>
@@ -879,67 +835,69 @@ export default function EditPDFPage() {
               </select>
             </div>
           </div>
-        </div>
-      </div>
         ) : (
           /* ORIGINAL inline controls for desktop */
-      <div
-        className="mt-6 flex items-center justify-center space-x-8 mx-auto"
-        style={{ width: `${spreadPx}px`, maxWidth: "100%" }}
-      >
-        <label className="flex items-center space-x-2">
-          <span className="font-medium">Font size:</span>
-          <input
-            type="number"
-            min={8}
-            max={72}
-            value={editingFontSize}
-            onChange={(e) => {
-              const v = +e.target.value;
-              setEditingFontSize(v);
-              handleUpdateStyle(v, editingColor, editingFontFamily);
-            }}
-            className="w-16 border border-gray-300 rounded p-1"
-          />
-        </label>
-        <label className="flex items-center space-x-3">
-          <span className="font-medium">Color:</span>
-          <input
-            type="color"
-            value={editingColor}
-            onChange={(e) => {
-              setEditingColor(e.target.value);
-              handleUpdateStyle(editingFontSize, e.target.value, editingFontFamily);
-            }}
-          />
-        </label>
-        <label className="flex items-center space-x-3">
-          <span className="font-medium">Font Family:</span>
-          <select
-            value={editingFontFamily}
-            onChange={(e) => {
-              setEditingFontFamily(e.target.value);
-              handleUpdateStyle(editingFontSize, editingColor, e.target.value);
-            }}
-            className="border border-gray-300 rounded p-1"
-          >
-            <option value="Nunito">Nunito</option>
-            <option value="Baloo 2">Baloo 2</option>
-            <option value="Chewy">Chewy</option>
-          </select>
-        </label>
+          <div className="mt-6 flex w-full justify-between items-center">
+            <div className="flex space-x-8 items-center">
+              <label className="flex items-center space-x-2">
+                <span className="font-medium">Font size:</span>
+                <input
+                  type="number"
+                  min={8}
+                  max={72}
+                  value={editingFontSize}
+                  onChange={(e) => {
+                    const v = +e.target.value;
+                    setEditingFontSize(v);
+                    handleUpdateStyle(v, editingColor, editingFontFamily);
+                  }}
+                  className="w-16 border border-gray-300 rounded p-1"
+                />
+              </label>
+              <label className="flex items-center space-x-3">
+                <span className="font-medium">Color:</span>
+                <input
+                  type="color"
+                  value={editingColor}
+                  onChange={(e) => {
+                    setEditingColor(e.target.value);
+                    handleUpdateStyle(editingFontSize, e.target.value, editingFontFamily);
+                  }}
+                />
+              </label>
+              <label className="flex items-center space-x-3">
+                <span className="font-medium">Font Family:</span>
+                <select
+                  value={editingFontFamily}
+                  onChange={(e) => {
+                    setEditingFontFamily(e.target.value);
+                    handleUpdateStyle(editingFontSize, editingColor, e.target.value);
+                  }}
+                  className="border border-gray-300 rounded p-1"
+                >
+                  <option value="Nunito">Nunito</option>
+                  <option value="Baloo 2">Baloo 2</option>
+                  <option value="Chewy">Chewy</option>
+                </select>
+              </label>
+            </div>
 
-        <Button onClick={prev} disabled={currentSpreadIdx === 0}>
-          {"<<"}
-        </Button>
-        <Button onClick={next} disabled={currentSpreadIdx === spreads.length - 1}>
-          {">>"}
-        </Button>
-      </div>
+            <div className="flex space-x-4">
+              <Button onClick={prev} disabled={currentSpreadIdx === 0}>
+                {"<<"}
+              </Button>
+              <Button
+                onClick={next}
+                disabled={currentSpreadIdx === spreads.length - 1}
+              >
+                {">>"}
+              </Button>
+            </div>
+          </div>
         )}
-
+        
         {/* PDF & Print Buttons */}
-        <div className="flex flex-col md:flex-row justify-center items-center space-y-4 md:space-y-0 md:space-x-6 mt-6 md:mt-12">
+        <div className="flex flex-col md:flex-row justify-center items-center space-y-4 md:space-y-0 md:space-x-6 mt-12">
           <Button
             variant="default"
             size="lg"

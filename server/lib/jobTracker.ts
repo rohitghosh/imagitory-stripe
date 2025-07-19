@@ -1,44 +1,31 @@
 import { v4 as uuid } from "uuid";
 
-export type JobPhase =
-  | "uploading"
-  | "training"
-  | "prompting"
-  | "generating"
-  | "saving"
-  | "complete"
-  | "error";
+export const phases = [
+  "uploading",
+  "training",
+  "prompting",
+  "generating",
+  "saving",
+  "complete",
+  "error",
+] as const;
+
+/** Loose type for now, but IntelliSense still helps. */
+export type JobPhase = (typeof phases)[number] | (string & {});
 
 /**
  * We’ve added optional slots for whatever payload
  * each phase might attach: avatar info, skeleton data,
  * full page list, covers, etc.
  */
-export interface JobState {
+
+
+export interface JobState<P = Record<string, unknown>> {
   phase: JobPhase;
-  pct: number; // 0–100
+  pct: number;
   message?: string;
-  modelId?: string;
   error?: string;
-
-  // Avatar route
-  avatarUrl?: string;
-  avatarLora?: number;
-
-  // Skeleton route
-  sceneTexts?: string[];
-  imagePrompts?: string[];
-
-  // Final batch route
-  pages?: Array<{
-    imageUrl: string;
-    prompt: string;
-    content: string;
-    loraScale: number;
-    controlLoraStrength: number;
-  }>;
-  coverUrl?: string;
-  backCoverUrl?: string;
+  payload?: P;       // <— one escape hatch
 }
 
 const m = new Map<string, JobState>();

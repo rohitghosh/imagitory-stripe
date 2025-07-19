@@ -9,10 +9,9 @@ export interface Page {
   content: string;
   prompt: string;
   isCover?: boolean;
-  isBackCover?: boolean;
   regenerating?: boolean;
-  loraScale: number; // 0-1
-  controlLoraStrength: number;
+  sceneInputs?: unknown;
+  coverInputs?: unknown;
 }
 
 interface CharacterData {
@@ -94,66 +93,134 @@ export function useBookEditor({
     setDirty(true);
   };
 
-  type RegenMode =
-    | "cartoon"
-    | "hyper"
-    | "consistent"
-    | "syncAvatar"
-    | "vanilla";
+  type RegenMode = "coverTitle" | "vanilla";
   const DELTA = 0.05;
 
   /** ---------- Image re-generation ---------- */
-  async function regeneratePage(pageId: number, mode?: RegenMode) {
-    if (!avatarFinalized && mode !== "syncAvatar") return;
+  // async function regeneratePage(pageId: number, mode?: RegenMode) {
+  //   if (!avatarFinalized && mode !== "syncAvatar") return;
+  //   const page = pages.find((p) => p.id === pageId);
+  //   if (!page) return;
+
+  //   let lora = page.loraScale ?? avatarLora;
+  //   let ctrl = page.controlLoraStrength ?? 0.5;
+
+  //   console.log("Lora", lora, "controlLoraStrength", ctrl);
+
+  //   if (mode === "cartoon") lora = Math.max(0, lora - DELTA);
+  //   if (mode === "hyper") lora = Math.min(1, lora + DELTA);
+  //   if (mode === "consistent") ctrl = Math.min(1, ctrl + DELTA);
+  //   if (mode === "syncAvatar") lora = avatarLora;
+
+  //   // optimistic UI flag
+  //   setPages((prev) =>
+  //     prev.map((p) => (p.id === pageId ? { ...p, regenerating: true } : p)),
+  //   );
+
+  //   const promptForCover = (isFront: boolean, kidName = "Hero") => {
+  //     const safeTitle = pages[0]?.content ?? title;
+  //     return isFront
+  //       ? `A captivating front-cover illustration for "${safeTitle}" featuring <${kidName}kidName> as the hero. The title text "${safeTitle}" should appear boldly on the cover.`
+  //       : `A minimal, portrait-style back-cover illustration for the story "${safeTitle}".`;
+  //   };
+
+  //   const payload = {
+  //     bookId,
+  //     pageId,
+  //     modelId: characterData?.modelId ?? "defaultModelId",
+  //     kidName: characterData?.name,
+  //     age: characterData?.age,
+  //     gender: characterData?.gender,
+  //     avatarUrl: avatarUrl,
+  //     stylePreference,
+  //     isCover: page.isCover || page.isBackCover,
+  //     prompt: page.isCover
+  //       ? promptForCover(true, characterData?.name)
+  //       : page.isBackCover
+  //         ? promptForCover(false)
+  //         : page.prompt,
+  //     loraScale: lora,
+  //     controlLoraStrength: ctrl,
+  //     randomSeed: mode === "vanilla",
+  //   };
+
+  //   console.log("Regenerating page with payload:", payload);
+
+  //   try {
+  //     const res = await fetch("/api/regenerateImage", {
+  //       method: "POST",
+  //       headers: { "Content-Type": "application/json" },
+  //       body: JSON.stringify(payload),
+  //     });
+  //     if (!res.ok) throw new Error(`API ${res.status}`);
+
+  //     const { newUrl } = await res.json();
+  //     setPages((prev) =>
+  //       prev.map((p) =>
+  //         p.id === pageId
+  //           ? {
+  //               ...p,
+  //               regenerating: false,
+  //               imageUrl: newUrl,
+  //               loraScale: lora,
+  //               controlLoraStrength: ctrl,
+  //             }
+  //           : p,
+  //       ),
+  //     );
+  //     setDirty(true);
+  //   } catch (err) {
+  //     console.error("Regeneration failed:", err);
+  //     setPages((prev) =>
+  //       prev.map((p) => (p.id === pageId ? { ...p, regenerating: false } : p)),
+  //     );
+  //     toast({
+  //       title: "Regeneration error",
+  //       description: `Couldn’t regenerate page ${pageId}.`,
+  //       variant: "destructive",
+  //     });
+  //   }
+  // }
+
+  async function regeneratePage(pageId: number, mode?: RegenMode, titleOverride?: string ) {
     const page = pages.find((p) => p.id === pageId);
     if (!page) return;
 
-    let lora = page.loraScale ?? avatarLora;
-    let ctrl = page.controlLoraStrength ?? 0.5;
-
-    console.log("Lora", lora, "controlLoraStrength", ctrl);
-
-    if (mode === "cartoon") lora = Math.max(0, lora - DELTA);
-    if (mode === "hyper") lora = Math.min(1, lora + DELTA);
-    if (mode === "consistent") ctrl = Math.min(1, ctrl + DELTA);
-    if (mode === "syncAvatar") lora = avatarLora;
-
-    // optimistic UI flag
+    /* optimistic spinner */
     setPages((prev) =>
       prev.map((p) => (p.id === pageId ? { ...p, regenerating: true } : p)),
     );
 
-    const promptForCover = (isFront: boolean, kidName = "Hero") => {
-      const safeTitle = pages[0]?.content ?? title;
-      return isFront
-        ? `A captivating front-cover illustration for "${safeTitle}" featuring <${kidName}kidName> as the hero. The title text "${safeTitle}" should appear boldly on the cover.`
-        : `A minimal, portrait-style back-cover illustration for the story "${safeTitle}".`;
-    };
+    /* choose endpoint + payload */
+    const isCover = page.isCover;
+    let endpoint: string;
+    if (mode === "coverTitle") {
+      endpoint = "/api/regenerateCoverTitle";
+    } else if (page.isCover) {
+      endpoint = "/api/regenerateCover";
+    } else {
+      endpoint = "/api/regenerateImage";
+    }
 
     const payload = {
       bookId,
-      pageId,
-      modelId: characterData?.modelId ?? "defaultModelId",
-      kidName: characterData?.name,
-      age: characterData?.age,
-      gender: characterData?.gender,
-      avatarUrl: avatarUrl,
-      stylePreference,
-      isCover: page.isCover || page.isBackCover,
-      prompt: page.isCover
-        ? promptForCover(true, characterData?.name)
-        : page.isBackCover
-          ? promptForCover(false)
-          : page.prompt,
-      loraScale: lora,
-      controlLoraStrength: ctrl,
-      randomSeed: mode === "vanilla",
+      ...(mode === "coverTitle"
+        ? {
+            baseCoverUrl: page.coverInputs.base_cover_url,
+            title: titleOverride ?? page.content,
+            randomSeed: false,
+          }
+        : page.isCover
+          ? {
+              coverInputs: page.coverInputs.base_cover_inputs,
+              title: title,
+              randomSeed: true,
+            }
+          : { pageId, sceneInputs: page.sceneInputs, randomSeed: true }),
     };
 
-    console.log("Regenerating page with payload:", payload);
-
     try {
-      const res = await fetch("/api/regenerateImage", {
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -161,17 +228,10 @@ export function useBookEditor({
       if (!res.ok) throw new Error(`API ${res.status}`);
 
       const { newUrl } = await res.json();
+
       setPages((prev) =>
         prev.map((p) =>
-          p.id === pageId
-            ? {
-                ...p,
-                regenerating: false,
-                imageUrl: newUrl,
-                loraScale: lora,
-                controlLoraStrength: ctrl,
-              }
-            : p,
+          p.id === pageId ? { ...p, regenerating: false, imageUrl: newUrl } : p,
         ),
       );
       setDirty(true);
@@ -182,7 +242,7 @@ export function useBookEditor({
       );
       toast({
         title: "Regeneration error",
-        description: `Couldn’t regenerate page ${pageId}.`,
+        description: `Couldn't regenerate page ${pageId}.`,
         variant: "destructive",
       });
     }

@@ -1,0 +1,96 @@
+// API Request/Response types
+import {
+  SceneDescription,
+  ScenewocharDescription,
+  FrontCover,
+  FrontCoverWoChar,
+} from "../types";
+
+export interface SceneRegenerationInput {
+  scene_description: SceneDescription | ScenewocharDescription;
+  characterImageMap: Record<string, string>;
+  previousImageUrl?: string | null;
+  seed?: number;
+}
+
+export interface FinalCoverRegenerationInput {
+  base_cover_url: string;
+  story_title: string;
+  seed?: number;
+}
+
+// Update existing CoverRegenerationInput to be more specific
+export interface BaseCoverRegenerationInput {
+  front_cover: FrontCover | FrontCoverWoChar;
+  characterImageMap: Record<string, string>;
+  seed?: number;
+}
+
+export interface ValidationRequest {
+  kidName: string;
+  pronoun: string;
+  age: number;
+  moral: string;
+  kidInterests: string[];
+  storyThemes: string[];
+  character1?: string;
+  character1_description?: string;
+}
+
+export interface ValidationResponse {
+  success: boolean;
+  failures: Array<{
+    check: string;
+    problem: string;
+    solution: string[];
+  }>;
+}
+
+export interface StoryGenerationRequest {
+  kidName: string;
+  pronoun: string;
+  age: number;
+  moral: string;
+  storyRhyming: boolean;
+  kidInterests: string[];
+  storyThemes: string[];
+  characters?: string[];
+  characterDescriptions?: string[];
+  characterImageMap?: Record<string, string>;
+}
+
+export interface SceneOutput {
+  scene_number: number;
+  scene_url: string;
+  scene_text: string;
+  scene_inputs: SceneRegenerationInput; // NEW
+}
+
+export interface StoryGenerationResponse {
+  jobId: string;
+}
+
+export interface StoryPackage {
+  scenes: SceneOutput[];
+  cover: {
+    base_cover_url: string;           // NEW: Original cover without title
+    story_title: string;
+    base_cover_inputs: BaseCoverRegenerationInput;  // RENAMED from cover_inputs
+    final_cover_url: string;          // NEW: Cover with title overlaid
+    final_cover_inputs: FinalCoverRegenerationInput; // NEW
+  };
+}
+
+export interface JobStatus {
+  phase: string;
+  pct: number;
+  message?: string;
+  error?: string;
+  result?: StoryPackage;
+}
+
+export interface JobTracker {
+  newJob(): string;
+  set(jobId: string, status: Partial<JobStatus>): void;
+  get(jobId: string): JobStatus | undefined;
+}

@@ -46,7 +46,7 @@ export function Header() {
           <Link href="/">
             <Button variant="ghost">Home</Button>
           </Link>
-          <Link href="/create">
+          <Link href="/">
             <Button>Create Story</Button>
           </Link>
 
