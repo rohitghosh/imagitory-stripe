@@ -11,6 +11,9 @@ import {
   storywocharResponseSchema,
   SceneOutput,
   StoryPackage,
+  CharacterVariables,
+  FrontCover,
+  FrontCoverWoChar,
 } from "../types";
 import {
   STORY_SYSTEM_PROMPT,
@@ -30,13 +33,10 @@ import {
 } from "./imageGeneration";
 
 const openai = new OpenAI();
-
-/**
- * Generate story scenes from inputs - handles both with and without characters
- */
 export async function generateStoryScenesFromInputs(
   input: StorySceneInput,
   onProgress?: ProgressCallback,
+  onToken?: (chunk: string) => void,
 ): Promise<StoryResponse | StorywocharResponse> {
   // Validate input
   if (!validateCharacterArrays(input.characters, input.characterDescriptions)) {
@@ -93,27 +93,40 @@ Do not write any other text, explanation, or introduction. Your entire output mu
   // Choose the appropriate schema based on whether characters are present
   const schema = hasChars ? storyResponseSchema : storywocharResponseSchema;
 
-  const openaiRes = await openai.responses.parse({
-    model: "gpt-4.1-nano",
+  const stream = await openai.responses.create({
+    model: "o4-mini",
+    stream: true,
     input: [
       { role: "system", content: systemPrompt },
       { role: "user", content: userPrompt },
     ],
-    text: {
-      format: zodTextFormat(schema, "story_response"),
-    },
+    text: { format: zodTextFormat(schema, "story_response") },
+    reasoning: { summary: "detailed" },
   });
 
-  onProgress?.("prompting", 35, "Parsing AI response…");
-  const story = openaiRes.output_parsed;
+  let jsonBuf = "";
 
-  // Validate the story structure
-  console.log("Story structure:", story);
-  if (
-    !story.scenes ||
-    !Array.isArray(story.scenes) ||
-    story.scenes.length !== 9
-  ) {
+  for await (const ev of stream) {
+    if (ev.type === "response.reasoning_summary_text.delta") {
+      onToken?.(ev.delta); // ← push to jobTracker
+    }
+    if (ev.type === "response.output_text.delta") {
+      jsonBuf += ev.delta;
+    }
+  }
+
+  onProgress?.("prompting", 35, "Parsing AI response…");
+  let story: StoryResponse | StorywocharResponse;
+
+  try {
+    story = schema.parse(JSON.parse(jsonBuf));
+  } catch (e) {
+    console.error("Failed to parse story JSON", e);
+    throw new Error("Structured output was invalid JSON or wrong shape");
+  }
+
+  // 3 ▸ sanity-check scene count
+  if (!Array.isArray(story.scenes) || story.scenes.length !== 9) {
     throw new Error("Structured output did not contain exactly 9 scenes");
   }
 
@@ -121,95 +134,200 @@ Do not write any other text, explanation, or introduction. Your entire output mu
   return story;
 }
 
+// export async function generateCompleteStory(
+//   input: StorySceneInput,
+//   characterImageMap: Record<
+//     string,
+//     CharacterVariables
+//   > = DEFAULT_CHARACTER_IMAGES,
+//   bookId: string,
+//   onProgress?: ProgressCallback,
+//   seed: number = 3,
+// ): Promise<StoryPackage> {
+//   // 1) Story outline
+//   onProgress?.("prompting", 0, "Generating story outline…");
+//   const story = await generateStoryScenesFromInputs(
+//     input,
+//     (phase, pct, message) => onProgress?.(phase, pct * 0.4, message),
+//     (chunk) => onProgress?.("reasoning", 0, chunk),
+//   );
+//   onProgress?.("prompting", 40, "Story outline ready");
+
+//   // 2) Parallel scene‐image generation (40% → 90%)
+//   const total = story.scenes.length;
+
+//   // ▶️ generate left/right for each scene with 60% bias to left
+//   const sides: ("left" | "right")[] = Array.from({ length: total }, () =>
+//     Math.random() < 0.6 ? "left" : "right",
+//   );
+//   const share = 50 / total; // each scene gets `share` percent
+//   onProgress?.("generating", 40, "Starting scene images…");
+
+//   const scenePromises = story.scenes.map((scene, index) =>
+//     generateImageForScene(
+//       bookId,
+//       scene as Scene | Scenewochar,
+//       null, // visual overlap disabled
+//       characterImageMap,
+//       (phase, pct, message) => {
+//         const overallPct = 40 + index * share + (pct / 100) * share;
+//         onProgress?.(phase, overallPct, message);
+//       },
+//       seed,
+//     ),
+//   );
+//   const generatedImageUrls = await Promise.all(scenePromises);
+//   onProgress?.("generating", 90, "All scene images generated");
+
+//   // 3) Base cover (92% → 96%)
+//   onProgress?.("generating_cover", 92, "Generating base front cover image…");
+//   const baseCoverImageUrl = await generateImageForFrontCover(
+//     bookId,
+//     story.front_cover as FrontCover | FrontCoverWoChar,
+//     characterImageMap,
+//     (phase, pct, message) => {
+//       onProgress?.("generating_cover", 92 + (pct / 100) * 4, message);
+//     },
+//     seed,
+//   );
+//   onProgress?.("generating_cover", 96, "Base cover generated");
+
+//   // 4) Final cover with title (96% → 100%)
+//   onProgress?.("generating_cover", 96, "Adding title to cover…");
+//   const finalCoverImageUrl = await generateFinalCoverWithTitle(
+//     bookId,
+//     baseCoverImageUrl,
+//     story.story_title,
+//     (phase, pct, message) => {
+//       onProgress?.("generating_cover", 96 + (pct / 100) * 4, message);
+//     },
+//     seed,
+//   );
+//   onProgress?.("complete", 100, "Story generation complete");
+
+//   // 5) Assemble output
+//   const scenes: SceneOutput[] = story.scenes.map((scene, i) => ({
+//     scene_number: i + 1,
+//     scene_url: generatedImageUrls[i],
+//     scene_text: scene.scene_text,
+//     side: sides[i],
+//     scene_inputs: {
+//       scene_description: scene.scene_description,
+//       characterImageMap,
+//       previousImageUrl: i > 0 ? generatedImageUrls[i - 1] : null,
+//       seed,
+//     },
+//   }));
+
+//   return {
+//     scenes,
+//     cover: {
+//       base_cover_url: baseCoverImageUrl,
+//       story_title: story.story_title,
+//       base_cover_inputs: {
+//         front_cover: story.front_cover,
+//         characterImageMap,
+//         seed,
+//       },
+//       final_cover_url: finalCoverImageUrl,
+//       final_cover_inputs: {
+//         base_cover_url: baseCoverImageUrl,
+//         story_title: story.story_title,
+//         seed,
+//       },
+//     },
+//   };
+// }
+
 /**
- * Generate complete story package with images
+ * Creates an entire illustrated story and now also returns
+ * the `responseId` coming from every scene image and the front-cover image.
  */
 export async function generateCompleteStory(
   input: StorySceneInput,
-  characterImageMap: Record<string, string> = DEFAULT_CHARACTER_IMAGES,
+  characterImageMap: Record<
+    string,
+    CharacterVariables
+  > = DEFAULT_CHARACTER_IMAGES,
+  bookId: string,
   onProgress?: ProgressCallback,
-  seed: number = 3, // NEW PARAMETER
+  seed = 3,
 ): Promise<StoryPackage> {
-  // Generate story scenes
+  /* ── 1. Story outline ─────────────────────────────────────────────── */
   onProgress?.("prompting", 0, "Generating story outline…");
-
   const story = await generateStoryScenesFromInputs(
     input,
-    (phase, pct, message) => {
-      onProgress?.(phase, pct * 0.3, message); // Story generation takes 30% of progress
-    },
+    (phase, pct, msg) => onProgress?.(phase, pct * 0.4, msg),
+    (chunk) => onProgress?.("reasoning", 0, chunk),
+  );
+  onProgress?.("prompting", 40, "Story outline ready");
+
+  /* ── 2. Scene images (40 → 90 %) ──────────────────────────────────── */
+  const total = story.scenes.length;
+  const sides: ("left" | "right")[] = Array.from({ length: total }, () =>
+    Math.random() < 0.6 ? "left" : "right",
+  );
+  const share = 50 / total;
+
+  onProgress?.("generating", 40, "Starting scene images…");
+
+  const scenePromises = story.scenes.map((scene, index) =>
+    generateImageForScene(
+      bookId,
+      scene as Scene | Scenewochar,
+      null,
+      characterImageMap,
+      (phase, pct, msg) => {
+        const overall = 40 + index * share + (pct / 100) * share;
+        onProgress?.(phase, overall, msg);
+      },
+      seed,
+    ),
   );
 
-  onProgress?.("prompting", 30, "Story outline ready");
+  const generatedScenes = await Promise.all(scenePromises);
+  onProgress?.("generating", 90, "All scene images generated");
 
-  // Generate images for each scene
-  const generatedImageUrls: string[] = [];
-  let previousImageUrl: string | null = null;
-  const total = story.scenes.length;
+  /* ── 3. Front cover without title (92 → 96 %) ─────────────────────── */
+  onProgress?.("generating_cover", 92, "Generating base front-cover image…");
 
-  for (let i = 0; i < story.scenes.length; i++) {
-    const scene = story.scenes[i];
-    onProgress?.(
-      "generating",
-      30 + (i / total) * 50,
-      `Generating image for scene ${i + 1}/${total}`,
-    );
-
-    const newUrl = await generateImageForScene(
-      scene as Scene | Scenewochar,
-      previousImageUrl,
+  const { firebaseUrl: baseCoverUrl, responseId: baseCoverResponseId } =
+    await generateImageForFrontCover(
+      bookId,
+      story.front_cover as FrontCover | FrontCoverWoChar,
       characterImageMap,
-      (phase, pct, message) => {
-        // Image generation for each scene takes a portion of the 50% allocated
-        const baseProgress = 30 + (i / total) * 50;
-        const sceneProgress = (pct / 100) * (50 / total);
-        onProgress?.(phase, baseProgress + sceneProgress, message);
-      },
-      seed, // PASS SEED PARAMETER
+      (phase, pct, msg) =>
+        onProgress?.("generating_cover", 92 + (pct / 100) * 4, msg),
+      seed,
     );
 
-    generatedImageUrls.push(newUrl);
-    previousImageUrl = newUrl;
-  }
+  onProgress?.("generating_cover", 96, "Base cover generated");
 
-  onProgress?.("generating", 80, "All scene images generated");
+  /* ── 4. Final cover with title (96 → 100 %) ───────────────────────── */
+  onProgress?.("generating_cover", 96, "Adding title to cover…");
 
-  // Generate the front cover image
-  onProgress?.("generating_cover", 85, "Generating base front cover image...");
-
-  // const baseCoverImageUrl = await generateImageForFrontCover(
-  //   story.front_cover,
-  //   characterImageMap,
-  //   (phase, pct, message) => {
-  //     onProgress?.(phase, 85 + (pct / 100) * 10, message); // Base cover takes 10%
-  //   },
-  //   seed,
-  // );
-  const baseCoverImageUrl =
-    "https://fal.media/files/lion/40gW0lutCfGgdJhWLfm4q_1d65e0a733d6486993d346811ed817bf.jpg";
-
-  onProgress?.("generating_cover", 95, "Base cover generated");
-
-  // const finalCoverImageUrl = await generateFinalCoverWithTitle(
-  //   baseCoverImageUrl,
-  //   story.story_title,
-  //   seed,
-  //   (phase, pct, message) => {
-  //     onProgress?.(phase, 95 + (pct / 100) * 5, message); // Final cover takes 5%
-  //   },
-  // );
-  const finalCoverImageUrl = baseCoverImageUrl;
+  const finalCoverUrl = await generateFinalCoverWithTitle(
+    bookId,
+    baseCoverUrl,
+    story.story_title,
+    (phase, pct, msg) =>
+      onProgress?.("generating_cover", 96 + (pct / 100) * 4, msg),
+    seed,
+  );
 
   onProgress?.("complete", 100, "Story generation complete");
 
-  const scenes: SceneOutput[] = story.scenes.map((scene, index) => ({
-    scene_number: index + 1,
-    scene_url: generatedImageUrls[index],
+  /* ── 5. Assemble output ───────────────────────────────────────────── */
+  const scenes: SceneOutput[] = story.scenes.map((scene, i) => ({
+    scene_number: i + 1,
+    scene_url: generatedScenes[i].firebaseUrl,
+    scene_response_id: generatedScenes[i].responseId, // NEW
     scene_text: scene.scene_text,
+    side: sides[i],
     scene_inputs: {
       scene_description: scene.scene_description,
       characterImageMap,
-      previousImageUrl: index > 0 ? generatedImageUrls[index - 1] : null,
+      previousImageUrl: i > 0 ? generatedScenes[i - 1].firebaseUrl : null,
       seed,
     },
   }));
@@ -217,18 +335,17 @@ export async function generateCompleteStory(
   return {
     scenes,
     cover: {
-      base_cover_url: baseCoverImageUrl, // NEW
+      base_cover_url: baseCoverUrl,
+      base_cover_response_id: baseCoverResponseId, // NEW
       story_title: story.story_title,
       base_cover_inputs: {
-        // RENAMED
         front_cover: story.front_cover,
         characterImageMap,
         seed,
       },
-      final_cover_url: finalCoverImageUrl, // NEW
+      final_cover_url: finalCoverUrl,
       final_cover_inputs: {
-        // NEW
-        base_cover_url: baseCoverImageUrl,
+        base_cover_url: baseCoverUrl,
         story_title: story.story_title,
         seed,
       },

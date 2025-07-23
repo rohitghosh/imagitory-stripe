@@ -3,9 +3,11 @@ import React, { useRef, useState } from "react";
 
 interface Props {
   onUpload: (url: string) => void;
+  onStart?: () => void;
+  onProgress?: (pct: number) => void;
 }
 
-export function FileUploadTile({ onUpload }: Props) {
+export function FileUploadTile({ onUpload, onStart, onProgress }: Props) {
   const inp = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(false);
 
@@ -15,22 +17,41 @@ export function FileUploadTile({ onUpload }: Props) {
     if (file.size > 5 * 1024 * 1024) return alert("Max 5 MB");
 
     setLoading(true);
-    try {
-      const fd = new FormData();
-      fd.append("file", file);
-      const res = await fetch("/api/upload", {
-        method: "POST",
-        body: fd,
-      });
-      const { url } = await res.json();
-      onUpload(url);
-    } catch (err) {
-      console.error(err);
-      alert("Upload failed");
-    } finally {
+    onStart?.(); // NEW
+
+    const fd = new FormData();
+    fd.append("file", file);
+
+    const xhr = new XMLHttpRequest(); // NEW: need progress events
+    xhr.open("POST", "/api/upload");
+
+    xhr.upload.onprogress = (ev) => {
+      if (ev.lengthComputable) {
+        const pct = (ev.loaded / ev.total) * 100;
+        onProgress?.(pct); // NEW
+      }
+    };
+
+    xhr.onload = () => {
+      try {
+        const { url } = JSON.parse(xhr.responseText);
+        onUpload(url);
+      } catch {
+        alert("Upload failed");
+      } finally {
+        setLoading(false);
+        onProgress?.(100); // ensure bar hits 100%
+        if (inp.current) inp.current.value = "";
+      }
+    };
+
+    xhr.onerror = () => {
       setLoading(false);
+      alert("Upload failed");
       if (inp.current) inp.current.value = "";
-    }
+    };
+
+    xhr.send(fd);
   };
 
   return (

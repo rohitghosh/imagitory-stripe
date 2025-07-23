@@ -1197,18 +1197,18 @@ export async function generateStoryImagesWithAvatar(
 }
 
 export async function cartoonifyImage(imageUrl: string): Promise<string> {
-  // const result = await fal.subscribe("fal-ai/image-editing/cartoonify", {
-  //   input: { image_url: imageUrl },
-  // });
-  // if (result.data && result.data.images && result.data.images.length > 0) {
-  //   return result.data.images[0].url;
-  // } else {
-  //   throw new Error("No image returned from toonify generation");
-  // }
+  const result = await fal.subscribe("fal-ai/image-editing/cartoonify", {
+    input: { image_url: imageUrl },
+  });
+  if (result.data && result.data.images && result.data.images.length > 0) {
+    return result.data.images[0].url;
+  } else {
+    throw new Error("No image returned from toonify generation");
+  }
 
-  await new Promise((resolve) => setTimeout(resolve, 15000));
+  // await new Promise((resolve) => setTimeout(resolve, 15000));
 
-  return "https://fal.media/files/penguin/o04oxJ3NOF4DRPj2XRmcY_1101dde24df64ec09b350ba30d3b2d1f.jpg";
+  // return "https://fal.media/files/penguin/o04oxJ3NOF4DRPj2XRmcY_1101dde24df64ec09b350ba30d3b2d1f.jpg";
 }
 
 export interface StoryPipelineInput {

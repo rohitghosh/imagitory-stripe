@@ -12,6 +12,8 @@ export interface Page {
   regenerating?: boolean;
   sceneInputs?: unknown;
   coverInputs?: unknown;
+  sceneResponseId?: string;
+  coverResponseId?: string;
 }
 
 interface CharacterData {
@@ -182,7 +184,11 @@ export function useBookEditor({
   //   }
   // }
 
-  async function regeneratePage(pageId: number, mode?: RegenMode, titleOverride?: string ) {
+  async function regeneratePage(
+    pageId: number,
+    mode?: RegenMode,
+    titleOverride?: string,
+  ) {
     const page = pages.find((p) => p.id === pageId);
     if (!page) return;
 
@@ -212,11 +218,15 @@ export function useBookEditor({
           }
         : page.isCover
           ? {
-              coverInputs: page.coverInputs.base_cover_inputs,
               title: title,
-              randomSeed: true,
+              coverResponseId: page.coverResponseId,
+              revisedPrompt,
             }
-          : { pageId, sceneInputs: page.sceneInputs, randomSeed: true }),
+          : {
+              pageId,
+              sceneResponseId: page.sceneResponseId,
+              revisedPrompt
+            }),
     };
 
     try {

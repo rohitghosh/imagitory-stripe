@@ -3,7 +3,13 @@ import React, { useEffect, useState, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import {
+  getStorage,
+  ref,
+  uploadBytes,
+  getDownloadURL,
+  uploadBytesResumable,
+} from "firebase/storage";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiRequest } from "@/lib/queryClient";
@@ -21,9 +27,16 @@ import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Progress } from "@/components/ui/progress";
 
 // allowed interests
-const INTEREST_OPTIONS = ["Reading", "Sports", "Music", "Art", "Science"] as const;
+const INTEREST_OPTIONS = [
+  "Reading",
+  "Sports",
+  "Music",
+  "Art",
+  "Science",
+] as const;
 
 export const formSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -57,6 +70,7 @@ export function CustomCharacterForm({
   const { user } = useAuth();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const uploadToken = useRef(0);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -72,14 +86,24 @@ export function CustomCharacterForm({
   const [step, setStep] = useState<"upload" | "details">("upload");
   const [cartoonPending, setCartoonPending] = useState(false);
   const [cartoonUrl, setCartoonUrl] = useState<string | null>(null);
+  const [progressPct, setProgressPct] = useState(0);
   const [draftChar, setDraftChar] = useState<{
     id: string;
     imageUrls: string[];
   } | null>(
     initialData && initialData.id
       ? { id: initialData.id, imageUrls: initialData.imageUrls || [] }
-      : null
+      : null,
   );
+
+  const removePhoto = () => {
+    uploadToken.current += 1;
+    setUploadedImages([]);
+    setCartoonUrl(null);
+    setCartoonPending(false);
+    setStep("upload");
+    setProgressPct(0);
+  };
 
   // seed previews when editing
   useEffect(() => {
@@ -89,7 +113,7 @@ export function CustomCharacterForm({
           localUrl: url,
           finalUrl: url,
           uploading: false,
-        }))
+        })),
       );
       if (initialData.imageUrls.length > 0) {
         setStep("details");
@@ -120,16 +144,24 @@ export function CustomCharacterForm({
     const base = file.name.replace(/\.[^/.]+$/, "");
     const storageRef = getStorage();
     const fileRef = ref(storageRef, `customCharacters/${base}-${ts}.${ext}`);
-    await uploadBytes(fileRef, file);
-    return getDownloadURL(fileRef);
+    return new Promise((resolve, reject) => {
+      const task = uploadBytesResumable(fileRef, file);
+      task.on(
+        "state_changed",
+        (snap) => {
+          setProgressPct((snap.bytesTransferred / snap.totalBytes) * 100);
+        },
+        (err) => reject(err),
+        async () => resolve(await getDownloadURL(task.snapshot.ref)),
+      );
+    });
   }
 
-  const handleImageUpload = async (
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    const files = e.target.files;
-    if (!files?.length) return;
-    const arr = Array.from(files);
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const thisToken = ++uploadToken.current;
+    const arr = [file];
     const previews = arr.map((file) => ({
       localUrl: URL.createObjectURL(file),
       finalUrl: null as string | null,
@@ -141,6 +173,7 @@ export function CustomCharacterForm({
       // STEP A: upload first file
       const firstFile = arr[0];
       const firstUrl = await uploadFile(firstFile);
+      if (uploadToken.current !== thisToken) return;
       setUploadedImages((prev) => {
         const cp = [...prev];
         cp[prev.length - arr.length] = {
@@ -169,6 +202,7 @@ export function CustomCharacterForm({
         characterId: charId,
         imageUrl: firstUrl,
       });
+      if (uploadToken.current !== thisToken) return;
       setUploadedImages((prev) => {
         const idx = prev.findIndex((i) => i.finalUrl === firstUrl);
         const before = prev.slice(0, idx + 1);
@@ -187,13 +221,18 @@ export function CustomCharacterForm({
       await Promise.all(
         rest.map(async (file, i) => {
           const url = await uploadFile(file);
+          if (uploadToken.current !== thisToken) return;
           setUploadedImages((prev) => {
             const cp = [...prev];
             const slot = prev.length - rest.length + i;
-            cp[slot] = { localUrl: cp[slot].localUrl, finalUrl: url, uploading: false };
+            cp[slot] = {
+              localUrl: cp[slot].localUrl,
+              finalUrl: url,
+              uploading: false,
+            };
             return cp;
           });
-        })
+        }),
       );
     } catch {
       toast({
@@ -254,33 +293,40 @@ export function CustomCharacterForm({
         {/* STEP 1: Upload */}
         {step === "upload" && (
           <>
-            
-              <>
-                <p className="font-semibold mb-2 text-center">
-                  Upload Photos (up to 10)
-                </p>
-                <div className="border-2 border-dashed rounded-lg p-4 sm:p-6 text-center mb-4">
-                  <button
-                    type="button"
-                    className="text-primary cursor-pointer"
-                    onClick={() => fileInputRef.current?.click()}
-                  >
-                    Select Photos
-                  </button>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    className="sr-only"
-                    onChange={handleImageUpload}
-                  />
-                </div>
-              </>
-            
+            <>
+              <p className="font-semibold mb-2 text-center">
+                Upload Photos (up to 10)
+              </p>
+              <ul className="text-xs text-muted-foreground mt-2 space-y-1">
+                <li>✓ Well-lit, front-facing photo</li>
+                <li>✓ Only the child in frame</li>
+                <li>✗ No filters or heavy shadows</li>
+                <li>✗ Avoid blurred / low-res images</li>
+              </ul>
+              <div className="border-2 border-dashed rounded-lg p-4 sm:p-6 text-center mb-4">
+                <button
+                  type="button"
+                  className="text-primary cursor-pointer"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  Select Photo
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="sr-only"
+                  onChange={handleImageUpload}
+                />
+              </div>
+            </>
+
             {isUploading && (
-              <div className="text-center text-gray-500 mb-4">
-                Uploading… <i className="fas fa-spinner fa-spin" />
+              <div className="mb-4">
+                <Progress value={progressPct} />
+                <p className="text-center text-xs text-muted-foreground mt-1">
+                  Uploading… {Math.round(progressPct)}%
+                </p>
               </div>
             )}
           </>
@@ -293,14 +339,21 @@ export function CustomCharacterForm({
               <h4 className="text-lg font-semibold">
                 Here’s how your cartoon avatar will look:
               </h4>
-              <img
-                src={
-                  uploadedImages.find((i) => i.finalUrl && !i.uploading)!
-                    .localUrl
-                }
-                alt="Original"
-                className="h-20 w-20 sm:h-24 sm:w-24 object-cover rounded-md border"
-              />
+              <div className="relative">
+                <img
+                  src={uploadedImages.find((i) => i.finalUrl && !i.uploading)!.localUrl}
+                  alt="Original"
+                  className="h-20 w-20 sm:h-24 sm:w-24 object-cover rounded-md border"
+                />
+                <button
+                  type="button"
+                  onClick={removePhoto}
+                  className="absolute -top-2 -right-2 bg-white rounded-full p-1 shadow"
+                  aria-label="Remove"
+                >
+                  <i className="fas fa-times text-xs text-gray-500" />
+                </button>
+              </div>
               {cartoonPending && !cartoonUrl ? (
                 <div className="h-20 w-20 sm:h-24 sm:w-24 flex items-center justify-center border rounded-md">
                   <i className="fas fa-spinner fa-spin text-gray-500 text-xl" />

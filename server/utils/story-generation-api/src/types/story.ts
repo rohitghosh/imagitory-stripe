@@ -50,6 +50,7 @@ const sceneDescriptionSchema = z.object({
 // Scene description schema for stories WITHOUT characters
 const scenewocharDescriptionSchema = z.object({
   Scene_Number: z.string(),
+  Present_Characters: z.array(z.string()),
   Camera_Shot: z.string(),
   Character_Gaze: z.string(),
   Character_Expression_and_Pose: z.string(),
@@ -108,6 +109,7 @@ export const FrontCoverSchema = z.object({
 
 // Front cover schema for stories WITHOUT characters
 const FrontCoverwocharSchema = z.object({
+  Present_Characters: z.array(z.string()),
   Cover_Concept: z.string(),
   Focal_Point: z.string(),
   Character_Placement_and_Pose: z.string(),
@@ -121,13 +123,13 @@ const FrontCoverwocharSchema = z.object({
 // Scene schema for stories WITH characters
 const sceneSchema = z.object({
   scene_description: sceneDescriptionSchema,
-  scene_text: z.string(),
+  scene_text: z.array(z.string()),
 });
 
 // Scene schema for stories WITHOUT characters
 const scenewocharSchema = z.object({
   scene_description: scenewocharDescriptionSchema,
-  scene_text: z.string(),
+  scene_text: z.array(z.string()),
 });
 
 // Main story response schemas
@@ -205,8 +207,8 @@ export interface StoryValidationInput {
   kidName: string;
   pronoun: string;
   age: number;
-  character1?: string;
-  character1_description?: string;
+  characters?: string[];
+  character_descriptions?: string[];
   moral: string;
   kidInterests: string[];
   storyThemes: string[];
@@ -224,4 +226,3 @@ export type ProgressCallback = (
   pct: number,
   message?: string,
 ) => void;
-

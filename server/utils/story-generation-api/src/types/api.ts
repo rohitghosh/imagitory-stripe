@@ -8,7 +8,7 @@ import {
 
 export interface SceneRegenerationInput {
   scene_description: SceneDescription | ScenewocharDescription;
-  characterImageMap: Record<string, string>;
+  characterImageMap: Record<string, CharacterVariables>;
   previousImageUrl?: string | null;
   seed?: number;
 }
@@ -22,7 +22,7 @@ export interface FinalCoverRegenerationInput {
 // Update existing CoverRegenerationInput to be more specific
 export interface BaseCoverRegenerationInput {
   front_cover: FrontCover | FrontCoverWoChar;
-  characterImageMap: Record<string, string>;
+  characterImageMap: Record<string, CharacterVariables>;
   seed?: number;
 }
 
@@ -33,8 +33,8 @@ export interface ValidationRequest {
   moral: string;
   kidInterests: string[];
   storyThemes: string[];
-  character1?: string;
-  character1_description?: string;
+  characters?: string[];
+  character_descriptions?: string[];
 }
 
 export interface ValidationResponse {
@@ -44,6 +44,12 @@ export interface ValidationResponse {
     problem: string;
     solution: string[];
   }>;
+}
+
+export interface CharacterVariables {
+  image_url: string;
+  description: string;
+  // add other properties as needed
 }
 
 export interface StoryGenerationRequest {
@@ -56,13 +62,14 @@ export interface StoryGenerationRequest {
   storyThemes: string[];
   characters?: string[];
   characterDescriptions?: string[];
-  characterImageMap?: Record<string, string>;
+  characterImageMap?: Record<string, CharacterVariables>;
 }
 
 export interface SceneOutput {
   scene_number: number;
   scene_url: string;
-  scene_text: string;
+  scene_response_id: string;
+  scene_text: string[];
   scene_inputs: SceneRegenerationInput; // NEW
 }
 
@@ -73,10 +80,11 @@ export interface StoryGenerationResponse {
 export interface StoryPackage {
   scenes: SceneOutput[];
   cover: {
-    base_cover_url: string;           // NEW: Original cover without title
+    base_cover_url: string; // NEW: Original cover without title
     story_title: string;
-    base_cover_inputs: BaseCoverRegenerationInput;  // RENAMED from cover_inputs
-    final_cover_url: string;          // NEW: Cover with title overlaid
+    base_cover_response_id: string;
+    base_cover_inputs: BaseCoverRegenerationInput; // RENAMED from cover_inputs
+    final_cover_url: string; // NEW: Cover with title overlaid
     final_cover_inputs: FinalCoverRegenerationInput; // NEW
   };
 }

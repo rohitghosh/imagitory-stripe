@@ -18,9 +18,12 @@ function transformBookPages(book: any) {
   const middlePages = book.pages.map((p: any, index: number) => ({
     id: index + 2, // start from 2 to leave slot #1 for the cover
     imageUrl: p.scene_url || "", // fallback if missing
-    content: p.scene_text || "",
-    sceneInputs: p.scene_inputs ?? p.content ?? "", 
+    content: Array.isArray(p.scene_text)
+      ? p.scene_text.join("\n")
+      : (p.scene_text ?? ""),
+    sceneInputs: p.scene_inputs ?? p.content ?? "",
     isCover: false,
+    sceneResponseId: p.scene_response_id,
   }));
 
   const pages = [];
@@ -31,8 +34,9 @@ function transformBookPages(book: any) {
       id: 1,
       imageUrl: book.cover.final_cover_url,
       content: book.title,
-      coverInputs: book.cover,// e.g. display the book title
+      coverInputs: book.cover, // e.g. display the book title
       isCover: true,
+      coverResponseId: book.cover.base_cover_response_id,
     });
   }
 
@@ -287,7 +291,7 @@ export default function BookDetailPage() {
           )}
 
           <BookPreview
-            bookTitle={pages.find(p => p.isCover)?.content || book.title}
+            bookTitle={pages.find((p) => p.isCover)?.content || book.title}
             pages={pages}
             onDownload={disableDownload ? () => {} : handleDownloadPDF}
             onPrint={handlePrint}

@@ -1,15 +1,86 @@
 import { fal } from "@fal-ai/client";
+import fs from "fs";
+import OpenAI from "openai";
+import tmp from "tmp-promise";
+import fetch from "node-fetch";
+import { uploadBase64ToFirebase } from "../../../uploadImage";
+import { toFile } from "openai";
+import { storage } from "@/storage"; // already exported in storage.ts
+
 import {
   Scene,
   Scenewochar,
-  SceneDescription,
+  SceneDescriptreion,
   ScenewocharDescription,
   FrontCover,
   FrontCoverWoChar,
   ProgressCallback,
+  CharacterVariables,
+  SceneRegenerationInput,
+  FinalCoverRegenerationInput,
+  BaseCoverRegenerationInput,
 } from "../types";
-import { SceneRegenerationInput, BaseCoverRegenerationInput } from "../types";
 import { DEFAULT_CHARACTER_IMAGES } from "../utils/constants";
+
+const quality = "low";
+const input_fidelity = "low";
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY!,
+});
+
+async function urlToReadableStream(url: string) {
+  const res = await fetch(url);
+  const { path } = await tmp.file({ postfix: ".png" });
+  const buf = Buffer.from(await res.arrayBuffer());
+  await fs.promises.writeFile(path, buf);
+  return fs.createReadStream(path);
+}
+
+/**
+ * Removes *adjacent* duplicate words (e.g. "looking looking" → "looking"),
+ * but will *not* collapse across punctuation (e.g. "looking. looking" stays).
+ */
+function removeDuplicateAdjacentWords(text: string): string {
+  const regex = /\b(\w+)\s+\1\b/gi;
+  let result = text;
+  // repeat until no more adjacent duplicates
+  while (regex.test(result)) {
+    result = result.replace(regex, "$1");
+  }
+  return result;
+}
+
+/**
+ * Replaces every occurrence of the real character names with short aliases,
+ * saves the mapping in Firestore under
+ * `books/{bookId}/characterAliases`, and returns the substituted prompt.
+ * @returns the prompt with character names replaced by their aliases
+ */
+export async function replaceCharacterNames(
+  prompt: string,
+  presentChars: string[],
+  aliasPool: string[],
+  bookId: string,
+): Promise<string> {
+  /* 1️⃣  Build the replacement map */
+  const aliasMap: Record<string, string> = Object.fromEntries(
+    presentChars.map((name, i) => [name, aliasPool[i % aliasPool.length]]),
+  );
+
+  /* 2️⃣  Persist to Firestore (books/{bookId}/characterAliases) */
+  await storage.updateBook(bookId, { characterAliases: aliasMap });
+
+  /* 3️⃣  Perform the substitutions */
+  const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  let out = prompt;
+
+  for (const [real, alias] of Object.entries(aliasMap)) {
+    const rx = new RegExp(`\\b${esc(real)}\\b`, "gi");
+    out = out.replace(rx, alias);
+  }
+
+  return out;
+}
 
 /**
  * Generate image prompt for scenes WITH characters
@@ -213,258 +284,592 @@ function generateFrontCoverPromptWoChar(input: FrontCoverWoChar): string {
 /**
  * Generate image for a scene (supports both with and without characters)
  */
+// export async function generateImageForScene(
+//   bookId: string,
+//   scene: Scene | Scenewochar,
+//   previousImageUrl: string | null,
+//   characterImageMap: Record<
+//     string,
+//     CharacterVariables
+//   > = DEFAULT_CHARACTER_IMAGES,
+//   onProgress?: ProgressCallback,
+//   seed: number = 3, // NEW PARAMETER
+// ): Promise<string> {
+//   onProgress?.(
+//     "generating",
+//     0,
+//     `Preparing scene ${scene.scene_description.Scene_Number}`,
+//   );
+
+//   // Determine if this is a scene with characters or without
+//   const hasCharacters = "Character_Details" in scene.scene_description;
+
+//   let Present_Characters: string[] = [];
+//   let Visual_Overlap_With_Previous: boolean = false;
+//   let basePrompt: string;
+
+//   if (hasCharacters) {
+//     const sceneWithChar = scene as Scene;
+//     Present_Characters = sceneWithChar.scene_description.Present_Characters;
+//     Visual_Overlap_With_Previous =
+//       sceneWithChar.scene_description.Visual_Overlap_With_Previous;
+//     basePrompt = generateImagePrompt(sceneWithChar.scene_description);
+//   } else {
+//     const sceneWoChar = scene as Scenewochar;
+//     Present_Characters = sceneWoChar.scene_description.Present_Characters;
+//     Visual_Overlap_With_Previous =
+//       sceneWoChar.scene_description.Visual_Overlap_With_Previous;
+//     basePrompt = generateImagePromptWoChar(sceneWoChar.scene_description);
+//   }
+
+//   basePrompt = removeDuplicateAdjacentWords(basePrompt);
+
+//   const imageUrls: string[] = [];
+//   const characterDataForPrompt: Array<{ name: string; description: string }> =
+//     [];
+
+//   Present_Characters.forEach((name) => {
+//     const characterData = characterImageMap[name];
+//     if (characterData && characterData.image_url) {
+//       imageUrls.push(characterData.image_url);
+//       characterDataForPrompt.push({
+//         name: name,
+//         description: characterData.description,
+//       });
+//     }
+//   });
+
+//   let attachmentText = "";
+//   if (characterDataForPrompt.length > 0) {
+//     attachmentText = characterDataForPrompt
+//       .map((char, idx) => {
+//         const ordinal =
+//           idx === 0
+//             ? "1st"
+//             : idx === 1
+//               ? "2nd"
+//               : idx === 2
+//                 ? "3rd"
+//                 : `${idx + 1}th`;
+//         return `${char.name}(${char.description} as shown in ${ordinal} image)`;
+//       })
+//       .join(" and ");
+//   }
+
+//   // Check if the previous image should be used for continuity
+//   const usePreviousImage = Visual_Overlap_With_Previous && previousImageUrl;
+
+//   if (usePreviousImage) {
+//     imageUrls.push(previousImageUrl!);
+//     const prevSceneImageIndex = imageUrls.length;
+//     const suffix = prevSceneImageIndex === 3 ? "rd" : "th";
+//     attachmentText += ` and the image from the previous scene (${prevSceneImageIndex}${suffix} image)`;
+//   }
+
+//   const onQueueUpdate = (update: any) => {
+//     if (update.status === "IN_PROGRESS") {
+//       update.logs.map((log: any) => log.message).forEach(console.log);
+//     }
+//   };
+
+//   let response = null;
+
+//   if (imageUrls.length > 0) {
+//     // Case 1: Images are present. Use the 'multi' endpoint.
+//     let prompt = `Attached are the images of ${attachmentText}. DO NOT WRITE ANY OF THE CHARACTER NAMES ANYWHERE ON THE IMAGE. Make the image pixar-Style animation. Create a scene as described below:\n${basePrompt}`;
+
+//     if (usePreviousImage) {
+//       prompt += `\n\n**Visual Consistency Note:** The last image attached is from the previous scene. Use it as a reference to maintain visual consistency in the setting, props, and overall environment. The character poses and actions should still follow the new scene description.`;
+//     }
+//     console.log("Final Prompt:", prompt);
+//     console.log("Image URLs sent to AI:", imageUrls);
+
+//     const replacementNames = ["Reet", "Jeet", "Meet", "Heet"];
+//     prompt = replaceCharacterNames(
+//       prompt,
+//       Present_Characters,
+//       replacementNames,
+//     );
+
+//     // const attachments = await Promise.all(imageUrls.map(urlToReadableStream));
+//     const attachments = await Promise.all(
+//       imageUrls.map(async (url) => {
+//         // fetch the remote image into a Buffer
+//         const res = await fetch(url);
+//         const arrayBuffer = await res.arrayBuffer();
+//         const buffer = Buffer.from(arrayBuffer);
+//         // wrap it as a PNG file for OpenAI
+//         return toFile(buffer, "image.png", { type: "image/png" });
+//       }),
+//     );
+//     const openAiBase = {
+//       model: "gpt-image-1",
+//       n: 1,
+//       input_fidelity,
+//       quality,
+//       background: "auto",
+//       output_format: "png" as const,
+//       size: "1024x1024",
+//     };
+
+//     response = await openai.images.edit({
+//       ...openAiBase,
+//       prompt,
+//       image: attachments,
+//     });
+//   } else {
+//     // Case 2: No images. Use the 'text-to-image' endpoint.
+//     console.log("Calling text-to-image endpoint");
+//     console.log("Final Prompt:", basePrompt);
+//     const openAiBasenochar = {
+//       model: "gpt-image-1",
+//       n: 1,
+//       quality,
+//       background: "auto",
+//       output_format: "png" as const,
+//       size: "1024x1024",
+//     };
+
+//     onProgress?.("generating", 20, "Calling image API…");
+//     response = await openai.images.generate({
+//       ...openAiBasenochar,
+//       prompt: basePrompt,
+//     });
+//   }
+
+//   const base64 = response.data[0].b64_json!;
+//   const firebaseUrl = await uploadBase64ToFirebase(
+//     base64,
+//     `books/${bookId}/scene_${scene.scene_description.Scene_Number}.png`,
+//   );
+
+//   onProgress?.(
+//     "generating",
+//     100,
+//     `Scene ${scene.scene_description.Scene_Number} ready`,
+//   );
+//   // return imageUrl;
+//   console.log(`FirebaseUrl generated for scene: ${firebaseUrl}`);
+//   return firebaseUrl;
+// }
+
+/* ---------- helper: builds the flattened tool object ---------- */
+function buildImageGenTool(
+  opts: {
+    hasInputImage: boolean;
+  } = { hasInputImage: false },
+) {
+  const tool: Record<string, any> = {
+    type: "image_generation",
+    /* mandatory knobs */
+    model: "gpt-image-1",
+    size: "1024x1024",
+    quality: quality,
+    output_format: "png",
+  };
+
+  if (opts.hasInputImage) {
+    tool.input_fidelity = input_fidelity; // only when reference images exist
+  }
+
+  return tool;
+}
+
+/**
+ * Generates (or edits) a scene illustration by calling the OpenAI *Responses* API.
+ * – Uses every parameter that the old implementation had.
+ * – Works with / without reference images.
+ * – Returns { responseId, firebaseUrl } so the caller can chain the next turn.
+ */
+/**
+ * Generates (or edits) a scene illustration.
+ * Returns { firebaseUrl, responseId }.
+ */
 export async function generateImageForScene(
+  bookId: string,
   scene: Scene | Scenewochar,
   previousImageUrl: string | null,
-  characterImageMap: Record<string, string> = DEFAULT_CHARACTER_IMAGES,
+  characterImageMap: Record<
+    string,
+    CharacterVariables
+  > = DEFAULT_CHARACTER_IMAGES,
   onProgress?: ProgressCallback,
-  seed: number = 3, // NEW PARAMETER
-): Promise<string> {
+  seed = 3,
+): Promise<{ firebaseUrl: string; responseId: string }> {
   onProgress?.(
     "generating",
     0,
     `Preparing scene ${scene.scene_description.Scene_Number}`,
   );
 
-  // Determine if this is a scene with characters or without
-  const hasCharacters = "Present_Characters" in scene.scene_description;
+  /* ---------- Gather scene facts ---------- */
+  const hasChars = "Character_Details" in scene.scene_description;
+  const { Present_Characters, Visual_Overlap_With_Previous } =
+    scene.scene_description as any;
 
-  let Present_Characters: string[] = [];
-  let Visual_Overlap_With_Previous: boolean = false;
-  let basePrompt: string;
+  const basePrompt = hasChars
+    ? generateImagePrompt(scene.scene_description as any)
+    : generateImagePromptWoChar(scene.scene_description as any);
 
-  if (hasCharacters) {
-    const sceneWithChar = scene as Scene;
-    Present_Characters = sceneWithChar.scene_description.Present_Characters;
-    Visual_Overlap_With_Previous =
-      sceneWithChar.scene_description.Visual_Overlap_With_Previous;
-    basePrompt = generateImagePrompt(sceneWithChar.scene_description);
-  } else {
-    const sceneWoChar = scene as Scenewochar;
-    Visual_Overlap_With_Previous =
-      sceneWoChar.scene_description.Visual_Overlap_With_Previous;
-    basePrompt = generateImagePromptWoChar(sceneWoChar.scene_description);
-  }
-
-  // Collect available character reference images
+  /* ---------- Collect reference image URLs ---------- */
   const imageUrls: string[] = [];
-  const characterNamesForPrompt: string[] = [];
+  const refSnippets: string[] = [];
 
-  Present_Characters.forEach((name) => {
-    const url = characterImageMap[name];
-    if (url) {
-      imageUrls.push(url);
-      characterNamesForPrompt.push(name);
+  Present_Characters.forEach((name: string, idx: number) => {
+    const char = characterImageMap[name];
+    if (char?.image_url) {
+      imageUrls.push(char.image_url);
+      const ord = ["1st", "2nd", "3rd"][idx] || `${idx + 1}th`;
+      refSnippets.push(`${name} (${char.description} in the ${ord} image)`);
     }
   });
 
-  // Build the text description for character images
-  let attachmentText = characterNamesForPrompt
-    .map(
-      (name, idx) =>
-        `${name}(${idx + 1}${idx === 0 ? "st" : idx === 1 ? "nd" : "th"} image)`,
-    )
-    .join(" and ");
-
-  // Check if the previous image should be used for continuity
-  const usePreviousImage = Visual_Overlap_With_Previous && previousImageUrl;
-
-  if (usePreviousImage) {
-    imageUrls.push(previousImageUrl!);
-    const prevSceneImageIndex = imageUrls.length;
-    const suffix = prevSceneImageIndex === 3 ? "rd" : "th";
-    attachmentText += ` and the image from the previous scene (${prevSceneImageIndex}${suffix} image)`;
+  if (Visual_Overlap_With_Previous && previousImageUrl) {
+    imageUrls.push(previousImageUrl);
+    const idx = imageUrls.length;
+    const suffix = idx === 3 ? "rd" : "th";
+    refSnippets.push(`previous-scene reference (${idx}${suffix} image)`);
   }
 
-  const commonInputParams = {
-    guidance_scale: 5,
-    num_images: 1,
-    output_format: "jpeg",
-    seed: seed, // CHANGED: use parameter instead of hardcoded 3
-    aspect_ratio: "21:9",
-    safety_tolerance: 6,
-  };
+  /* ---------- Build the final natural-language prompt ---------- */
+  const intro =
+    imageUrls.length > 0
+      ? `Attached image${imageUrls.length > 1 ? "s" : ""} show ${refSnippets.join(" and ")}.\n`
+      : "";
 
-  const onQueueUpdate = (update: any) => {
-    if (update.status === "IN_PROGRESS") {
-      update.logs.map((log: any) => log.message).forEach(console.log);
-    }
-  };
+  let prompt =
+    intro +
+    "Create a Pixar-style illustration of the scene described below. " +
+    "Do NOT write any character names anywhere in the artwork.\n\n" +
+    removeDuplicateAdjacentWords(basePrompt);
 
-  let falRes;
-
-  if (imageUrls.length > 0) {
-    // Case 1: Images are present. Use the 'multi' endpoint.
-    let prompt = `Attached are the images of ${attachmentText} - create a scene as described below:\n${basePrompt}`;
-
-    if (usePreviousImage) {
-      prompt += `\n\n**Visual Consistency Note:** The last image attached is from the previous scene. Use it as a reference to maintain visual consistency in the setting, props, and overall environment. The character poses and actions should still follow the new scene description.`;
-    }
-
-    console.log(
-      "Calling multi-modal endpoint: fal-ai/flux-pro/kontext/max/multi",
-    );
-    console.log("Final Prompt:", prompt);
-    console.log("Image URLs sent to AI:", imageUrls);
-
-    // falRes = await fal.subscribe("fal-ai/flux-pro/kontext/max/multi", {
-    //   input: {
-    //     ...commonInputParams,
-    //     prompt: prompt,
-    //     image_urls: imageUrls,
-    //   },
-    //   logs: true,
-    //   onQueueUpdate,
-    // });
-  } else {
-    // Case 2: No images. Use the 'text-to-image' endpoint.
-    console.log(
-      "Calling text-to-image endpoint: fal-ai/flux-pro/kontext/max/text-to-image",
-    );
-    console.log("Final Prompt:", basePrompt);
-
-    onProgress?.("generating", 20, "Calling image API…");
-
-    // falRes = await fal.subscribe("fal-ai/flux-pro/kontext/max/text-to-image", {
-    //   input: {
-    //     ...commonInputParams,
-    //     prompt: basePrompt,
-    //   },
-    //   logs: true,
-    //   onQueueUpdate,
-    // });
+  if (Visual_Overlap_With_Previous && previousImageUrl) {
+    prompt +=
+      "\n\nVisual consistency: the last attached image is the previous scene—match setting, props and palette.";
   }
 
-  onProgress?.("generating", 80, "Processing Fal response…");
-  // const imageUrl = falRes?.data?.images?.[0]?.url || falRes?.images?.[0]?.url;
-  const imageUrl =
-    "https://fal.media/files/lion/40gW0lutCfGgdJhWLfm4q_1d65e0a733d6486993d346811ed817bf.jpg";
+  const aliasPool = ["Reet", "Jeet", "Meet", "Heet"];
+  prompt = await replaceCharacterNames(
+    prompt,
+    Present_Characters,
+    aliasPool,
+    bookId,
+  );
 
-  if (!imageUrl) {
-    throw new Error("No image URL returned from Fal AI");
-  }
+  console.log("Prompt sent to model:\n", prompt);
+  console.log("Reference images:", imageUrls);
+
+  /* ---------- Build Responses-API input array ---------- */
+  // const inputs = [
+  //   { type: "input_text", text: prompt },
+  //   ...imageUrls.map((url) => ({ type: "input_image", image_url: { url } })),
+  // ];
+
+  const inputs = [
+    {
+      role: "user",
+      content: [
+        { type: "input_text", text: prompt },
+        ...imageUrls.map((url) => ({
+          type: "input_image",
+          image_url: url,
+        })),
+      ],
+    },
+  ];
+
+  const tool = buildImageGenTool({ hasInputImage: imageUrls.length > 0 });
+
+  /* ---------- Call OpenAI Responses API ---------- */
+  onProgress?.("generating", 25, "Contacting OpenAI…");
+
+  const resp = await openai.responses.create({
+    model: "gpt-4o-mini",
+    input: inputs,
+    tools: [tool], // ← single, well-formed tool object
+  });
+
+  const responseId = resp.id;
+  const imageBase64 = resp.output.find(
+    (o) => o.type === "image_generation_call",
+  )?.result;
+
+  /* ---------- Persist to Firebase ---------- */
+  const firebaseUrl = await uploadBase64ToFirebase(
+    imageBase64,
+    `books/${bookId}/scene_${scene.scene_description.Scene_Number}.png`,
+  );
 
   onProgress?.(
     "generating",
     100,
     `Scene ${scene.scene_description.Scene_Number} ready`,
   );
-  return imageUrl;
+  return { firebaseUrl, responseId };
 }
 
 /**
- * Generate image for front cover (supports both with and without characters)
+ * Generates (or edits) a book **front-cover** illustration via the OpenAI
+ * Responses API and returns both the image URL (Firebase) and the response-ID
+ * for future chained edits.
+ *
+ * Relies on `buildImageGenTool()` that already exists in the same file.
  */
 export async function generateImageForFrontCover(
+  bookId: string,
   frontCover: FrontCover | FrontCoverWoChar,
-  characterImageMap: Record<string, string> = DEFAULT_CHARACTER_IMAGES,
+  characterImageMap: Record<
+    string,
+    CharacterVariables
+  > = DEFAULT_CHARACTER_IMAGES,
   onProgress?: ProgressCallback,
-  seed: number = 3, // NEW PARAMETER
-): Promise<string> {
-  onProgress?.("generating_cover", 0, "Preparing front cover image...");
+  seed = 3,
+): Promise<{ firebaseUrl: string; responseId: string }> {
+  onProgress?.("generating_cover", 0, "Preparing front-cover image…");
 
-  // Determine if this is a cover with characters or without
-  const hasCharacters = "Present_Characters" in frontCover;
+  /* ────────────── 1. Derive prompt & character context ────────────── */
+  const hasCharacters = "Character_Details" in frontCover;
+  const { Present_Characters } = frontCover as FrontCover | FrontCoverWoChar;
 
-  let basePrompt: string;
-  let Present_Characters: string[] = [];
+  const basePrompt = hasCharacters
+    ? generateFrontCoverPrompt(frontCover as FrontCover)
+    : generateFrontCoverPromptWoChar(frontCover as FrontCoverWoChar);
 
-  if (hasCharacters) {
-    const coverWithChar = frontCover as FrontCover;
-    Present_Characters = coverWithChar.Present_Characters;
-    basePrompt = generateFrontCoverPrompt(coverWithChar);
-  } else {
-    const coverWoChar = frontCover as FrontCoverWoChar;
-    basePrompt = generateFrontCoverPromptWoChar(coverWoChar);
-  }
-
+  /* ────────────── 2. Collect reference-image URLs ─────────────────── */
   const imageUrls: string[] = [];
-  const characterNamesForPrompt: string[] = [];
+  const refSnippets: string[] = [];
 
-  // Collect character reference images if any
-  Present_Characters.forEach((name) => {
-    const url = characterImageMap[name];
-    if (url) {
-      imageUrls.push(url);
-      characterNamesForPrompt.push(name);
+  Present_Characters.forEach((name, idx) => {
+    const char = characterImageMap[name];
+    if (char?.image_url) {
+      imageUrls.push(char.image_url);
+      const ord = ["1st", "2nd", "3rd"][idx] || `${idx + 1}th`;
+      refSnippets.push(`${name} (${char.description} in the ${ord} image)`);
     }
   });
 
-  // Set up API parameters with a 1:1 aspect ratio for the cover
-  const commonInputParams = {
-    guidance_scale: 5,
-    num_images: 1,
-    output_format: "jpeg",
-    seed: seed, // CHANGED: use parameter instead of hardcoded 3
-    aspect_ratio: "1:1",
-    safety_tolerance: 6,
-  };
+  /* ────────────── 3. Build the natural-language prompt ────────────── */
+  const intro =
+    imageUrls.length > 0
+      ? `Attached image${imageUrls.length > 1 ? "s" : ""} show ${refSnippets.join(" and ")}.\n`
+      : "";
 
-  const onQueueUpdate = (update: any) => {
-    if (update.status === "IN_PROGRESS") {
-      update.logs.map((log: any) => log.message).forEach(console.log);
-    }
-  };
+  let prompt =
+    intro +
+    "Create a vibrant Pixar-style front cover illustration as described below. " +
+    "Do NOT write any title or character names on the artwork.\n\n" +
+    removeDuplicateAdjacentWords(basePrompt);
 
-  onProgress?.("generating_cover", 20, "Calling image API for cover...");
+  const aliasPool = ["Reet", "Jeet", "Meet", "Heet"];
+  prompt = await replaceCharacterNames(
+    prompt,
+    Present_Characters,
+    aliasPool,
+    bookId,
+  );
 
-  let falRes;
+  console.log("Front-cover prompt:\n", prompt);
+  console.log("Reference images:", imageUrls);
 
-  if (imageUrls.length > 0) {
-    // Create the attachment text for the prompt
-    const attachmentText = characterNamesForPrompt
-      .map(
-        (name, idx) =>
-          `${name}(${idx + 1}${idx === 0 ? "st" : idx === 1 ? "nd" : "rd"} image)`,
-      )
-      .join(" and ");
+  /* ────────────── 4. Assemble the Responses-API payload ───────────── */
+  const inputs = [
+    {
+      role: "user",
+      content: [
+        { type: "input_text", text: prompt },
+        ...imageUrls.map((url) => ({ type: "input_image", image_url: url })),
+      ],
+    },
+  ];
 
-    const prompt = `Attached are the images of ${attachmentText}. Create a vibrant, beautiful book front cover as described below:\n${basePrompt}`;
+  const tool = buildImageGenTool({
+    hasInputImage: imageUrls.length > 0,
+  });
 
-    console.log("Calling multi-modal endpoint for front cover...");
+  /* ────────────── 5. Call OpenAI Responses API ────────────────────── */
+  onProgress?.("generating_cover", 25, "Contacting OpenAI…");
 
-    falRes = await fal.subscribe("fal-ai/flux-pro/kontext/max/multi", {
-      input: {
-        ...commonInputParams,
-        prompt: prompt,
-        image_urls: imageUrls,
-      },
-      logs: true,
-      onQueueUpdate,
-    });
-  } else {
-    // No character images, use text-to-image
-    console.log("Calling text-to-image endpoint for front cover...");
+  const resp = await openai.responses.create({
+    model: "gpt-4o-mini", // chat wrapper; tool invokes GPT-Image-1
+    input: inputs,
+    tools: [tool],
+  });
 
-    falRes = await fal.subscribe("fal-ai/flux-pro/kontext/max/text-to-image", {
-      input: {
-        ...commonInputParams,
-        prompt: basePrompt,
-      },
-      logs: true,
-      onQueueUpdate,
-    });
-  }
+  /* ────────────── 6. Extract image & persist to Firebase ───────────── */
+  const responseId = resp.id;
+  const base64 = resp.output.find(
+    (o) => o.type === "image_generation_call",
+  )?.result;
+  if (!base64) throw new Error("No image returned from OpenAI.");
 
-  onProgress?.("generating_cover", 80, "Processing response for cover...");
-  const imageUrl = falRes?.data?.images?.[0]?.url || falRes?.images?.[0]?.url;
+  const firebaseUrl = await uploadBase64ToFirebase(
+    base64,
+    `books/${bookId}/frontcoverimage.png`,
+  );
 
-  if (!imageUrl) {
-    throw new Error("No image URL returned from Fal AI for front cover");
-  }
+  onProgress?.("generating_cover", 100, "Front-cover image ready");
+  console.log("Firebase URL for front cover:", firebaseUrl);
 
-  onProgress?.("generating_cover", 100, "Front cover image ready");
-  return imageUrl;
+  return { firebaseUrl, responseId };
 }
+
+// /**
+//  * Generate image for front cover (supports both with and without characters)
+//  */
+// export async function generateImageForFrontCover(
+//   bookId: string,
+//   frontCover: FrontCover | FrontCoverWoChar,
+//   characterImageMap: Record<
+//     string,
+//     CharacterVariables
+//   > = DEFAULT_CHARACTER_IMAGES,
+//   onProgress?: ProgressCallback,
+//   seed: number = 3, // NEW PARAMETER
+// ): Promise<string> {
+//   onProgress?.("generating_cover", 0, "Preparing front cover image...");
+
+//   // Determine if this is a cover with characters or without
+//   const hasCharacters = "Character_Details" in frontCover;
+
+//   let basePrompt: string;
+//   let Present_Characters: string[] = [];
+
+//   if (hasCharacters) {
+//     const coverWithChar = frontCover as FrontCover;
+//     Present_Characters = coverWithChar.Present_Characters;
+//     basePrompt = generateFrontCoverPrompt(coverWithChar);
+//   } else {
+//     const coverWoChar = frontCover as FrontCoverWoChar;
+//     Present_Characters = coverWoChar.Present_Characters;
+//     basePrompt = generateFrontCoverPromptWoChar(coverWoChar);
+//   }
+
+//   // const imageUrls: string[] = [];
+//   // const characterNamesForPrompt: string[] = [];
+//   const imageUrls: string[] = [];
+//   const characterDataForPrompt: Array<{ name: string; description: string }> =
+//     [];
+
+//   Present_Characters.forEach((name) => {
+//     const characterData = characterImageMap[name];
+//     if (characterData && characterData.image_url) {
+//       imageUrls.push(characterData.image_url);
+//       characterDataForPrompt.push({
+//         name: name,
+//         description: characterData.description,
+//       });
+//     }
+//   });
+
+//   const onQueueUpdate = (update: any) => {
+//     if (update.status === "IN_PROGRESS") {
+//       update.logs.map((log: any) => log.message).forEach(console.log);
+//     }
+//   };
+
+//   onProgress?.("generating_cover", 20, "Calling image API for cover...");
+
+//   // let falRes;
+//   let response = null;
+
+//   if (imageUrls.length > 0) {
+//     let prompt: string;
+//     if (characterDataForPrompt.length > 0) {
+//       const attachmentText = characterDataForPrompt
+//         .map((char, idx) => {
+//           const ordinal =
+//             idx === 0
+//               ? "1st"
+//               : idx === 1
+//                 ? "2nd"
+//                 : idx === 2
+//                   ? "3rd"
+//                   : `${idx + 1}th`;
+//           return `${char.name}(${char.description} as shown in ${ordinal} image)`;
+//         })
+//         .join(" and ");
+
+//       prompt = `Attached are the images of ${attachmentText}. DO NOT WRITE ANY TITLE ON THE IMAGE. Make the image pixar-Style animation. Create a vibrant, beautiful book front cover as described below:\n${basePrompt}`;
+//     } else {
+//       prompt = basePrompt;
+//     }
+
+//     console.log("Calling multi-modal endpoint for front cover...");
+
+//     const replacementNames = ["Reet", "Jeet", "Meet", "Heet"];
+//     prompt = replaceCharacterNames(
+//       prompt,
+//       Present_Characters,
+//       replacementNames,
+//     );
+
+//     const openAiBase = {
+//       model: "gpt-image-1",
+//       n: 1,
+//       input_fidelity,
+//       quality,
+//       background: "auto",
+//       output_format: "png" as const,
+//       size: "1024x1024",
+//     };
+
+//     const attachments = await Promise.all(
+//       imageUrls.map(async (url) => {
+//         // fetch the remote image into a Buffer
+//         const res = await fetch(url);
+//         const arrayBuffer = await res.arrayBuffer();
+//         const buffer = Buffer.from(arrayBuffer);
+//         // wrap it as a PNG file for OpenAI
+//         return toFile(buffer, "image.png", { type: "image/png" });
+//       }),
+//     );
+
+//     response = await openai.images.edit({
+//       ...openAiBase,
+//       prompt,
+//       image: attachments,
+//     });
+//   } else {
+//     // No character images, use text-to-image
+//     console.log("Calling text-to-image endpoint for front cover...");
+//     const openAiBasenochar = {
+//       model: "gpt-image-1",
+//       n: 1,
+//       quality,
+//       background: "auto",
+//       output_format: "png" as const,
+//       size: "1024x1024",
+//     };
+
+//     response = await openai.images.generate({
+//       ...openAiBasenochar,
+//       prompt: basePrompt,
+//     });
+//   }
+
+//   onProgress?.("generating_cover", 80, "Processing response for cover...");
+
+//   const base64 = response.data[0].b64_json!;
+//   const firebaseUrl = await uploadBase64ToFirebase(
+//     base64,
+//     `books/${bookId}/frontcoverimage.png`,
+//   );
+
+//   onProgress?.("generating_cover", 100, "Front cover image ready");
+//   // return imageUrl;
+//   console.log(`FirebaseUrl generated for front cover: ${firebaseUrl}`);
+//   return firebaseUrl;
+// }
 
 /**
  * Generate final cover with title overlay using image-to-image generation
  */
 export async function generateFinalCoverWithTitle(
+  bookId: string,
   baseCoverUrl: string,
   storyTitle: string,
-  seed: number = 3,
   onProgress?: ProgressCallback,
+  seed: number = 3,
 ): Promise<string> {
   onProgress?.("generating_final_cover", 0, "Adding title to cover...");
 
@@ -480,8 +885,8 @@ export async function generateFinalCoverWithTitle(
   onProgress?.("generating_final_cover", 20, "Calling title overlay API...");
 
   console.log("Adding title to cover using fal-ai/flux-pro/kontext");
-  console.log("Base cover URL:", baseCoverUrl);
-  console.log("Title prompt:", titlePrompt);
+  console.log(`Base cover URL: ${baseCoverUrl}`);
+  console.log(`Title prompt: ${titlePrompt}`);
 
   const falRes = await fal.subscribe("fal-ai/flux-pro/kontext", {
     input: {
@@ -496,15 +901,14 @@ export async function generateFinalCoverWithTitle(
     logs: true,
     onQueueUpdate,
   });
+  const finalCoverUrl =
+    falRes?.data?.images?.[0]?.url || falRes?.images?.[0]?.url;
 
   onProgress?.(
     "generating_final_cover",
     80,
     "Processing title overlay response...",
   );
-
-  const finalCoverUrl =
-    falRes?.data?.images?.[0]?.url || falRes?.images?.[0]?.url;
 
   if (!finalCoverUrl) {
     throw new Error("No final cover URL returned from Fal AI title overlay");
@@ -543,7 +947,7 @@ export async function regenerateFinalCover(
 export async function regenerateBaseCoverImage(
   baseCoverInputs: BaseCoverRegenerationInput,
   newSeed?: number,
-  onProgress?: ProgressCallback
+  onProgress?: ProgressCallback,
 ): Promise<string> {
   const seedToUse = newSeed ?? baseCoverInputs.seed ?? 3;
 
@@ -551,13 +955,13 @@ export async function regenerateBaseCoverImage(
     baseCoverInputs.front_cover,
     baseCoverInputs.characterImageMap,
     onProgress,
-    seedToUse
+    seedToUse,
   );
 }
 
 // New function for regenerating individual scenes
 export async function regenerateSceneImage(
-  sceneInputs: SceneRegenerationInput,
+  sceneRespo,
   newSeed?: number,
   onProgress?: ProgressCallback,
 ): Promise<string> {
@@ -566,7 +970,7 @@ export async function regenerateSceneImage(
   // Create a mock scene object for the existing function
   const mockScene = {
     scene_description: sceneInputs.scene_description,
-    scene_text: "", // Not needed for image generation
+    scene_text: [], // Not needed for image generation
   } as Scene | Scenewochar;
 
   return generateImageForScene(
@@ -580,7 +984,7 @@ export async function regenerateSceneImage(
 
 // New function for regenerating cover
 export async function regenerateCoverImage(
-  coverInputs: CoverRegenerationInput,
+  coverInputs: BaseCoverRegenerationInput,
   newSeed?: number,
   onProgress?: ProgressCallback,
 ): Promise<string> {

@@ -1,4 +1,10 @@
 import type { Express, Request, Response, NextFunction } from "express";
+import {
+  DEFAULT_FONT_SIZE,
+  DEFAULT_FONT_FAMILY,
+  FULL_W,
+  FULL_H,
+} from "./constants";
 import express from "express";
 import { useLocation } from "wouter";
 import { createServer, type Server } from "http";
@@ -38,7 +44,11 @@ import {
 import { generateCompleteStory } from "./utils/story-generation-api/src/services/storyGeneration";
 import admin from "./firebaseAdmin";
 import createMemoryStore from "memorystore";
-import { splitImageInHalf } from "./utils/elementGeneration";
+import {
+  expandImageToLeft,
+  expandImageToRight,
+  splitImageInHalf,
+} from "./utils/elementGeneration";
 import { pickContrastingTextColor } from "./utils/textColorUtils";
 import { loadBase64Image } from "./utils/layouts";
 import { uploadBase64ToFirebase } from "./utils/uploadImage";
@@ -52,6 +62,7 @@ import {
   regenerateFinalCover,
   regenerateFullCover,
 } from "./utils/story-generation-api/src/routes/regeneration";
+import { OverlayHint, getOverlayHint } from "./utils/overlayText";
 
 import {
   regenerateSceneImage,
@@ -77,6 +88,28 @@ const storyJobs = new Map<string, StoryJob>();
 const MemoryStore = createMemoryStore(session);
 
 const DEBUG_LOGGING = process.env.DEBUG_LOGGING === "true";
+
+const DEFAULT_FONT_SIZE = 24;
+const DEFAULT_FONT_FAMILY = "Nunito SemiBold Italic";
+const DEFAULT_COLOR = "#ffffff";
+const FULL_W = 2048;
+const FULL_H = 1024;
+const HALF_W = FULL_W / 2; // 789
+const LOGICAL_W = 600;
+const LOGICAL_H = Math.round((FULL_H * LOGICAL_W) / HALF_W);
+
+function mapHint(h: OverlayHint) {
+  const localX = h.side === "left" ? h.startX : h.startX - HALF_W;
+  const sx = LOGICAL_W / HALF_W;
+  const sy = LOGICAL_H / FULL_H;
+  const s = Math.min(sx, sy); // one scale for everything
+
+  return {
+    x: localX * s,
+    y: h.startY * s,
+    fontSize: h.fontSize * s,
+  };
+}
 
 // Extend Express Session type to include userId
 declare module "express-session" {
@@ -432,6 +465,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(st);
   });
 
+  app.get("/api/jobs/:id/stream", (req, res) => {
+    const { id } = req.params;
+    const first = jobTracker.get(id);
+
+    if (!first) return res.status(404).end();
+
+    res.set({
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+    });
+    res.flushHeaders();
+
+    // send current snapshot
+    res.write(`data:${JSON.stringify(first)}\n\n`);
+
+    const onUpdate = (jobId: string, state: JobState) => {
+      if (jobId !== id) return;
+      res.write(`data:${JSON.stringify(state)}\n\n`);
+      res.flush?.();
+      if (state.phase === "complete" || state.phase === "error") {
+        jobTracker.off("update", onUpdate);
+        res.end();
+      }
+    };
+
+    jobTracker.on("update", onUpdate);
+    req.on("close", () => jobTracker.off("update", onUpdate));
+  });
+
   // New Endpoint: Train Custom Model
   // This endpoint uses multer to capture the kidImages from the request.
   app.post("/api/trainModel", async (req: Request, res: Response) => {
@@ -572,6 +635,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.status(202).json({ jobId }); // client begins polling
 
     (async () => {
+      let reasoningTimer: NodeJS.Timeout | null = null;
+      const REASON_START_PCT = 10;
+      const REASON_END_PCT = 38; // cap for reasoning phase
+      const DURATION_MS = 120_000; // ~2 minutes
+      const INTERVAL_MS = 1_000; // tick every second
+      // how much to bump each tick so we reach MAX over DURATION
+      const INCREMENT =
+        (REASON_END_PCT - REASON_START_PCT) / (DURATION_MS / INTERVAL_MS);
+
       try {
         jobTracker.set(jobId, {
           phase: "initializing",
@@ -592,8 +664,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
             characterDescriptions,
           },
           characterImageMap,
-          (phase, pct, message) => {
-            jobTracker.set(jobId, { phase, pct, message });
+          bookId,
+          (phase, pct, msg) => {
+            if (phase === "reasoning") {
+              // always append the token log
+              jobTracker.set(jobId, {
+                ...jobTracker.get(jobId)!,
+                log: (jobTracker.get(jobId)!.log || "") + msg,
+              });
+
+              // start the timer once
+              if (!reasoningTimer) {
+                reasoningTimer = setInterval(() => {
+                  const curr = jobTracker.get(jobId)!.pct ?? REASON_START_PCT;
+                  const next = Math.min(curr + INCREMENT, REASON_END_PCT);
+                  jobTracker.set(jobId, { phase: "reasoning", pct: next });
+                  if (next >= REASON_END_PCT && reasoningTimer) {
+                    clearInterval(reasoningTimer);
+                  }
+                }, INTERVAL_MS);
+              }
+            } else {
+              if (reasoningTimer) {
+                clearInterval(reasoningTimer);
+                reasoningTimer = null;
+              }
+              jobTracker.set(jobId, { phase, pct, message: msg });
+            }
           },
         );
 
@@ -603,6 +700,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           cover: cover,
           title: cover.story_title,
           imagesJobId: null,
+          isStoryRhyming: storyRhyming,
         });
         jobTracker.set(jobId, { phase: "complete", pct: 100 });
       } catch (err: any) {
@@ -614,7 +712,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/regenerateImage", async (req: Request, res: Response) => {
     try {
-      const { bookId, pageId, sceneInputs, randomSeed } = req.body;
+      const { bookId, pageId, sceneResponseId, revisedPrompt } = req.body;
 
       const book = await storage.getBookById(bookId);
       if (!book) return res.status(404).json({ error: "Book not found" });
@@ -625,13 +723,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Page not found" });
       }
 
-      /* 2️⃣   choose seed */
-      const seed = randomSeed
-        ? Math.floor(Math.random() * 1_000_000)
-        : (oldPage.seed ?? 3);
+      // /* 2️⃣   choose seed */
+      // const seed = randomSeed
+      //   ? Math.floor(Math.random() * 1_000_000)
+      //   : (oldPage.seed ?? 3);
 
       /* 3️⃣   call your image service */
-      const newUrl = await regenerateSceneImage(sceneInputs, seed);
+      const newUrl = await regenerateSceneImage(sceneResponseId, revisedPrompt );
 
       /* 4️⃣   build the updated list */
       const updatedPages = book.pages.map((p: any) =>
@@ -699,7 +797,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-
   app.post("/api/regenerateCoverTitle", async (req: Request, res: Response) => {
     try {
       const { bookId, baseCoverUrl, title, randomSeed } = req.body;
@@ -707,9 +804,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const book = await storage.getBookById(bookId);
       if (!book) return res.status(404).json({ error: "Book not found" });
 
-      const prevSeed =
-        book.cover?.final_cover_inputs?.seed ??
-        3;
+      const prevSeed = book.cover?.final_cover_inputs?.seed ?? 3;
 
       const seed = randomSeed
         ? Math.floor(Math.random() * 1_000_000)
@@ -724,7 +819,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const updatedCover = {
         ...book.cover,
-        final_cover_inputs: { ...(book.cover?.final_cover_inputs ?? {}), seed, story_title: title },
+        final_cover_inputs: {
+          ...(book.cover?.final_cover_inputs ?? {}),
+          seed,
+          story_title: title,
+        },
         final_cover_url: newFinalCoverUrl,
       };
 
@@ -1313,88 +1412,496 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  //   app.post(
+  //     "/api/books/:bookId/prepareSplit",
+  //     async (req: Request, res: Response) => {
+  //       console.log("[routes] prepareSplit hit:", req.params.bookId);
+  //       const bookId = req.params.bookId;
+  //       const { pages } = req.body;
+
+  //       if (!Array.isArray(pages)) {
+  //         return res.status(400).json({ message: "Missing pages array" });
+  //       }
+
+  //       const book = await storage.getBookById(bookId);
+
+  //       const alreadyDone =
+  //         !!book.cover?.back_cover_url &&
+  //         book.pages.length === pages.length &&
+  //         book.pages.every((p) => p.leftX != null || p.rightX != null);
+
+  //       if (alreadyDone) {
+  //         console.log("prepareSplit: cached book — returning immediately");
+  //         return res.json({ pages: book.pages });
+  //       }
+
+  //       const jobId = req.get("x-client-job") ?? jobTracker.newJob();
+  //       res.setHeader("X-Job-Id", jobId);
+  //       res.setHeader("Access-Control-Expose-Headers", "X-Job-Id");
+  //       res.status(202).json({ jobId });
+
+  //       (async () => {
+  //         try {
+  //           jobTracker.set(jobId, {
+  //             phase: "expandingCover",
+  //             pct: 5,
+  //             message: "Creating back cover…",
+  //           });
+
+  //           if (!book.cover?.back_cover_url) {
+  //             const backUrl = await expandImageToLeft(book.cover.final_cover_url);
+  //             await storage.updateBook(bookId, {
+  //               cover: { ...book.cover, back_cover_url: backUrl },
+  //             });
+  //           }
+
+  //           // — now split & overlay —
+  //           jobTracker.set(jobId, {
+  //             phase: "splitting",
+  //             pct: 25,
+  //             message: "Preparing pages…",
+  //           });
+
+  //           const isRhyming = Boolean(book.isStoryRhyming);
+  //           const processedPages: any[] = [];
+
+  //           for (let idx = 0; idx < pages.length; idx++) {
+  //             const page = pages[idx];
+
+  //             const inputText: string | string[] = isRhyming
+  //               ? page.scene_text.split("\n")
+  //               : page.scene_text;
+
+  //             let hint: OverlayHint;
+  //             try {
+  //               hint = await getOverlayHint(page.scene_url, inputText, {
+  //                 retainFlow: isRhyming,
+  //                 fontSize: DEFAULT_FONT_SIZE,
+  //                 fontFamily: DEFAULT_FONT_FAMILY,
+  //               });
+  //             } catch (err) {
+  //               console.warn(
+  //                 `[prepareSplit] overlay-text failed for page ${page.id}, using defaults:`,
+  //                 err,
+  //               );
+  //               hint = {
+  //                 startX: FULL_W / 2 - 100,
+  //                 startY: FULL_H / 2 - 25,
+  //                 side: "left",
+  //                 color: DEFAULT_COLOR,
+  //                 lines: isRhyming
+  //                   ? page.scene_text.split("\n")
+  //                   : page.scene_text,
+  //                 imageWidth: FULL_W,
+  //                 imageHeight: FULL_H,
+  //                 fontSize: DEFAULT_FONT_SIZE,
+  //                 fontFamily: DEFAULT_FONT_FAMILY,
+  //               };
+  //             }
+
+  //             const m = mapHint(hint);
+
+  //             const out: any = {
+  //               ...page,
+  //               id: page.scene_number,
+  //               imageUrl: page.scene_url, // one URL, no halves
+  //               side: hint.side, // "left" | "right"
+  //               width: 400,
+  //               height: 100,
+  //               fontSize: m.fontSize,
+  //               leftTextColor: hint.color,
+  //               rightTextColor: hint.color,
+  //             };
+
+  //             if (hint.side === "left") {
+  //               out.leftX = m.x;
+  //               out.leftY = m.y;
+  //               out.leftText = hint.lines;
+  //             } else {
+  //               out.rightX = m.x;
+  //               out.rightY = m.y;
+  //               out.rightText = hint.lines;
+  //             }
+
+  //             processedPages.push(out);
+  //             jobTracker.set(jobId, {
+  //               phase: "generating",
+  //               pct: 25 + Math.round(((idx + 1) / pages.length) * 90), // 5 → 95
+  //               message: `Page ${idx + 1}/${pages.length}`,
+  //             });
+  //           }
+  //           await storage.updateBook(bookId, { pages: processedPages });
+  //           jobTracker.set(jobId, {
+  //             phase: "complete",
+  //             pct: 100,
+  //             message: "Pages ready",
+  //           });
+  //         } catch (error) {
+  //           console.error("prepareSplit error:", error);
+  //           jobTracker.set(jobId, {
+  //             phase: "error",
+  //             pct: 100,
+  //             error: String(error),
+  //           });
+  //         }
+  //       })();
+  //     },
+  //   );
+
+  //   return httpServer;
+  // }
+  // app.post(
+  //   "/api/books/:bookId/prepareSplit",
+  //   async (req: Request, res: Response) => {
+  //     console.log("[routes] prepareSplit hit:", req.params.bookId);
+  //     const bookId = req.params.bookId;
+  //     const { pages } = req.body;
+  //     if (!Array.isArray(pages)) {
+  //       return res.status(400).json({ message: "Missing pages array" });
+  //     }
+
+  //     const book = await storage.getBookById(bookId);
+  //     const alreadyDone =
+  //       !!book.cover?.back_cover_url &&
+  //       book.pages.length === pages.length &&
+  //       book.pages.every((p) => p.final_scene_url != null);
+  //     if (alreadyDone) {
+  //       console.log("prepareSplit: cached book — returning immediately");
+  //       return res.json({ pages: book.pages });
+  //     }
+
+  //     const jobId = req.get("x-client-job") ?? jobTracker.newJob();
+  //     res.setHeader("X-Job-Id", jobId);
+  //     res.setHeader("Access-Control-Expose-Headers", "X-Job-Id");
+  //     res.status(202).json({ jobId });
+
+  //     (async () => {
+  //       try {
+  //         // 1) Expand back cover if needed
+  //         jobTracker.set(jobId, {
+  //           phase: "expandingCover",
+  //           pct: 5,
+  //           message: "Creating back cover…",
+  //         });
+  //         if (!book.cover?.back_cover_url) {
+  //           const backUrl = await expandImageToLeft(book.cover.final_cover_url);
+  //           await storage.updateBook(bookId, {
+  //             cover: { ...book.cover, back_cover_url: backUrl },
+  //           });
+  //         }
+
+  //         // 2) Process pages in parallel
+  //         jobTracker.set(jobId, {
+  //           phase: "splitting",
+  //           pct: 25,
+  //           message: "Preparing pages…",
+  //         });
+
+  //         const isRhyming = Boolean(book.isStoryRhyming);
+  //         const storedPages = book.pages; // contains pre-assigned side
+  //         let completed = 0;
+
+  //         const processedPages = await Promise.all(
+  //           pages.map(async (page, idx) => {
+  //             const pageSide: "left" | "right" =
+  //               storedPages[idx]?.side || "left";
+
+  //             // a) expand the scene image
+  //             // const finalUrl =
+  //             //   pageSide === "left"
+  //             //     ? await expandImageToLeft(page.scene_url)
+  //             //     : await expandImageToRight(page.scene_url);
+  //             const finalUrl =
+  //               "https://v3.fal.media/files/penguin/rXdJmlpczzDv1c18SqckT_20fd7c0944dd4764a34e92b7084c6cd8.png";
+
+  //             // b) overlay text on the expanded image
+  //             const hint: OverlayHint = await getOverlayHint(
+  //               finalUrl,
+  //               page.scene_text, // now always string[]
+  //               pageSide,
+  //               isRhyming,
+  //               {
+  //                 fontSize: DEFAULT_FONT_SIZE,
+  //                 fontFamily: DEFAULT_FONT_FAMILY,
+  //                 debugMode: false,
+  //               },
+  //             );
+  //             const m = mapHint(hint as OverlayHint);
+
+  //             // c) assemble output
+  //             const out: any = {
+  //               ...page,
+  //               id: page.scene_number,
+  //               imageUrl: page.scene_url,
+  //               final_scene_url: finalUrl,
+  //               side: pageSide,
+  //               width: 400,
+  //               height: 100,
+  //               fontSize: m.fontSize,
+  //               leftTextColor: hint.color,
+  //               rightTextColor: hint.color,
+  //             };
+  //             if (hint.side === "left") {
+  //               out.leftX = m.x;
+  //               out.leftY = m.y;
+  //               out.leftText = hint.lines;
+  //             } else {
+  //               out.rightX = m.x;
+  //               out.rightY = m.y;
+  //               out.rightText = hint.lines;
+  //             }
+
+  //             // d) progress update
+  //             completed++;
+  //             jobTracker.set(jobId, {
+  //               phase: "generating",
+  //               pct: 25 + Math.round((completed / pages.length) * 90),
+  //               message: `Page ${completed}/${pages.length}`,
+  //             });
+
+  //             return out;
+  //           }),
+  //         );
+
+  //         // 3) persist and complete
+  //         await storage.updateBook(bookId, { pages: processedPages });
+  //         jobTracker.set(jobId, {
+  //           phase: "complete",
+  //           pct: 100,
+  //           message: "Pages ready",
+  //         });
+  //       } catch (error) {
+  //         console.error("prepareSplit error:", error);
+  //         jobTracker.set(jobId, {
+  //           phase: "error",
+  //           pct: 100,
+  //           error: String(error),
+  //         });
+  //       }
+  //     })();
+  //   },
+  // );
+
   app.post(
     "/api/books/:bookId/prepareSplit",
     async (req: Request, res: Response) => {
-      console.log("[routes] /api/books/:bookId/prepareSplit hit");
+      console.log("[routes] prepareSplit hit:", req.params.bookId);
+      const bookId = req.params.bookId;
+      const { pages } = req.body;
+      if (!Array.isArray(pages)) {
+        return res.status(400).json({ message: "Missing pages array" });
+      }
 
-      console.log(
-        "[routes] /api/books/:bookId/prepareSplit hit with body:",
-        req.body,
-      );
+      const book = await storage.getBookById(bookId);
+      const alreadyDone =
+        !!book.cover?.back_cover_url &&
+        book.pages.length === pages.length &&
+        book.pages.every((p) => p.final_scene_url != null);
+      if (alreadyDone) {
+        console.log("prepareSplit: cached book — returning immediately");
+        return res.json({ pages: book.pages });
+      }
 
-      try {
-        const bookId = req.params.bookId; // from the URL
-        const { pages } = req.body; // now parsed by express.json
+      const jobId = req.get("x-client-job") ?? jobTracker.newJob();
+      res.setHeader("X-Job-Id", jobId);
+      res.setHeader("Access-Control-Expose-Headers", "X-Job-Id");
+      res.status(202).json({ jobId });
 
-        if (!Array.isArray(pages)) {
-          return res.status(400).json({ message: "Missing pages array" });
-        }
-        console.log("[routes] pages.length=", pages.length);
-        // Check if pages are already processed
-        const book = await storage.getBookById(bookId);
+      (async () => {
+        try {
+          // 1) Expand back cover if needed
+          jobTracker.set(jobId, {
+            phase: "expandingCover",
+            pct: 5,
+            message: "Creating back cover…",
+          });
+          if (!book.cover?.back_cover_url) {
+            const backUrl = await expandImageToLeft(book.cover.base_cover_url);
+            await storage.updateBook(bookId, {
+              cover: { ...book.cover, back_cover_url: backUrl },
+            });
+          }
 
-        const alreadyProcessed = book.pages.every(
-          (p) =>
-            p.leftHalfUrl &&
-            p.rightHalfUrl &&
-            p.rightTextColor &&
-            (p.leftText || p.rightText),
-        );
+          // 2) PHASE 1: Expand all page images in parallel
+          jobTracker.set(jobId, {
+            phase: "expandingImages",
+            pct: 15,
+            message: "Expanding page images…",
+          });
 
-        if (alreadyProcessed) {
-          console.log("Returning pre-processed pages from DB.");
-          return res.json({ pages: book.pages });
-        }
+          const isRhyming = Boolean(book.isStoryRhyming);
+          const storedPages = book.pages; // contains pre-assigned side
 
-        // Otherwise: split, upload, color-pick, and store results
-        const processedPages = [];
+          // Expand all images in parallel
+          const expandedPages = await Promise.all(
+            pages.map(async (page, idx) => {
+              const pageSide: "left" | "right" =
+                storedPages[idx]?.side || "left";
 
-        for (const page of pages) {
-          const { leftHalf, rightHalf } = await splitImageInHalf(page.imageUrl);
-          const leftFileName = `books/${bookId}/pages/${page.id}_left.png`;
-          const rightFileName = `books/${bookId}/pages/${page.id}_right.png`;
-
-          const leftHalfUrl = await uploadBase64ToFirebase(
-            leftHalf,
-            leftFileName,
+              // Expand the scene image based on side
+              const expandedUrl =  page.expanded_scene_url? page.expanded_scene_url :
+                pageSide === "left"
+                  ? await expandImageToLeft(page.scene_url)
+                  : await expandImageToRight(page.scene_url);
+              // const expandedUrl =
+              //   "https://v3.fal.media/files/tiger/LfKPl6vdMmKXuAF2X_OjI_67831c38bc95428793087c8908604d19.png";
+              return {
+                ...page,
+                id: page.scene_number,
+                side: pageSide,
+                expanded_scene_url: expandedUrl, // Store expanded URL
+                imageUrl: page.scene_url, // Keep original
+              };
+            }),
           );
-          const rightHalfUrl = await uploadBase64ToFirebase(
-            rightHalf,
-            rightFileName,
+
+          // Update book with expanded URLs
+          await storage.updateBook(bookId, {
+            pages: expandedPages.map((page) => ({
+              ...(storedPages.find((p) => p.id === page.id) || {}),
+              ...page,
+            })),
+          });
+
+          jobTracker.set(jobId, {
+            phase: "expandingComplete",
+            pct: 35,
+            message: "Image expansion complete. Starting text overlay…",
+          });
+
+          // 3) PHASE 2: Process text overlay in batches of 3
+          const batchSize = 3;
+          const processedPages = [];
+          let completed = 0;
+
+          for (let i = 0; i < expandedPages.length; i += batchSize) {
+            const batch = expandedPages.slice(i, i + batchSize);
+
+            jobTracker.set(jobId, {
+              phase: "processingBatch",
+              pct: 35 + Math.round((i / expandedPages.length) * 50),
+              message: `Processing text overlay batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(expandedPages.length / batchSize)}…`,
+            });
+
+            // Process current batch in parallel
+            const batchResults = await Promise.all(
+              batch.map(async (page) => {
+                let hint;
+                if (page.scene_text) { 
+                    try {
+                      // Use the expanded URL for text overlay
+                      hint = await getOverlayHint(
+                        page.expanded_scene_url, // Use expanded URL
+                        page.scene_text, // now always string[]
+                        page.side,
+                        isRhyming,
+                        {
+                          fontSize: DEFAULT_FONT_SIZE,
+                          fontFamily: DEFAULT_FONT_FAMILY,
+                          debugMode: false,
+                        },
+                      );
+                    } catch (err) {
+                      console.warn(
+                        `[prepareSplit] overlay-text failed for page ${page.id}, using defaults:`,
+                        err,
+                      );
+                      // Fallback to defaults if overlay API fails
+                      hint = {
+                        startX: FULL_W / 2 - 100,
+                        startY: FULL_H / 2 - 25,
+                        side: page.side,
+                        color: DEFAULT_COLOR,
+                        lines: isRhyming
+                          ? page.scene_text
+                          : Array.isArray(page.scene_text)
+                            ? page.scene_text
+                            : [page.scene_text],
+                        imageWidth: FULL_W,
+                        imageHeight: FULL_H,
+                        fontSize: DEFAULT_FONT_SIZE,
+                        fontFamily: DEFAULT_FONT_FAMILY,
+                      };
+                    }
+                }
+                else {
+                  hint = {
+                    startX: 0,
+                    startY: 0,
+                    side: page.side,
+                    color: DEFAULT_COLOR,
+                    lines: [],
+                    imageWidth: FULL_W,
+                    imageHeight: FULL_H,
+                    fontSize: DEFAULT_FONT_SIZE,
+                    fontFamily: DEFAULT_FONT_FAMILY,
+                  };
+                }
+                
+                const m = mapHint(hint as OverlayHint);
+
+                // Assemble output
+                const out: any = {
+                  ...page,
+                  final_scene_url: page.expanded_scene_url, // Use expanded URL as final
+                  width: 400,
+                  height: 100,
+                  fontSize: m.fontSize,
+                  leftTextColor: hint.color,
+                  rightTextColor: hint.color,
+                };
+
+                if (hint.side === "left") {
+                  out.leftX = m.x;
+                  out.leftY = m.y;
+                  out.leftText = hint.lines;
+                } else {
+                  out.rightX = m.x;
+                  out.rightY = m.y;
+                  out.rightText = hint.lines;
+                }
+
+                // Progress update
+                completed++;
+                jobTracker.set(jobId, {
+                  phase: "generating",
+                  pct: 35 + Math.round((completed / expandedPages.length) * 55),
+                  message: `Page ${completed}/${expandedPages.length}`,
+                });
+
+                return out;
+              }),
+            );
+
+            processedPages.push(...batchResults);
+
+            // Small delay between batches to be gentle on the text overlay API
+            if (i + batchSize < expandedPages.length) {
+              await new Promise((resolve) => setTimeout(resolve, 100));
+            }
+          }
+
+          // 4) Final update with all processed pages
+          await storage.updateBook(bookId, { pages: processedPages });
+
+          jobTracker.set(jobId, {
+            phase: "complete",
+            pct: 100,
+            message: "Pages ready",
+          });
+
+          console.log(
+            `[prepareSplit] Successfully processed ${processedPages.length} pages in batches`,
           );
-
-          const rightImg = await loadBase64Image(rightHalf);
-          const rightTextColor = pickContrastingTextColor(
-            rightImg,
-            50,
-            50,
-            100,
-            100,
-          );
-
-          const leftText = "";
-          const rightText = page.content;
-
-          processedPages.push({
-            ...page,
-            leftHalfUrl,
-            rightHalfUrl,
-            leftTextColor: "", // or computed
-            rightTextColor,
-            leftText,
-            rightText,
+        } catch (error) {
+          console.error("prepareSplit error:", error);
+          jobTracker.set(jobId, {
+            phase: "error",
+            pct: 100,
+            error: String(error),
           });
         }
-
-        // ✅ Save updated pages back to DB
-        await storage.updateBook(bookId, { pages: processedPages });
-
-        res.json({ pages: processedPages });
-      } catch (error) {
-        console.error("prepareSplit error:", error);
-        res.status(500).json({ message: "Failed to process pages" });
-      }
+      })();
     },
   );
 

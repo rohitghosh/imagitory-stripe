@@ -1,4 +1,5 @@
 import { v4 as uuid } from "uuid";
+import EventEmitter from "events";
 
 export const phases = [
   "uploading",
@@ -24,34 +25,40 @@ export interface JobState<P = Record<string, unknown>> {
   phase: JobPhase;
   pct: number;
   message?: string;
+  log?    : string; 
   error?: string;
   payload?: P;       // <— one escape hatch
 }
 
 const m = new Map<string, JobState>();
 
-export const jobTracker = {
-  /**
-   * Create a new job in the “uploading” phase.
-   * You can override to “training” or others when you .set()
-   */
+class JobTracker extends EventEmitter {
+  private store = new Map<string, JobState>();
+
+  /** Create new job in “uploading” phase */
   newJob(): string {
     const id = uuid();
-    m.set(id, { phase: "uploading", pct: 0 });
+    this.store.set(id, { phase: "uploading", pct: 0 });
     return id;
-  },
+  }
 
-  /** Read the current state of a job */
+  /** Read current state */
   get(id: string): JobState | undefined {
-    return m.get(id);
-  },
+    return this.store.get(id);
+  }
 
-  /**
-   * Patch a job’s state. Spread the old state, then overwrite.
-   * This lets you attach any of the optional payload fields above.
-   */
-  set(id: string, patch: Partial<JobState>) {
-    const prev = m.get(id) ?? { phase: "uploading", pct: 0 };
-    m.set(id, { ...prev, ...patch });
-  },
-};
+  /** Patch state + emit update */
+  set(id: string, patch: Partial<JobState>): void {
+    const prev  = this.store.get(id) ?? { phase: "uploading", pct: 0 };
+    const next  = { ...prev, ...patch };
+    this.store.set(id, next);
+
+    /* 🔴 broadcast */
+    this.emit("update", id, next);
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* 3 ▸ Export singleton – old import paths keep working               */
+/* ------------------------------------------------------------------ */
+export const jobTracker = new JobTracker();

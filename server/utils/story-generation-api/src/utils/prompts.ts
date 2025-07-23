@@ -223,7 +223,7 @@ Each \`scenes\` object must contain two top-level keys: \`scene_description\` an
 
 To ensure absolute visual consistency across scenes, any recurring element (a prop, a character, a specific background feature) other than the main character, \`\${kidName}\` **must** be explicitly and verbosely described every single time it appears. The first time an element is mentioned, it should be described in great detail. In every subsequent scene where that same element appears, it **must** be accompanied by a bracket \`()\` containing that exact, copy-pasted, detailed description. This makes each \`scene_description\` a self-contained, context-independent brief for the image generator, eliminating any chance of visual drift between scenes.
 
-This is NOT required for the main character, \`\${kidName}\` since the image generation prompt will be provided with the images along with the text instruction. Only important for other recurring props or elements. Instead for \`\${kidName}\`, their apparel should be very consistently mentioned. Normally the apparel would be described in the first scene and then mentioned in the subsequent scenes and will be similar but in case certain events cause any changes to that, the changes should be mentioned. For example, if the kid is wearing a bright yellow raincoat in the first scene and then in the second scene, the kid is wearing a raincoat but it is wet, then the description should be "Leo [wearing a bright yellow raincoat that is now wet and dripping]...".
+This is NOT required for the main character, \`\${kidName}\` since the image generation prompt will be provided with the images along with the text instruction. Only important for other recurring props or elements. Instead for \`\${kidName}\`, their apparel should be very consistently mentioned in the scenes and front cover description. Normally the apparel would be described in the first scene and then mentioned in the subsequent scenes and will be similar but in case certain events cause any changes to that, the changes should be mentioned. For example, if the kid is wearing a bright yellow raincoat in the first scene and then in the second scene, the kid is wearing a raincoat but it is wet, then the description should be "Leo [wearing a bright yellow raincoat that is now wet and dripping]...".
 
 * **Example 1:**
     * **Scene 2 Appearance:** "A weathered brass key with a complex, star-shaped head."
@@ -256,7 +256,7 @@ The \`scene_description\` is a granular, multi-layered directive for an image ge
     *   **Scene 9 (Conclusion/Moral Visualized):** Clearly visualize the story's moral: **"\`\${moral}\`"**.
 * **Targeted Art Direction:** You must directly address and control for common weaknesses in image generation models. This includes explicit instructions for character gaze, hand positioning, and spatial relationships between elements.
 * **Interest & Theme Integration:** The child's interest, **\`\${kidInterest}\`**, must be a core element in scenes 1-3. The story's central challenge in scenes 4-6 must be directly inspired by the story theme which is **\`\${storyTheme}\`**.
-* **Moral Symbolism:** Introduce a visual symbol that represents the story's moral: **"\`\${moral}\`"**. This symbol must be introduced in scene 3 and reappear prominently in scene 9. This is a non-negotiable rule.
+* **Moral Symbolism:** Introduce a visual symbol( need not be a prop necessarily ) that represents the story's moral: **"\`\${moral}\`"**. This symbol must be introduced in scene 3 and reappear prominently in scene 9. This is a non-negotiable rule.
 * **Emotional Journey:** The hero, \`\${kidName}\`, **must** display at least four distinct, age-appropriate emotions throughout the 9 scenes (e.g., joy, curiosity, worry, frustration, relief, pride, excitement, wonder). Ensure these emotions are clearly articulated through expression and pose.
 * **Dynamic Environments:** Each scene must feature a distinct setting or a significant change in the existing setting (e.g., location, weather, time of day) to ensure visual variety.
 * **Cinematic Shot Variety:** Strictly adhere to a repeating Wide-Medium-Close-up camera shot pattern:
@@ -277,6 +277,7 @@ You **must** use these exact 12 keys in this exact order for every single scene.
 \`\`\`json
 {
   "Scene_Number": "X",
+  "Present_Characters": "A array of strings containing only the exact, clean names of characters in the scene (e.g., \`\${kidName}\`) This field MUST NOT include any descriptive text, apparel details, or brackets. For character-free scenes, this array must be empty: []. **Correct:** [\"Tyler\" ]. **Incorrect:** [\"Tyler [wearing a hoodie]\" ]"
   "Camera_Shot": "Wide | Medium | Close-up Shot. (Follows the strict W-M-C pattern)",
   "Character_Gaze": "Crucial for realism and narrative clarity. Specify the exact direction of each character's gaze. E.g., \`\${kidName}\` is looking directly at the glowing mushroom, gaze filled with awe. A small squirrel in the background looks towards \`\${kidName}\`, curious. **For a character-free scene, this field must be an empty string \""'",
   "Character_Expression_and_Pose": "Extremely detailed facial expression, full-body pose, and precise hand descriptions. Include information about \`\${kidName}\`'s specific apparel for consistent character model. E.g., \`\${kidName}\` [wearing a bright yellow raincoat and red boots] has wide, curious eyes and a slightly open mouth. \`\${pronoun}\` is crouched low, balancing on the balls of \`\${pronoun}\` feet. \`\${pronoun}\` right hand is extended, index finger almost touching the object, while the left hand is held back for balance. For a character-free scene, this field must be an empty string \'",
@@ -300,6 +301,9 @@ The \`scene_text\` is the narrative that accompanies the illustration. It should
 
 #### **Guidelines for \`scene_text\`:**
 
+*   **Output Format:** The scene_text must be a JSON array of strings, where each string is a line of text on the page (e.g., ["The sun began to set.", "It was time to go home."] ).
+*  **Natural Line Breaks:** Break the narrative into separate strings to create a natural reading rhythm. Consider how the text would look on a book page.
+*   **Line Length and Grouping:** Keep each string in the array relatively short to ensure it fits well with the illustration. You can place two very short, closely related sentences in the same string, but separate longer sentences into their own strings.
 *   **Use the Child's Name:** Always refer to the protagonist as \`\${kidName}\`. Use the pronoun \`\${pronoun}\` correctly.
 *   **Complement, Don't Describe:** The text must add psychological or emotional depth. It should never state what is already visually obvious.
     *   **If Image Shows:** \`\${kidName}\` climbing a wall.
@@ -309,6 +313,7 @@ The \`scene_text\` is the narrative that accompanies the illustration. It should
 *   **Brevity is Key:** Aim for 1-3 simple sentences, targeting the reading level for age \`\${age}\`. The Flesch-Kincaid Target for sentences should be 8-14 words, avoiding complex clauses, aiming for a Flesch-Kincaid Grade Score of ≤ 4. Maximum 35 words per scene.
 *   **Powerful Silence:** It is acceptable to have scenes with no text, especially for the climactic Scene 6. In this case, the \`scene_text\` value **must** be an empty string \`""\`.
 *   **Moral Reinforcement:** The text in scenes 8 and 9 **must** clearly and simply reinforce the story's moral: "\`\${moral}\`".
+*   **Dialogue and Narration:** You can use simple dialogue and narration to move the story forward.
 
 --- 
 
@@ -329,19 +334,22 @@ Generate the Final Title: Based on these principles, generate one final, polishe
 
 ### **Part 4: Generating  \`front_cover\`**
 
-After generating the scenes and title, you will design the book's front cover. The cover is the single most important image for capturing a child's imagination. It must be inviting, exciting, and promise a wonderful story within. Your task is to generate a detailed description for the cover image, synthesizing the story's core elements into one iconic picture.
+After generating the scenes and title, you will design the book's front cover image only( not with text ). The cover is the single most important image for capturing a child's imagination. It must be inviting, exciting, and promise a wonderful story within. Your task is to generate a detailed description for the cover image, synthesizing the story's core elements into one iconic picture.
 
 Guiding Philosophy for the Front Cover
 Create an Emotional Hook: The primary goal is to evoke curiosity and excitement. The cover should feature \`\${kidName}\` in a moment of wonder, discovery, or brave anticipation. Their expression should be open and engaging, often looking out towards the potential reader.
 Highlight the Protagonist: \`\${kidName}\`is the hero and must be the clear focal point of the cover.
 Hint at the Adventure: The background and props should subtly incorporate the \`\${storyTheme}\` and \`\${kidInterest}\`. The cover shouldn't give away the plot, but it should establish the world and the central concept of the adventure.
-Composition for a Cover: Unlike a scene illustration, the cover composition must account for the book's title. Typically, the top third of the image should have a less complex background to ensure the story_title is easily readable when overlaid.
+Composition for a Cover: Unlike a scene illustration, the cover composition must account for the book's title( although the title SHOULD NOT BE PRODUCED in the image ). Typically, the top third of the image should have a less complex background to ensure the story_title is easily readable when overlaid.
 Vibrant and Inviting Palette: Use bright, saturated, and high-contrast colors that are attractive to young children. The lighting should be optimistic and magical, making the world feel like a place a child wants to enter.
+Omit Book Title: The book title should NOT be included in the image. It will be overlaid on the image later. This is CRITICAL. 
 
-The 7-Field Cover Definition
+
+The 8-Field Cover Definition
 You must use these exact 7 keys in this exact order to define the front cover.
 {
-  "Cover_Concept": "A one-sentence summary of the cover's core idea and emotional goal. E.g., 'A portrait of \`\${kidName}\` on the cusp of a magical adventure, filled with wonder and excitement.'",
+"Present_Characters": "A array of strings containing only the exact, clean names of characters in the scene (e.g., \`\${kidName}\`, \`\${character1}\` ). This field MUST NOT include any descriptive text, apparel details, or brackets. For character-free scenes, this array must be empty: []. **Correct:** [\"Tyler\", \"Pengu\"]. **Incorrect:** [\"Tyler [wearing a hoodie]\", \"Pengu\"]"
+  "Cover_Concept": "A one-sentence summary of the cover's core idea and emotional goal. E.g., 'A portrait of \`\${kidName}\`( dressed in a yellow raincoat ) on the cusp of a magical adventure, filled with wonder and excitement.'",
   "Focal_Point": "Describes the central visual element of the cover. E.g., \`\${kidName}\` looking with awe at the story's central magical element.'",
   "Character_Placement_and_Pose": "Describes the composition and pose of \`\${kidName}\`, paying special attention to leaving space for the title. E.g., \`\${kidName}\` is positioned in the lower-center of the frame, looking slightly upwards with a joyful expression. This leaves the top third of the image open for title placement. \`\${pronoun}\` is leaning forward in anticipation, one arm slightly raised as if about to embark on a journey.'",
   "Character_Gaze_and_Expression": "Direction of the gaze and facial expression, aimed to be engaging. E.g., 'Looking just past the viewer with a welcoming and excited expression, featuring a wide, joyful smile and eyes full of wonder.'",
@@ -365,6 +373,7 @@ You must use these exact 7 keys in this exact order to define the front cover.
 {
   "scene_description": {
     "Scene_Number": "3",
+    "Present_Characters": ["Leo"],
     "Camera_Shot": "Close-up Shot.",
     "Character_Gaze": "Leo's gaze is directed downward, focused with intense concentration on the small seed in his palm.",
     "Character_Expression_and_Pose": "Leo [wearing a blue t-shirt with a cheerful sun graphic, brown shorts, and green gardening boots] has deep concentration and a hint of wonder. His eyebrows are slightly furrowed, and his lips are gently pressed together. We see his two hands cupped together carefully, as if holding something precious. His fingers are curled to form a small bowl.",
@@ -377,7 +386,11 @@ You must use these exact 7 keys in this exact order to define the front cover.
     "Dominant_Color_Palette": "Warm golds, rich earth browns, and vibrant mossy greens, with the iridescent shimmer of the seed as a focal point.",
     "Visual_Overlap_With_Previous": false
   },
-  "scene_text": "The little seed felt warm. Leo knew it was special. It just needed time."
+  "scene_text": [
+  "The little seed felt warm.",
+  "Leo knew it was special.",
+  "It just needed time."
+]
 }
 \`\`\`
 
@@ -390,6 +403,7 @@ You must use these exact 7 keys in this exact order to define the front cover.
 {
   "scene_description": {
     "Scene_Number": "5",
+    "Present_Characters": ["Leo"],
     "Camera_Shot": "Medium Shot.",
     "Character_Gaze": "Leo's eyes are wide, scanning the surrounding area with a worried gaze. The friendly worm \`[a small, segmented brown worm with large, googly eyes and a bright green leaf for a hat]\` looks up at Leo with concern.",
     "Character_Expression_and_Pose": "Leo [wearing a blue t-shirt with a cheerful sun graphic, brown shorts, and green gardening boots] stands with shoulders slumped, a frown on his face. His hands are clasped loosely in front of him, showing frustration. The friendly worm \`[a small, segmented brown worm with large, googly eyes and a bright green leaf for a hat]\` is perched on his shoulder, offering comfort.",
@@ -402,7 +416,11 @@ You must use these exact 7 keys in this exact order to define the front cover.
     "Dominant_Color_Palette": "Faded greens and desaturated browns, reflecting the wilting plants, with hints of dull orange from the harsh sunlight.",
     "Visual_Overlap_With_Previous": false  
   },
-  "scene_text": "The magic plant wasn't growing. Leo felt a big sigh escape, \"What went wrong?\""
+  "scene_text": [
+  "The magic plant wasn't growing.",
+  "Leo felt a big sigh escape, \"What went wrong?\""
+]
+\""
 }
 
 
@@ -410,7 +428,8 @@ Expected Final JSON Output Structure:
 {
   "story_title": "Leo's Magical Garden",
   "front_cover": {
-    "Cover_Concept": "Leo stands in his magical garden, holding the glowing seed of patience, inviting the reader into his wondrous world.",
+    "Present_Characters": ["Leo"],
+    "Cover_Concept": "Leo( wearing a red hoodie and short brown pants ) stands in his magical garden, holding the glowing seed of patience, inviting the reader into his wondrous world.",
     "Focal_Point": "Leo holding the glowing, rainbow-colored seed, looking out with wonder.",
     "Character_Placement_and_Pose": "Leo is in the foreground-center, wearing his blue t-shirt with a sun graphic, looking slightly up and towards the viewer. He holds the moral symbol in his cupped hands. This composition leaves the top third of the image clear for the title.",
     "Character_Gaze_and_Expression": "Looking out towards the viewer with a bright, curious expression, a slight, knowing smile, and wide, wonder-filled eyes.",
@@ -465,7 +484,7 @@ The \`scene_description\` is a granular, multi-layered directive for an image ge
     Now, in Scene 6, you must reuse that exact description in parentheses. The focal action isn't just "pushing the tile," it's pushing that specific tile.
     "Focal_Action": "Tyler and Pengu push the two halves of the broken star tile (a hexagonal, obsidian-like tile from a cosmic path, which is now split into two clean halves with glowing, jagged, electric-blue energy crackling along the broken edges) back together."
     
-    *   This is NOT required for the main character, \`\${kidName}\` and the side-character,  \`\${character1}\` since the image generation prompt will be provided with the images along with the text instruction. Only important for other recurring props or elements. Instead for \`\${kidName}\` and the side-character,  \`\${character1}\`, their apparel should be very consistently mentioned. Normally the apparel would be described in the first scene and then mentioned in the subsequent scenes and will be similar but in case certain events cause any changes to that, the changes should be mentioned. For example, if the kid is wearing a bright yellow raincoat in the first scene and then in the second scene, the kid is wearing a raincoat but it is wet, then the description should be "Leo [wearing a bright yellow raincoat that is now wet and dripping]...".
+    *   This is NOT required for the main character, \`\${kidName}\` and the side-character,  \`\${character1}\` since the image generation prompt will be provided with the images along with the text instruction. Only important for other recurring props or elements. Instead for \`\${kidName}\` and the side-character,  \`\${character1}\`, their apparel should be very consistently mentioned. Normally the apparel would be described in the first scene and then mentioned in the subsequent scenes and the front cover and will be similar but in case certain events cause any changes to that, the changes should be mentioned. For example, if the kid is wearing a bright yellow raincoat in the first scene and then in the second scene, the kid is wearing a raincoat but it is wet, then the description should be "Leo [wearing a bright yellow raincoat that is now wet and dripping]...".
     Crucially, these apparel descriptions for \`\${kidName}\` and \`\${character1}\`, must be placed within the Composition_and_Blocking field, not in the Present_Characters array. For example: "Composition_and_Blocking": "In the foreground, Tyler [wearing a navy blue hoodie with silver star patterns] points towards the sky."
 
 2.  **Character Roles & Dynamics:**
@@ -538,13 +557,21 @@ Each object within the "Character_Details" array must contain these keys:
 
 The \`scene_text\` accompanies the illustration. It must be concise, emotionally resonant, and handle dialogue naturally.
 
+*   **Output Format:** The scene_text must be a JSON array of strings, where each string is a line of text on the page (e.g., ["The sun began to set.", "It was time to go home."] ).
+*  **Natural Line Breaks:** Break the narrative into separate strings to create a natural reading rhythm. Consider how the text would look on a book page.
+*   **Line Length and Grouping:** Keep each string in the array relatively short to ensure it fits well with the illustration. You can place two very short, closely related sentences in the same string, but separate longer sentences into their own strings.
+*   **Use the Child's Name:** Always refer to the protagonist as \`\${kidName}\`. Use the pronoun \`\${pronoun}\` correctly.
 *   **Dialogue and Narration:** You can use simple dialogue and narration to move the story forward.
     *   *Example:* "Look!" whispered \`\${kidName}\`. "It's glowing."*
     *   *\`\${character1}\` nodded slowly. "It certainly is. I wonder what it means."*
 *   **Complement, Don't Describe:** The text must add psychological depth, not state what is visually obvious.
-*   **Rhyming Logic:** The user has set the rhyming option to \`\${storyRhyming}\`. If this value is 'true', write the text in simple, clean AABB or ABAB rhyming schemes. If this value is 'false', write in clear prose.
+    **If Image Shows:** \`\${kidName}\` climbing a wall.
+    **Text Should Be:** "Almost there!" \`\${pronoun}\` whispered, "Just a little further."
+    **Text Should NOT Be:** "\`\${kidName}\` climbed the wall."
+*   **Rhyming Logic:** The user has the set the value of storyRhyming to be \`\${storyRhyming}\`. If the value of storyRhyming is "true", write the text in simple, clean AABB or ABAB rhyming schemes with a consistent meter. The rhymes must feel natural, never forced. If the value of storyRhyming is "false", write in clear, simple prose.
 *   **Brevity and Age-Appropriateness:** Aim for 1-4 simple sentences, targeting the reading level for age \`\${age}\` (Flesch-Kincaid Grade Score ≤ 4). Max 40 words per scene.
 *   **Powerful Silence:** For the climactic Scene 6, the \`scene_text\` value can be an empty string \`""\` for a full-page, dramatic illustration.
+*   **Brevity is Key:** Aim for 1-3 simple sentences, targeting the reading level for age \`\${age}\`. The Flesch-Kincaid Target for sentences should be 8-14 words, avoiding complex clauses, aiming for a Flesch-Kincaid Grade Score of ≤ 4. Maximum 35 words per scene.
 *   **Moral Reinforcement:** The text in scenes 8 and 9 must clearly reinforce the story's moral: **"\`\${moral}\`"**.
 
 ---
@@ -577,14 +604,16 @@ Guiding Philosophy for the Front Cover
 - Hint at the Adventure: The background and props should subtly incorporate the storyTheme and kidInterest. The cover shouldn't give away the plot, but it should establish the world and the central concept of the adventure.
 - Composition for a Cover: Unlike a scene illustration, the cover composition must account for the book's title. Typically, the top third of the image should have a less complex background to ensure the story_title is easily readable when overlaid.
 Vibrant and Inviting Palette: Use bright, saturated, and high-contrast colors that are attractive to young children. The lighting should be optimistic and magical, making the world feel like a place a child wants to enter.
+-Omit Book Title: The book title should NOT be included in the prompt since we don't want it to be generated in the image. It will be overlaid on the image later. This is CRITICAL. 
+
 
 The 9-Field Cover Definition
 You must use these exact 8 keys in this exact order to define the front cover:
 {
-  "Cover_Concept": "A one-sentence summary of the cover's core idea and emotional goal. E.g., 'A portrait of \`\${kidName}\` and  \`\${character1}\` on the cusp of a magical adventure, filled with wonder and excitement.'",
+  "Cover_Concept": "A one-sentence summary of the cover's core idea and emotional goal. E.g., 'A portrait of \`\${kidName}\`( wearing a red and yellow striped shirt, blue jeans and dark brown boots ) and  \`\${character1}\` on the cusp of a magical adventure, filled with wonder and excitement.'",
   "Present_Characters": "A JSON array of strings containing only the exact, clean names of characters in the scene (e.g., \`\${kidName}\`, \`\${character1}\` ). This field MUST NOT include any descriptive text, apparel details, or brackets. For character-free scenes, this array must be empty: []. **Correct:** [\"Tyler\", \"Pengu\"]. **Incorrect:** [\"Tyler [wearing a hoodie]\", \"Pengu\"]", 
   "Focal_Point": "Describes the central visual element of the cover. E.g., \`\${kidName}\` and  \`\${character1}\` sharing a look of awe as they discover the story's central magical element.'",
-  "Character_Placement": "Describes the composition of characters, paying special attention to leaving space for the title. E.g., '\`\${kidName}\` is positioned in the lower-center of the frame, looking slightly upwards.  \`\${character1}\` is on \`\${pronoun}\` shoulder. This leaves the top third of the image open for title placement.'",
+  "Character_Placement": "Describes the composition of characters, paying special attention to leaving space for the title( Do not mention about the title in the propmpt ). E.g., '\`\${kidName}\` is positioned in the lower-center of the frame, looking slightly upwards.  \`\${character1}\` is on \`\${pronoun}\` shoulder. This leaves the top third of the image open for title placement. DO NOT MENTION ABOUT THE BOOK TITLE IN THE PROMPT - just ask to keep top third of the image open'",
   "Character_Details": "An array of objects, one for each character present on the cover. The apparel should be consistent with their description in Scene 1.",
   "Background_Setting": "A vibrant and slightly idealized depiction of a key story environment, combining elements of  \`\${kidInterest}\` and \`\${storyTheme}\`. E.g., 'A magical, sun-drenched forest where the trees have glowing leaves, hinting at the cosmic theme.'",
   "Key_Visual_Elements": "An array of 1-2 iconic objects or symbols from the story that hint at the narrative. The moral symbol must be one of these elements. E.g., ['1. The moral symbol, the 'Star-Key', is held by \`\${kidName}\` and glows softly.', '2. A mysterious, sparkling path disappears into the woods behind them.']",
@@ -640,17 +669,21 @@ json
     "Dominant_Color_Palette": "Deep midnight blues, warm brassy golds, and soft cream colors from the lamplight and paper chart.",
     "Visual_Overlap_With_Previous": false, 
   },
-  "scene_text": "\"I'm stuck, Orion,\" Elara sighed. The owl hooted softly, then pointed a wing. Sometimes, she thought, you just need another pair of eyes."
+"scene_text": [
+  ""I'm stuck, Orion," Elara sighed.",
+  "The owl hooted softly, then pointed a wing.",
+  "Sometimes, she thought, you just need another pair of eyes."
+]
 }
 
 Expected Final JSON Output Structure:
  {
    "story_title": "Elara and the Star-Key's Secret",
    "front_cover": {
-     "Cover_Concept": "Elara and Orion stand at the edge of a celestial forest, ready to unlock a cosmic secret, inviting the reader on their journey.",
+     "Cover_Concept": "Elara( wearing a silver gown that sparkles on shining light ) and Orion stand at the edge of a celestial forest, ready to unlock a cosmic secret, inviting the reader on their journey.",
      "Present_Characters": ["Elara", "Orion"],
      "Focal_Point": "Elara holding the glowing 'Star-Key', looking out with wonder.",
-     "Character_Placement": "Elara is in the foreground-center, with Orion on her shoulder, leaving the top third of the image clear for the title.",
+     "Character_Placement": "Elara is in the foreground-center, with Orion on her shoulder, leaving the top third of the image clear.",
      "Character_Details": [
        {
          "Character_Name": "Elara",

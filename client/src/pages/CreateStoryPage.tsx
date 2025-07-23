@@ -1,5 +1,6 @@
 // src/pages/CreateStoryPage.tsx
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
+import ReactMarkdown from "react-markdown";
 import { useLocation, useParams } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -16,12 +17,25 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/contexts/AuthContext";
 import { useJobProgress } from "@/hooks/use-job-progress";
-
 const STEPS = [
   { id: 1, name: "Choose Character" },
   { id: 2, name: "Select Story" },
   { id: 3, name: "Preview & Download" },
 ];
+
+const TypingDots = () => (
+  <span className="inline-flex gap-0.5 ml-1">
+    {[0, 1, 2].map((i) => (
+      <span
+        key={i}
+        className="w-1.5 h-1.5 rounded-full bg-red-500 animate-bounce"
+        style={{ animationDelay: `${i * 0.15}s` }}
+      />
+    ))}
+  </span>
+);
+
+type Section = { title: string; body: string };
 
 const DEBUG = true;
 const log = (...args: any[]) =>
@@ -56,6 +70,13 @@ export default function CreateStoryPage() {
   /* progress job ids */
   const [imagesJobId, setImagesJobId] = useState<string>();
   const imagesProg = useJobProgress(imagesJobId);
+  const [reasoningLog, setReasoningLog] = useState(""); // live CoT
+  const [section, setSection] = useState<Section | null>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  const [working, setWorking] = useState<Section | null>(null);
+  const [visible, setVisible] = useState<Section | null>(null);
+  const hideTimer = useRef<ReturnType<typeof setTimeout>>();
 
   /* ─────────────────────────── mutations ───────────────────────── */
   const createBookM = useMutation({
@@ -147,6 +168,8 @@ export default function CreateStoryPage() {
           ? "she"
           : "they";
 
+    const charDescriptions = side ? [sideDescription] : [];
+
     const payload = {
       bookId,
       kidName,
@@ -157,10 +180,20 @@ export default function CreateStoryPage() {
       kidInterests: activeChar.interests ?? [],
       storyThemes: [data.theme],
       characters: side ? [side.name] : [],
-      characterDescriptions: side ? [sideDescription] : [],
+      characterDescriptions: charDescriptions,
       characterImageMap: {
-        [kidName]: activeChar.toonUrl,
-        ...(side?.toonUrl ? { [side.name]: side.toonUrl } : {}),
+        [kidName]: {
+          image_url: activeChar.toonUrl,
+          description: `a ${activeChar.age} year old human kid`,
+        },
+        ...(side
+          ? {
+              [side.name]: {
+                image_url: side.toonUrl,
+                description: charDescriptions[0],
+              },
+            }
+          : {}),
       },
     };
 
@@ -198,6 +231,16 @@ export default function CreateStoryPage() {
   }, [imagesProg]);
 
   useEffect(() => {
+    if (imagesProg?.log) {
+      setReasoningLog(imagesProg.log); // overwrite; backend already accumulates
+    }
+  }, [imagesProg?.log]);
+
+  useEffect(() => {
+    cardRef.current?.scrollTo({ top: cardRef.current.scrollHeight });
+  }, [section]);
+
+  useEffect(() => {
     if (imagesProg?.phase === "error") {
       toast({
         title: "Story generation failed",
@@ -213,6 +256,49 @@ export default function CreateStoryPage() {
       setLocation(`/book/${bookId}`);
     }
   }, [book]);
+
+  const appendToken = React.useCallback((raw: string) => {
+    // Keep spaces; convert lone newline → real paragraph break
+    if (raw === "\n") {
+      setSection((prev) =>
+        prev ? { ...prev, body: prev.body + "\n\n" } : prev,
+      );
+      return;
+    }
+
+    // Split chunk on every **Bold heading**
+    const parts = raw.split(/\*\*([^*]+)\*\*/g);
+    // parts = [beforeHeading, heading1, after1, heading2, after2, …]
+
+    setSection((prev) => {
+      let current = prev ?? { title: "Thinking…", body: "" };
+
+      // 0️⃣ prepend any text that arrived *before* the first heading
+      current.body += parts[0];
+
+      // 🔁 loop over each heading/body pair
+      for (let i = 1; i < parts.length; i += 2) {
+        const title = parts[i].trim();
+        const body = parts[i + 1] ?? "";
+
+        // push previous card? – we *replace*, so nothing to store
+        current = { title, body };
+      }
+      return current;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!imagesJobId) return;
+    const es = new EventSource(`/api/jobs/${imagesJobId}/stream`);
+
+    es.onmessage = (e) => {
+      const state = JSON.parse(e.data);
+      if (state.log) appendToken(state.logDelta ?? state.log); // pick delta or full
+      // … handle pct / phase …
+    };
+    return () => es.close();
+  }, [imagesJobId, appendToken]);
 
   /* when final images arrive – patch & redirect */
   // useEffect(()=>{
@@ -286,6 +372,35 @@ export default function CreateStoryPage() {
                   Generating pages… — {imagesProg.pct.toFixed(0)}%
                 </p>
                 <ProgressDisplay prog={imagesProg} />
+              </div>
+            )}
+
+            {(imagesProg?.phase === "prompting" || reasoningLog) && (
+              <div className="mt-6">
+                <p className="text-xs mb-1 flex items-center">
+                  <span className="font-semibold text-red-600">
+                    {imagesProg?.phase === "prompting"
+                      ? "Planning story"
+                      : "Story planner reasoning"}
+                  </span>
+                  <TypingDots />
+                </p>
+
+                {section && (
+                  <div className="mt-6">
+                    <p className="font-semibold mb-1 flex items-center shimmer">
+                      {section.title}
+                    </p>
+                    <div
+                      ref={cardRef}
+                      className="bg-white border border-red-300 rounded-md p-3
+                                 text-xs text-gray-800 whitespace-pre-wrap
+                                 max-h-56 overflow-y-auto"
+                    >
+                      <ReactMarkdown>{section.body}</ReactMarkdown>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 

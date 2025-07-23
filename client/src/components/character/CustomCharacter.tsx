@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useSwipeable } from "react-swipeable";          
+import { useSwipeable } from "react-swipeable";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
@@ -65,10 +65,12 @@ export function CustomCharacter({ onSubmit }: CustomCharactersProps) {
     setLoading(true);
     apiRequest("GET", `/api/characters?type=custom&userId=${user.uid}`)
       .then((data) => {
-        const sortedCharacters = data.sort(
-          (a: CustomCharacter, b: CustomCharacter) =>
-            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-        );
+        const sortedCharacters = data
+          .filter((c) => !/^__(?:DRAFT|SIDE_DRAFT)__?$/.test(c.name))
+          .sort(
+            (a: CustomCharacter, b: CustomCharacter) =>
+              new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+          );
         setCharacters(Array.isArray(sortedCharacters) ? sortedCharacters : []);
       })
       .catch(() => {
@@ -153,7 +155,7 @@ export function CustomCharacter({ onSubmit }: CustomCharactersProps) {
     setEditing(null);
     setShowForm(true);
     setSelectedCharacterId(null);
-    setAutoOpenUpload(true);
+    setAutoOpenUpload(false);
     // You could also reset selectedCharacterId if you want
     // setSelectedCharacterId(null);
   };
@@ -298,7 +300,7 @@ export function CustomCharacter({ onSubmit }: CustomCharactersProps) {
               if (editing) {
                 // update existing
                 setCharacters((all) =>
-                  all.map((c) => (c.id === char.id ? char : c))
+                  all.map((c) => (c.id === char.id ? char : c)),
                 );
               } else {
                 // new character
@@ -313,7 +315,6 @@ export function CustomCharacter({ onSubmit }: CustomCharactersProps) {
           />
         </div>
       )}
-
 
       {/* Import and use the StyleSelection component */}
       {/* {selectedCharacterId && (

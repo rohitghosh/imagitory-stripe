@@ -60,6 +60,36 @@ html {
   }
 }
 
+@layer utilities {
+  @keyframes fadeAway {
+    to { opacity: 0; transform: translateY(-4px); }
+  }
+
+  .fade-away {
+    /* show instantly, then animate towards 0 opacity */
+    animation: fadeAway 0.35s ease-out forwards;
+  }
+  @keyframes shimmer {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  .shimmer {
+    /* 1️⃣ A narrow dark band in the middle of two bright reds */
+    background: linear-gradient(
+      135deg,
+      #F87171 40%,    /* Tailwind red-400 */
+      #B91C1C 50%,    /* Tailwind red-800 — your “spotlight” darkening */
+      #F87171 60%
+    );
+    background-size: 200% 100%;     /* make the gradient twice as wide as the text */
+    background-clip: text;          /* clip the gradient to the text shape */
+    -webkit-background-clip: text;  /* for Safari */
+    color: transparent;             /* hide the solid fill */
+    animation: shimmer 5s linear infinite;
+  }
+}
+
 /* Custom classes for minimalist UI */
 @layer components {
   .minimal-card {

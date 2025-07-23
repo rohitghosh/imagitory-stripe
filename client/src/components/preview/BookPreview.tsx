@@ -180,7 +180,8 @@ export function BookPreview({
 
                   {/* --- COVER PAGE: button → inline editor --- */}
                   {page.isCover ? (
-                    editingCoverId === page.id ? (
+                    // If regenerating, show nothing in this slot
+                    page.regenerating ? null : editingCoverId === page.id ? (
                       <>
                         <Textarea
                           rows={2}
@@ -200,8 +201,8 @@ export function BookPreview({
                             size="sm"
                             onClick={() => {
                               const newTitle = draftTitle.trim() || page.content;
-                              onUpdatePage(page.id, newTitle);   // ① update local text
-                              onRegenerate(page.id, "coverTitle", newTitle);  // ② call cover API
+                              onUpdatePage(page.id, newTitle);             // update local state
+                              onRegenerate(page.id, "coverTitle", newTitle); // call API with new title
                               setEditingCoverId(null);
                             }}
                           >

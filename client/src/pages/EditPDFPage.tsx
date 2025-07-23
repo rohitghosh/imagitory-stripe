@@ -10,14 +10,62 @@ import { ShippingForm } from "@/components/preview/ShippingForm";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiRequest } from "@/lib/queryClient";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { ProgressDisplay } from "@/components/ui/progress-display";
+import { useJobProgress } from "@/hooks/use-job-progress";
+
+const FULL_W = 2048;
+const FULL_H = 1024;
+const HALF_W = FULL_W / 2;
+const LOGICAL_W = 600;
+const LOGICAL_H = Math.round((FULL_H * LOGICAL_W) / HALF_W);
 
 // Configuration for the pages:
 const MOBILE_BREAKPOINT = 768;
 const pageConfig = {
-  finalWidth: 512,
-  finalHeight: 512,
-  idealMinContainerWidth: 2 * 256 + 32,
+  finalWidth: LOGICAL_W,
+  finalHeight: LOGICAL_H,
+  idealMinContainerWidth: 2 * LOGICAL_W + 32,
 };
+
+function normalize(rawX: number, rawY: number) {
+  return {
+    x: (rawX / HALF_W) * pageConfig.finalWidth,
+    y: (rawY / FULL_H) * pageConfig.finalHeight,
+  };
+}
+
+function PageImage({
+  url,
+  side,
+}: {
+  url: string;
+  side: "left" | "right" | "full";
+}) {
+  if (side === "full") {
+    // cover: fill the whole canvas
+    return (
+      <img
+        src={url}
+        alt=""
+        draggable={false}
+        className="absolute inset-0 w-full h-full object-cover"
+      />
+    );
+  }
+
+  // split-cropping for story pages
+  return (
+    <img
+      src={url}
+      alt=""
+      draggable={false}
+      className="absolute inset-0 w-full h-full object-cover"
+      style={{
+        objectPosition: side === "left" ? "left center" : "right center",
+      }}
+    />
+  );
+}
 
 //
 // ScalablePreview Component (unchanged)
@@ -28,9 +76,13 @@ function ScalablePreview({ children, onScaleChange }) {
   useEffect(() => {
     function handleResize() {
       if (containerRef.current) {
-        const available =
-          containerRef.current.getBoundingClientRect().width;
+        const available = containerRef.current.getBoundingClientRect().width;
         const scaleFactor = Math.min(1, available / pageConfig.finalWidth);
+        console.log("🎯 ScalablePreview:", {
+          available,
+          scaleFactor,
+          finalWidth: pageConfig.finalWidth,
+        });
         setScale(scaleFactor);
         if (onScaleChange) onScaleChange(scaleFactor);
       }
@@ -90,13 +142,30 @@ const ResizableTextBox = ({
     setCurrentSide(initialSide);
   }, [x, y, initialSide]);
 
+  useEffect(() => {
+    const id = Math.random().toString(36).slice(2, 7);
+    setTimeout(() => {
+      const box = textBoxRef.current?.closest(".rnd");
+      if (box) {
+        const r = box.getBoundingClientRect();
+        console.log(`📦 Box[${id}] mount`, {
+          initX: x,
+          initY: y,
+          scaledX: r.left,
+          scaledY: r.top,
+          scale,
+        });
+      }
+    }, 0);
+  }, []);
+
   return (
     <Rnd
       bounds="parent"
       enableUserSelectHack={false}
       disableDragging={isEditingMode}
-      size={{ width: width * scale, height: height * scale }}
-      position={{ x: localX * scale, y: localY * scale }}
+      size={{ width: width, height: height }}
+      position={{ x: localX, y: localY }}
       onDrag={(e, d) => {
         const newX = d.x / scale;
         const newY = d.y / scale;
@@ -134,6 +203,12 @@ const ResizableTextBox = ({
         setLocalX(finalX);
         setLocalY(finalY);
         onUpdate({ x: finalX, y: finalY, width, height, side: currentSide });
+        console.log("📦 Box drag/resize", {
+          side: currentSide,
+          x: localX,
+          y: localY,
+          scale,
+        });
       }}
       onResizeStop={(e, direction, ref, delta, position) => {
         const updatedX = position.x / scale;
@@ -146,6 +221,12 @@ const ResizableTextBox = ({
           width: ref.offsetWidth / scale,
           height: ref.offsetHeight / scale,
           side: currentSide,
+        });
+        console.log("📦 Box drag/resize", {
+          side: currentSide,
+          x: localX,
+          y: localY,
+          scale,
         });
       }}
       onMouseDown={(e) => e.stopPropagation()}
@@ -174,7 +255,7 @@ const ResizableTextBox = ({
           outline: "none",
           whiteSpace: "pre-wrap",
           overflowWrap: "break-word",
-          textAlign: "center",
+          textAlign: "left",
           boxSizing: "border-box",
           userSelect: isEditingMode ? "text" : "none",
           pointerEvents: "auto",
@@ -229,6 +310,8 @@ export default function EditPDFPage() {
   );
   const [book, setBook] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [jobId, setJobId] = useState<string>();
+  const prog = useJobProgress(jobId);
   const [isEditing, setIsEditing] = useState(false);
   const [availableWidth, setAvailableWidth] = useState(window.innerWidth);
   const [currentScale, setCurrentScale] = useState(1);
@@ -281,63 +364,224 @@ export default function EditPDFPage() {
 
   const effectivePageHeight = pageConfig.finalHeight;
 
+  async function mark(phase: string, pct = 0, message = phase) {
+    await fetch(`/api/jobs/${jobId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phase, pct, message }),
+    });
+  }
+
+  function normalisePages(raw: any[]) {
+    return raw.map((p) => {
+      const rawLX = p.leftX ?? p.x ?? HALF_W / 2;
+      const rawLY = p.leftY ?? p.y ?? FULL_H / 2;
+      const rawRX = p.rightX ?? p.x ?? HALF_W / 2;
+      const rawRY = p.rightY ?? p.y ?? FULL_H / 2;
+
+      const { x: leftX, y: leftY } = normalize(rawLX, rawLY);
+      const { x: rightX, y: rightY } = normalize(rawRX, rawRY);
+
+      return {
+        ...p,
+        leftX,
+        leftY,
+        rightX,
+        rightY,
+        width: ((p.width ?? 400) / HALF_W) * pageConfig.finalWidth,
+        height: ((p.height ?? 100) / FULL_H) * pageConfig.finalHeight,
+        fontSize: p.fontSize ?? 16,
+        color: p.color ?? "#000",
+        leftText: Array.isArray(p.leftText)
+          ? p.leftText
+          : (p.leftText ?? "").split("\n"),
+        rightText: Array.isArray(p.rightText)
+          ? p.rightText
+          : (p.rightText ?? "").split("\n"),
+      };
+    });
+  }
+
   useEffect(() => {
-    async function fetchBook() {
-      console.log("[EditPDF] ▶️ fetchBook start, bookId=", bookId);
+    let cancelled = false;
+
+    (async () => {
+      try {
+        // ── book meta ─────────────────────────────────────────
+        const metaRes = await fetch(`/api/books/${bookId}`, {
+          credentials: "include",
+        });
+        if (!metaRes.ok) throw new Error("Failed to fetch book data");
+        const meta = await metaRes.json();
+
+        // ── launch split job ─────────────────────────────────
+        const splitRes = await fetch(`/api/books/${bookId}/prepareSplit`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: bookId, pages: meta.pages }),
+        });
+
+        // • As-a-Service (202)  → save jobId, stay in “loading”
+        if (splitRes.status === 202) {
+          const jid = splitRes.headers.get("X-Job-Id");
+          if (!cancelled && jid) setJobId(jid);
+          return; // wait for poller effect
+        }
+
+        // • Synchronous finish (200) → we already have pages
+        if (!splitRes.ok) throw new Error("prepareSplit failed");
+        const { pages } = await splitRes.json();
+        if (!cancelled) {
+          setBook({ ...meta, pages: normalisePages(pages) });
+          setLoading(false);
+        }
+      } catch (err: any) {
+        if (!cancelled) {
+          console.error(err);
+          toast({
+            title: "Error",
+            description: err.message,
+            variant: "destructive",
+          });
+          setLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [bookId, toast]);
+
+  /* --------------------------------------------------------- *
+   * 2) Completion – when poller hits “complete”, refetch book *
+   * --------------------------------------------------------- */
+  useEffect(() => {
+    if (!jobId) return; // nothing to poll
+    if (prog?.phase !== "complete") return;
+
+    let cancelled = false;
+    (async () => {
       try {
         const res = await fetch(`/api/books/${bookId}`, {
           credentials: "include",
         });
-        if (!res.ok) throw new Error("Failed to fetch book data");
+        if (!res.ok) throw new Error("Failed to fetch processed book");
         const data = await res.json();
-        console.log("[EditPDF] ← Book data:", data);
-
-        console.log("[EditPDF] → POST /api/books/" + bookId + "/prepareSplit");
-        const splitResp = await fetch(`/api/books/${bookId}/prepareSplit`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: bookId, pages: data.pages }),
-        });
-
-        console.log("[EditPDF] ← prepareSplit status:", splitResp.status);
-        if (!splitResp.ok) throw new Error("Failed to split images");
-        const { pages: splitPages } = await splitResp.json();
-
-        const updatedPages = splitPages.map((p) => ({
-          ...p,
-          leftX: p.leftX ?? p.x ?? pageConfig.finalWidth / 2 - 100,
-          leftY: p.leftY ?? p.y ?? pageConfig.finalHeight / 2 - 25,
-          rightX: p.rightX ?? p.x ?? pageConfig.finalWidth / 2 - 100,
-          rightY: p.rightY ?? p.y ?? pageConfig.finalHeight / 2 - 25,
-          width: p.width ?? 400,
-          height: p.height ?? 100,
-          fontSize: p.fontSize ?? 16,
-          color: p.color ?? "#000000",
-          leftText: p.leftText
-            ? Array.isArray(p.leftText)
-              ? p.leftText
-              : p.leftText.split("\n")
-            : [],
-          rightText: p.rightText
-            ? Array.isArray(p.rightText)
-              ? p.rightText
-              : p.rightText.split("\n")
-            : [],
-        }));
-        setBook({ ...data, pages: updatedPages });
-      } catch (err) {
-        console.error("Error loading book data:", err);
-        toast({
-          title: "Error",
-          description: "Could not load book data",
-          variant: "destructive",
-        });
-      } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setBook({ ...data, pages: normalisePages(data.pages) });
+          setLoading(false);
+        }
+      } catch (err: any) {
+        if (!cancelled) {
+          console.error(err);
+          toast({
+            title: "Error",
+            description: err.message,
+            variant: "destructive",
+          });
+          setLoading(false);
+        }
       }
-    }
-    fetchBook();
-  }, [bookId, toast]);
+    })();
+
+    // clean-up
+    return () => {
+      cancelled = true;
+    };
+  }, [prog?.phase, jobId, bookId, toast]);
+
+  // // useEffect(() => {
+  //   async function fetchBook() {
+  //     console.log("[EditPDF] ▶️ fetchBook start, bookId=", bookId);
+  //     try {
+  //       const res = await fetch(`/api/books/${bookId}`, {
+  //         credentials: "include",
+  //       });
+  //       if (!res.ok) throw new Error("Failed to fetch book data");
+  //       const data = await res.json();
+  //       console.log("[EditPDF] ← Book data:", data);
+
+  //       console.log("[EditPDF] → POST /api/books/" + bookId + "/prepareSplit");
+  //       const splitResp = await fetch(`/api/books/${bookId}/prepareSplit`, {
+  //         method: "POST",
+  //         headers: {
+  //           "Content-Type": "application/json",
+  //         },
+  //         body: JSON.stringify({ id: bookId, pages: data.pages }),
+  //       });
+
+  //       setJobId(splitResp.headers.get("X-Job-Id") ?? undefined);
+
+  //       console.log("[EditPDF] ← prepareSplit status:", splitResp.status);
+  //       if (!splitResp.ok) throw new Error("Failed to split images");
+  //       const { pages: splitPages } = await splitResp.json();
+
+  //       const updatedPages = splitPages.map((p) => {
+  //         // 1) pull out your raw coordinates (in the 0→789 × 0→672 space)
+  //         const rawLX = p.leftX ?? p.x ?? HALF_W / 2;
+  //         const rawLY = p.leftY ?? p.y ?? FULL_H / 2;
+  //         const rawRX = p.rightX ?? p.x ?? HALF_W / 2;
+  //         const rawRY = p.rightY ?? p.y ?? FULL_H / 2;
+
+  //         // 2) normalize them into your 600×LOGICAL_H canvas
+  //         const { x: leftX, y: leftY } = normalize(rawLX, rawLY);
+  //         const { x: rightX, y: rightY } = normalize(rawRX, rawRY);
+
+  //         return {
+  //           ...p,
+  //           leftX,
+  //           leftY,
+  //           rightX,
+  //           rightY,
+
+  //           // if you also want to scale the box size itself:
+  //           width: ((p.width ?? 400) / HALF_W) * pageConfig.finalWidth,
+  //           height: ((p.height ?? 100) / FULL_H) * pageConfig.finalHeight,
+
+  //           fontSize: p.fontSize ?? 16,
+  //           color: p.color ?? "#000",
+  //           leftText: Array.isArray(p.leftText)
+  //             ? p.leftText
+  //             : (p.leftText || "").split("\n"),
+  //           rightText: Array.isArray(p.rightText)
+  //             ? p.rightText
+  //             : (p.rightText || "").split("\n"),
+  //           fontFamily: p.fontFamily,
+  //           leftTextColor: p.leftTextColor,
+  //           rightTextColor: p.rightTextColor,
+  //           leftFontFamily: p.leftFontFamily,
+  //           rightFontFamily: p.rightFontFamily,
+  //         };
+  //       });
+  //       setBook({ ...data, pages: updatedPages });
+  //       console.groupCollapsed("📝 Normalised page data");
+  //       updatedPages.forEach((p, i) => {
+  //         console.log(`#${i + 1}`, {
+  //           rawLX: p._rawLX, // add these two temp props in your map() below
+  //           rawLY: p._rawLY,
+  //           leftX: p.leftX,
+  //           leftY: p.leftY,
+  //           rightX: p.rightX,
+  //           rightY: p.rightY,
+  //           width: p.width,
+  //           height: p.height,
+  //         });
+  //       });
+  //       console.groupEnd();
+  //     } catch (err) {
+  //       console.error("Error loading book data:", err);
+  //       toast({
+  //         title: "Error",
+  //         description: "Could not load book data",
+  //         variant: "destructive",
+  //       });
+  //     } finally {
+  //       setLoading(false);
+  //     }
+  //   }
+  //   fetchBook();
+  // }, [bookId, toast]);
 
   useEffect(() => {
     const logWidths = () => {
@@ -367,7 +611,10 @@ export default function EditPDFPage() {
 
   function buildFlipPages() {
     if (!book) return [];
-    const { coverUrl, backCoverUrl } = book;
+
+    const coverUrl = book.cover?.final_cover_url;
+    const backCoverUrl = book.cover?.back_cover_url;
+
     const result = [];
     if (coverUrl) {
       result.push({
@@ -375,6 +622,7 @@ export default function EditPDFPage() {
         imageUrl: coverUrl,
         content: [],
         isCover: true,
+        side: "full",
         x: 50,
         y: 50,
         fontSize: 20,
@@ -385,7 +633,8 @@ export default function EditPDFPage() {
       if (!p.isCover && !p.isBackCover) {
         result.push({
           id: p.id * 1000,
-          imageUrl: p.leftHalfUrl,
+          side: "left",
+          imageUrl: p.expanded_scene_url,
           content: p.leftText || [],
           x: p.leftX ?? pageConfig.finalWidth / 2 - 100,
           y: p.leftY ?? pageConfig.finalHeight / 2 - 25,
@@ -397,7 +646,8 @@ export default function EditPDFPage() {
         });
         result.push({
           id: p.id * 1000 + 1,
-          imageUrl: p.rightHalfUrl,
+          side: "right",
+          imageUrl: p.expanded_scene_url,
           content: p.rightText || [],
           x: p.rightX ?? pageConfig.finalWidth / 2 - 100,
           y: p.rightY ?? pageConfig.finalHeight / 2 - 25,
@@ -415,6 +665,7 @@ export default function EditPDFPage() {
         imageUrl: backCoverUrl,
         content: [],
         isBackCover: true,
+        side: "left",
         x: 50,
         y: 50,
       });
@@ -671,316 +922,360 @@ export default function EditPDFPage() {
     if (currentSpreadIdx > 0) setCurrentSpreadIdx(currentSpreadIdx - 1);
   }
 
-  
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-primary"></div>
-          <p className="text-lg text-gray-700 font-medium">
-            Preparing your book...
-          </p>
-        </div>
-      </div>
-    );
-  }
-  if (!book) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p>Book not found</p>
-      </div>
-    );
-  }
-
   const pagesToRender = singlePageMode
-    ? [flipPages[currentPageIdx]]
-    : spreads[currentSpreadIdx];
+    ? flipPages[currentPageIdx]
+      ? [flipPages[currentPageIdx]]
+      : []
+    : (spreads[currentSpreadIdx] ?? []);
 
-  const spreadPx = pagesToRender.length === 1
-  ? pageConfig.finalWidth
-  : pageConfig.finalWidth * 2 + 32;
+  const spreadPx =
+    pagesToRender.length === 1
+      ? pageConfig.finalWidth
+      : pageConfig.finalWidth * 2 + 32;
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
       <Header />
       <main className="flex-grow mx-auto px-4 py-8 w-full max-w-full overflow-hidden">
-        <h1 className="text-2xl font-bold mb-4 text-center">{book.title}</h1>
+        <h1 className="text-2xl font-bold mb-4 text-center">
+          {" "}
+          {book ? book.title : ""}
+        </h1>
 
-        {/* Spread Viewer */}
-        <div
-          ref={viewerRef}
-          className="flex justify-center bg-gray-50 p-4 shadow-lg rounded relative mx-auto overflow-hidden"
-          style={{
-            maxWidth: "100%" ,
-            width: singlePageMode ? "100%" : pagesToRender.length * pageConfig.finalWidth + (pagesToRender.length > 1 ? 32 : 0),
-          }}
-          {...swipeHandlers}
-        >
-          <div
-            id="spreadContainer"
-            ref={spreadRef}
-            className="relative flex justify-center"
-            style={{
-              width: singlePageMode
-                ? "100%"
-                : pagesToRender.length * pageConfig.finalWidth +
-                  (pagesToRender.length > 1 ? 32 : 0),
-              height: singlePageMode ? "auto" : pageConfig.finalHeight,
-              maxWidth: "100%",
-              overflow: "hidden", // Add this
-                position: "relative" 
-            }}
-          >
-            <div className="flex gap-0.5 justify-center w-full">
-              {pagesToRender.map((fp) => (
-                <div
-                  key={fp.id}
-                  className="relative bg-white overflow-hidden flex-shrink-0"
-                  style={{
-                    width: singlePageMode ? "100%" : pageConfig.finalWidth,
-                    height: singlePageMode ? pageConfig.finalHeight/2 : pageConfig.finalHeight,
-                    maxWidth: singlePageMode ? "100%" : pageConfig.finalWidth,
+        {loading ? (
+          // ← only *this* block shows while loading
+          <div className="flex items-center justify-center py-20 px-4">
+            {jobId && prog ? (
+              <div className="w-full max-w-screen-lg">
+                <ProgressDisplay
+                  prog={{
+                    ...prog,
+                    message:
+                      prog.phase === "splitting"
+                        ? "Editing PDF: preparing pages…"
+                        : prog.phase === "generating"
+                          ? "Editing PDF: laying out each page…"
+                          : prog.message,
                   }}
-                  onClick={(e) => {
-                    if (isEditing) return;
-                    if (e.currentTarget.querySelector(":focus-within")) return;
-                    handleSelectPage(fp.id);
-                  }}
-                >
-                  <ScalablePreview onScaleChange={setCurrentScale}>
-                    <img
-                      src={fp.imageUrl}
-                      alt=""
-                      style={{
-                        position: "absolute",
-                        top: 0,
-                        left: 0,
-                        width: "100%",
-                        height: "100%",
-                        objectFit: "cover",
-                      }}
-                    />
-                    <ResizableTextBox
-                      x={fp.x ?? 50}
-                      y={fp.y ?? 50}
-                      width={fp.width ?? 200}
-                      height={fp.height ?? 50}
-                      fontSize={fp.fontSize ?? 16}
-                      color={fp.color ?? "#000000"}
-                      fontFamily={fp.fontFamily ?? "Nunito"}
-                      lines={fp.content}
-                      scale={currentScale}
-                      initialSide={fp.id % 1000 === 0 ? "left" : "right"}
-                      onUpdate={(newLayout) => updatePageLayout(fp, newLayout)}
-                      onTextChange={(newValue) => updatePageText(fp, newValue)}
-                      setGlobalIsEditing={setIsEditing}
-                    />
-                  </ScalablePreview>
-                </div>
-              ))}
-            </div>
-          </div>
-          {/* Arrow buttons */}
-          <button
-            onClick={prev}
-            disabled={
-              singlePageMode ? currentPageIdx === 0 : currentSpreadIdx === 0
-            }
-            className="absolute left-2 top-1/2 -translate-y-1/2 bg-white p-2 rounded-full shadow disabled:opacity-40 z-10"
-          >
-            ◀
-          </button>
-          <button
-            onClick={next}
-            disabled={
-              singlePageMode
-                ? currentPageIdx === flipPages.length - 1
-                : currentSpreadIdx === spreads.length - 1
-            }
-            className="absolute right-2 top-1/2 -translate-y-1/2 bg-white p-2 rounded-full shadow disabled:opacity-40 z-10"
-          >
-            ▶
-          </button>
-        </div>
-
-        {/* Controls */}
-        {singlePageMode ? (
-          /* FIXED BOTTOM SHEET for mobile */
-      <div
-        className="fixed bottom-0 left-0 right-0 bg-white border-t-2 border-gray-200 shadow-2xl z-50"
-        style={{
-          paddingBottom: "max(env(safe-area-inset-bottom), 20px)",
-          paddingLeft: "16px",
-          paddingRight: "16px",
-          paddingTop: "16px",
-          maxHeight: "200vh",
-          minHeight: "180px",
-          overflow: "visible"
-        }}
-      >
-        <div className="w-full space-y-3">
-          <div className="mx-auto h-1.5 w-12 bg-gray-300 rounded-full mb-3" />
-
-          <div className="grid grid-cols-3 gap-2 items-center">
-            <span className="font-medium text-sm">Font size</span>
-            <input
-              type="range"
-              min={8}
-              max={72}
-              value={editingFontSize}
-              onChange={(e) => {
-                const v = +e.target.value;
-                setEditingFontSize(v);
-                handleUpdateStyle(v, editingColor, editingFontFamily);
-              }}
-              className="w-full"
-            />
-            <span className="text-right text-sm font-mono">
-              {editingFontSize}
-            </span>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4 items-center">
-            <div className="flex items-center justify-between">
-              <span className="font-medium text-sm">Color</span>
-              <input
-                type="color"
-                value={editingColor}
-                onChange={(e) => {
-                  setEditingColor(e.target.value);
-                  handleUpdateStyle(
-                    editingFontSize,
-                    e.target.value,
-                    editingFontFamily,
-                  );
-                }}
-                className="w-8 h-8 rounded border"
-              />
-            </div>
-
-            <div className="flex items-center justify-between">
-              <span className="font-medium text-sm">Font</span>
-              <select
-                value={editingFontFamily}
-                onChange={(e) => {
-                  setEditingFontFamily(e.target.value);
-                  handleUpdateStyle(
-                    editingFontSize,
-                    editingColor,
-                    e.target.value,
-                  );
-                }}
-                className="border rounded p-1 text-sm min-w-0 flex-1 ml-2"
-              >
-                <option value="Nunito">Nunito</option>
-                <option value="Baloo 2">Baloo 2</option>
-                <option value="Chewy">Chewy</option>
-              </select>
-            </div>
-          </div>
-        </div>
-      </div>
-        ) : (
-          /* ORIGINAL inline controls for desktop */
-      <div
-        className="mt-6 flex items-center justify-center space-x-8 mx-auto"
-        style={{ width: `${spreadPx}px`, maxWidth: "100%" }}
-      >
-        <label className="flex items-center space-x-2">
-          <span className="font-medium">Font size:</span>
-          <input
-            type="number"
-            min={8}
-            max={72}
-            value={editingFontSize}
-            onChange={(e) => {
-              const v = +e.target.value;
-              setEditingFontSize(v);
-              handleUpdateStyle(v, editingColor, editingFontFamily);
-            }}
-            className="w-16 border border-gray-300 rounded p-1"
-          />
-        </label>
-        <label className="flex items-center space-x-3">
-          <span className="font-medium">Color:</span>
-          <input
-            type="color"
-            value={editingColor}
-            onChange={(e) => {
-              setEditingColor(e.target.value);
-              handleUpdateStyle(editingFontSize, e.target.value, editingFontFamily);
-            }}
-          />
-        </label>
-        <label className="flex items-center space-x-3">
-          <span className="font-medium">Font Family:</span>
-          <select
-            value={editingFontFamily}
-            onChange={(e) => {
-              setEditingFontFamily(e.target.value);
-              handleUpdateStyle(editingFontSize, editingColor, e.target.value);
-            }}
-            className="border border-gray-300 rounded p-1"
-          >
-            <option value="Nunito">Nunito</option>
-            <option value="Baloo 2">Baloo 2</option>
-            <option value="Chewy">Chewy</option>
-          </select>
-        </label>
-
-        <Button onClick={prev} disabled={currentSpreadIdx === 0}>
-          {"<<"}
-        </Button>
-        <Button onClick={next} disabled={currentSpreadIdx === spreads.length - 1}>
-          {">>"}
-        </Button>
-      </div>
-        )}
-
-        {/* PDF & Print Buttons */}
-        <div className="flex flex-col md:flex-row justify-center items-center space-y-4 md:space-y-0 md:space-x-6 mt-6 md:mt-12">
-          <Button
-            variant="default"
-            size="lg"
-            className="w-full md:w-auto flex items-center justify-center"
-            onClick={handleSaveAndGeneratePDF}
-            disabled={isGeneratingPdf}
-          >
-            {isGeneratingPdf ? (
-              <>
-                <i className="fas fa-spinner mr-2 animate-spin"></i>
-                <span>Compiling PDF...</span>
-              </>
+                  className="w-full"
+                />
+              </div>
             ) : (
-              <>
-                <i className="fas fa-download mr-2"></i>
-                <span>Download PDF</span>
-              </>
+              <div className="animate-spin rounded-full h-10 w-10 border-t-4 border-primary" />
             )}
-          </Button>
-
-          <Button
-            variant="outline"
-            size="lg"
-            className="w-full md:w-auto flex items-center justify-center border-2 border-primary text-primary"
-            onClick={handlePrint}
-          >
-            <i className="fas fa-print mr-2"></i>
-            <span>Print & Ship</span>
-          </Button>
-        </div>
-
-        {showShippingForm && !orderCompleted && (
-          <ShippingForm onSubmit={handleShippingSubmit} />
-        )}
-        {orderCompleted && (
-          <div className="flex items-center justify-center bg-green-100 text-green-800 p-4 rounded-lg mb-8 max-w-md mx-auto mt-8">
-            <i className="fas fa-check-circle text-green-500 mr-2 text-xl"></i>
-            <span>
-              Order successfully placed! Your book will be delivered soon.
-            </span>
           </div>
+        ) : (
+          <>
+            <div
+              ref={viewerRef}
+              className="flex justify-center bg-gray-50 p-4 shadow-lg rounded relative mx-auto overflow-hidden"
+              style={{
+                maxWidth: "100%",
+                width: singlePageMode
+                  ? "100%"
+                  : pagesToRender.length * pageConfig.finalWidth +
+                    (pagesToRender.length > 1 ? 32 : 0),
+              }}
+              {...swipeHandlers}
+            >
+              <div
+                id="spreadContainer"
+                ref={spreadRef}
+                className="relative flex justify-center"
+                style={{
+                  width: singlePageMode
+                    ? "100%"
+                    : pagesToRender.length * pageConfig.finalWidth +
+                      (pagesToRender.length > 1 ? 32 : 0),
+                  height: singlePageMode ? "auto" : pageConfig.finalHeight,
+                  maxWidth: "100%",
+                  overflow: "hidden", // Add this
+                  position: "relative",
+                }}
+              >
+                <div className="flex gap-0.5 justify-center w-full">
+                  {pagesToRender.map((fp) => {
+                    // ── Log 4: show every frame’s key props before rendering
+                    console.log("🖼️ Render FP", {
+                      id: fp.id,
+                      x: fp.x,
+                      y: fp.y,
+                      width: fp.width,
+                      height: fp.height,
+                      scale: currentScale,
+                    });
+
+                    return (
+                      <div
+                        key={fp.id}
+                        className="relative bg-white overflow-hidden flex-shrink-0"
+                        style={{
+                          width: singlePageMode
+                            ? "100%"
+                            : pageConfig.finalWidth,
+                          height: singlePageMode
+                            ? pageConfig.finalHeight / 2
+                            : pageConfig.finalHeight,
+                          maxWidth: singlePageMode
+                            ? "100%"
+                            : pageConfig.finalWidth,
+                        }}
+                        onClick={(e) => {
+                          if (isEditing) return;
+                          if (e.currentTarget.querySelector(":focus-within"))
+                            return;
+                          handleSelectPage(fp.id);
+                        }}
+                      >
+                        <ScalablePreview onScaleChange={setCurrentScale}>
+                          {console.log(
+                            "🎨 Image slice",
+                            fp.id,
+                            fp.side,
+                            fp.side ?? (fp.id % 2 ? "right" : "left"),
+                          )}
+                          <PageImage
+                            url={fp.imageUrl}
+                            side={fp.side ?? (fp.id % 2 ? "right" : "left")}
+                          />
+                          <ResizableTextBox
+                            x={fp.x ?? 50}
+                            y={fp.y ?? 50}
+                            width={fp.width ?? 200}
+                            height={fp.height ?? 50}
+                            fontSize={fp.fontSize ?? 16}
+                            color={fp.color ?? "#000000"}
+                            fontFamily={fp.fontFamily ?? "Nunito"}
+                            lines={fp.content}
+                            scale={currentScale}
+                            initialSide={fp.id % 1000 === 0 ? "left" : "right"}
+                            onUpdate={(newLayout) =>
+                              updatePageLayout(fp, newLayout)
+                            }
+                            onTextChange={(newValue) =>
+                              updatePageText(fp, newValue)
+                            }
+                            setGlobalIsEditing={setIsEditing}
+                          />
+                        </ScalablePreview>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+              {/* Arrow buttons */}
+              <button
+                onClick={prev}
+                disabled={
+                  singlePageMode ? currentPageIdx === 0 : currentSpreadIdx === 0
+                }
+                className="absolute left-2 top-1/2 -translate-y-1/2 bg-white p-2 rounded-full shadow disabled:opacity-40 z-10"
+              >
+                ◀
+              </button>
+              <button
+                onClick={next}
+                disabled={
+                  singlePageMode
+                    ? currentPageIdx === flipPages.length - 1
+                    : currentSpreadIdx === spreads.length - 1
+                }
+                className="absolute right-2 top-1/2 -translate-y-1/2 bg-white p-2 rounded-full shadow disabled:opacity-40 z-10"
+              >
+                ▶
+              </button>
+            </div>
+
+            {/* Controls */}
+            {singlePageMode ? (
+              /* FIXED BOTTOM SHEET for mobile */
+              <div
+                className="fixed bottom-0 left-0 right-0 bg-white border-t-2 border-gray-200 shadow-2xl z-50"
+                style={{
+                  paddingBottom: "max(env(safe-area-inset-bottom), 20px)",
+                  paddingLeft: "16px",
+                  paddingRight: "16px",
+                  paddingTop: "16px",
+                  maxHeight: "200vh",
+                  minHeight: "180px",
+                  overflow: "visible",
+                }}
+              >
+                <div className="w-full space-y-3">
+                  <div className="mx-auto h-1.5 w-12 bg-gray-300 rounded-full mb-3" />
+
+                  <div className="grid grid-cols-3 gap-2 items-center">
+                    <span className="font-medium text-sm">Font size</span>
+                    <input
+                      type="range"
+                      min={8}
+                      max={72}
+                      value={editingFontSize}
+                      onChange={(e) => {
+                        const v = +e.target.value;
+                        setEditingFontSize(v);
+                        handleUpdateStyle(v, editingColor, editingFontFamily);
+                      }}
+                      className="w-full"
+                    />
+                    <span className="text-right text-sm font-mono">
+                      {editingFontSize}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4 items-center">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium text-sm">Color</span>
+                      <input
+                        type="color"
+                        value={editingColor}
+                        onChange={(e) => {
+                          setEditingColor(e.target.value);
+                          handleUpdateStyle(
+                            editingFontSize,
+                            e.target.value,
+                            editingFontFamily,
+                          );
+                        }}
+                        className="w-8 h-8 rounded border"
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium text-sm">Font</span>
+                      <select
+                        value={editingFontFamily}
+                        onChange={(e) => {
+                          setEditingFontFamily(e.target.value);
+                          handleUpdateStyle(
+                            editingFontSize,
+                            editingColor,
+                            e.target.value,
+                          );
+                        }}
+                        className="border rounded p-1 text-sm min-w-0 flex-1 ml-2"
+                      >
+                        <option value="Nunito">Nunito</option>
+                        <option value="Baloo 2">Baloo 2</option>
+                        <option value="Chewy">Chewy</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              /* ORIGINAL inline controls for desktop */
+              <div
+                className="mt-6 flex items-center justify-center space-x-8 mx-auto"
+                style={{ width: `${spreadPx}px`, maxWidth: "100%" }}
+              >
+                <label className="flex items-center space-x-2">
+                  <span className="font-medium">Font size:</span>
+                  <input
+                    type="number"
+                    min={8}
+                    max={72}
+                    value={editingFontSize}
+                    onChange={(e) => {
+                      const v = +e.target.value;
+                      setEditingFontSize(v);
+                      handleUpdateStyle(v, editingColor, editingFontFamily);
+                    }}
+                    className="w-16 border border-gray-300 rounded p-1"
+                  />
+                </label>
+                <label className="flex items-center space-x-3">
+                  <span className="font-medium">Color:</span>
+                  <input
+                    type="color"
+                    value={editingColor}
+                    onChange={(e) => {
+                      setEditingColor(e.target.value);
+                      handleUpdateStyle(
+                        editingFontSize,
+                        e.target.value,
+                        editingFontFamily,
+                      );
+                    }}
+                  />
+                </label>
+                <label className="flex items-center space-x-3">
+                  <span className="font-medium">Font Family:</span>
+                  <select
+                    value={editingFontFamily}
+                    onChange={(e) => {
+                      setEditingFontFamily(e.target.value);
+                      handleUpdateStyle(
+                        editingFontSize,
+                        editingColor,
+                        e.target.value,
+                      );
+                    }}
+                    className="border border-gray-300 rounded p-1"
+                  >
+                    <option value="Nunito">Nunito</option>
+                    <option value="Baloo 2">Baloo 2</option>
+                    <option value="Chewy">Chewy</option>
+                  </select>
+                </label>
+
+                <Button onClick={prev} disabled={currentSpreadIdx === 0}>
+                  {"<<"}
+                </Button>
+                <Button
+                  onClick={next}
+                  disabled={currentSpreadIdx === spreads.length - 1}
+                >
+                  {">>"}
+                </Button>
+              </div>
+            )}
+
+            {/* PDF & Print Buttons */}
+            <div className="flex flex-col md:flex-row justify-center items-center space-y-4 md:space-y-0 md:space-x-6 mt-6 md:mt-12">
+              <Button
+                variant="default"
+                size="lg"
+                className="w-full md:w-auto flex items-center justify-center"
+                onClick={handleSaveAndGeneratePDF}
+                disabled={isGeneratingPdf}
+              >
+                {isGeneratingPdf ? (
+                  <>
+                    <i className="fas fa-spinner mr-2 animate-spin"></i>
+                    <span>Compiling PDF...</span>
+                  </>
+                ) : (
+                  <>
+                    <i className="fas fa-download mr-2"></i>
+                    <span>Download PDF</span>
+                  </>
+                )}
+              </Button>
+
+              <Button
+                variant="outline"
+                size="lg"
+                className="w-full md:w-auto flex items-center justify-center border-2 border-primary text-primary"
+                onClick={handlePrint}
+              >
+                <i className="fas fa-print mr-2"></i>
+                <span>Print & Ship</span>
+              </Button>
+            </div>
+
+            {showShippingForm && !orderCompleted && (
+              <ShippingForm onSubmit={handleShippingSubmit} />
+            )}
+            {orderCompleted && (
+              <div className="flex items-center justify-center bg-green-100 text-green-800 p-4 rounded-lg mb-8 max-w-md mx-auto mt-8">
+                <i className="fas fa-check-circle text-green-500 mr-2 text-xl"></i>
+                <span>
+                  Order successfully placed! Your book will be delivered soon.
+                </span>
+              </div>
+            )}
+          </>
         )}
       </main>
       <Footer />

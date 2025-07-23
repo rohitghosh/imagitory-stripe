@@ -64,7 +64,7 @@ async function demoCompleteWorkflow() {
       if (result.scenes.length > 0) {
         const firstScene = result.scenes[0];
         console.log(`\nFirst Scene Preview:`);
-        console.log(`Text: "${firstScene.scene_text}"`);
+        console.log(`Text: "${firstScene.scene_text.join("\n")}"`);
         console.log(`Image: ${firstScene.scene_url}`);
       }
     }
