@@ -554,11 +554,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/runValidation", validateStoryInputs);
-  app.post("/api/regenerateScene", regenerateScene);
-  app.post("/api/regenerateBaseCover", regenerateBaseCover);
-  app.post("/api/regenerateFinalCover", regenerateFinalCover);
-  app.post("/api/regenerateFullCover", regenerateFullCover);
+  // app.post("/api/runValidation", validateStoryInputs);
+  // app.post("/api/regenerateScene", regenerateScene);
+  // app.post("/api/regenerateBaseCover", regenerateBaseCover);
+  // app.post("/api/regenerateFinalCover", regenerateFinalCover);
+  // app.post("/api/regenerateFullCover", regenerateFullCover);
 
   app.post("/api/generateFullStory", authenticate, async (req, res) => {
     console.log("Received request to generate full story with:", req);
@@ -723,17 +723,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Page not found" });
       }
 
-      // /* 2️⃣   choose seed */
-      // const seed = randomSeed
-      //   ? Math.floor(Math.random() * 1_000_000)
-      //   : (oldPage.seed ?? 3);
-
       /* 3️⃣   call your image service */
-      const newUrl = await regenerateSceneImage(sceneResponseId, revisedPrompt );
+      const { firebaseUrl: newUrl, responseId: newResponseId } =
+        await regenerateSceneImage(bookId, sceneResponseId, revisedPrompt);
 
       /* 4️⃣   build the updated list */
       const updatedPages = book.pages.map((p: any) =>
-        p.scene_number === pageId ? { ...p, scene_url: newUrl, seed } : p,
+        p.scene_number === pageId
+          ? { ...p, scene_url: newUrl, scene_response_id: newResponseId }
+          : p,
       );
 
       /* 5️⃣   persist */
@@ -750,7 +748,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/regenerateCover", async (req: Request, res: Response) => {
     try {
-      const { bookId, coverInputs, title, randomSeed } = req.body;
+      const { bookId, coverInputs, title, coverResponseId, revisedPrompt } =
+        req.body;
 
       const book = await storage.getBookById(bookId);
       if (!book) return res.status(404).json({ error: "Book not found" });
@@ -764,7 +763,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ? Math.floor(Math.random() * 1_000_000)
         : prevSeed;
 
-      const newBaseCoverUrl = await regenerateBaseCoverImage(coverInputs, seed);
+      // const newBaseCoverUrl = await regenerateBaseCoverImage(coverInputs, seed);
+      const { firebaseUrl: newBaseCoverUrl, responseId: newResponseId } =
+        await regenerateBaseCoverImage(bookId, coverResponseId, revisedPrompt);
 
       // Then add title to create final cover
       const newFinalCoverUrl = await generateFinalCoverWithTitle(
@@ -779,6 +780,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         final_cover_inputs: { ...(book.cover?.final_cover_inputs ?? {}), seed },
         base_cover_url: newBaseCoverUrl,
         final_cover_url: newFinalCoverUrl,
+        base_cover_response_id: newResponseId,
       };
 
       console.log("updatedCover:", updatedCover);
@@ -1739,8 +1741,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 storedPages[idx]?.side || "left";
 
               // Expand the scene image based on side
-              const expandedUrl =  page.expanded_scene_url? page.expanded_scene_url :
-                pageSide === "left"
+              const expandedUrl = page.expanded_scene_url
+                ? page.expanded_scene_url
+                : pageSide === "left"
                   ? await expandImageToLeft(page.scene_url)
                   : await expandImageToRight(page.scene_url);
               // const expandedUrl =
@@ -1787,44 +1790,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const batchResults = await Promise.all(
               batch.map(async (page) => {
                 let hint;
-                if (page.scene_text) { 
-                    try {
-                      // Use the expanded URL for text overlay
-                      hint = await getOverlayHint(
-                        page.expanded_scene_url, // Use expanded URL
-                        page.scene_text, // now always string[]
-                        page.side,
-                        isRhyming,
-                        {
-                          fontSize: DEFAULT_FONT_SIZE,
-                          fontFamily: DEFAULT_FONT_FAMILY,
-                          debugMode: false,
-                        },
-                      );
-                    } catch (err) {
-                      console.warn(
-                        `[prepareSplit] overlay-text failed for page ${page.id}, using defaults:`,
-                        err,
-                      );
-                      // Fallback to defaults if overlay API fails
-                      hint = {
-                        startX: FULL_W / 2 - 100,
-                        startY: FULL_H / 2 - 25,
-                        side: page.side,
-                        color: DEFAULT_COLOR,
-                        lines: isRhyming
-                          ? page.scene_text
-                          : Array.isArray(page.scene_text)
-                            ? page.scene_text
-                            : [page.scene_text],
-                        imageWidth: FULL_W,
-                        imageHeight: FULL_H,
+                if (page.scene_text) {
+                  try {
+                    // Use the expanded URL for text overlay
+                    hint = await getOverlayHint(
+                      page.expanded_scene_url, // Use expanded URL
+                      page.scene_text, // now always string[]
+                      page.side,
+                      isRhyming,
+                      {
                         fontSize: DEFAULT_FONT_SIZE,
                         fontFamily: DEFAULT_FONT_FAMILY,
-                      };
-                    }
-                }
-                else {
+                        debugMode: false,
+                      },
+                    );
+                  } catch (err) {
+                    console.warn(
+                      `[prepareSplit] overlay-text failed for page ${page.id}, using defaults:`,
+                      err,
+                    );
+                    // Fallback to defaults if overlay API fails
+                    hint = {
+                      startX: FULL_W / 2 - 100,
+                      startY: FULL_H / 2 - 25,
+                      side: page.side,
+                      color: DEFAULT_COLOR,
+                      lines: isRhyming
+                        ? page.scene_text
+                        : Array.isArray(page.scene_text)
+                          ? page.scene_text
+                          : [page.scene_text],
+                      imageWidth: FULL_W,
+                      imageHeight: FULL_H,
+                      fontSize: DEFAULT_FONT_SIZE,
+                      fontFamily: DEFAULT_FONT_FAMILY,
+                    };
+                  }
+                } else {
                   hint = {
                     startX: 0,
                     startY: 0,
@@ -1837,7 +1839,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                     fontFamily: DEFAULT_FONT_FAMILY,
                   };
                 }
-                
+
                 const m = mapHint(hint as OverlayHint);
 
                 // Assemble output

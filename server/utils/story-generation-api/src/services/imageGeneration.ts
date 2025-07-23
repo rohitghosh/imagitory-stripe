@@ -5,7 +5,7 @@ import tmp from "tmp-promise";
 import fetch from "node-fetch";
 import { uploadBase64ToFirebase } from "../../../uploadImage";
 import { toFile } from "openai";
-import { storage } from "@/storage"; // already exported in storage.ts
+import { storage } from "../../../../storage"; // already exported in storage.ts
 
 import {
   Scene,
@@ -56,21 +56,57 @@ function removeDuplicateAdjacentWords(text: string): string {
  * `books/{bookId}/characterAliases`, and returns the substituted prompt.
  * @returns the prompt with character names replaced by their aliases
  */
-export async function replaceCharacterNames(
-  prompt: string,
+// export async function replaceCharacterNames(
+//   prompt: string,
+//   presentChars: string[],
+//   aliasPool: string[],
+//   bookId: string,
+// ): Promise<string> {
+//   /* 1️⃣  Build the replacement map */
+//   const aliasMap: Record<string, string> = Object.fromEntries(
+//     presentChars.map((name, i) => [name, aliasPool[i % aliasPool.length]]),
+//   );
+
+//   /* 2️⃣  Persist to Firestore (books/{bookId}/characterAliases) */
+//   await storage.updateBook(bookId, { characterAliases: aliasMap });
+
+//   /* 3️⃣  Perform the substitutions */
+//   const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+//   let out = prompt;
+
+//   for (const [real, alias] of Object.entries(aliasMap)) {
+//     const rx = new RegExp(`\\b${esc(real)}\\b`, "gi");
+//     out = out.replace(rx, alias);
+//   }
+
+//   return out;
+// }
+
+/**
+ * Creates a { realName: alias } map and stores it at
+ * books/{bookId}/characterAliases.
+ */
+export async function createAndSaveAliasMap(
   presentChars: string[],
   aliasPool: string[],
   bookId: string,
-): Promise<string> {
-  /* 1️⃣  Build the replacement map */
-  const aliasMap: Record<string, string> = Object.fromEntries(
+): Promise<Record<string, string>> {
+  const aliasMap = Object.fromEntries(
     presentChars.map((name, i) => [name, aliasPool[i % aliasPool.length]]),
   );
 
-  /* 2️⃣  Persist to Firestore (books/{bookId}/characterAliases) */
   await storage.updateBook(bookId, { characterAliases: aliasMap });
+  return aliasMap;
+}
 
-  /* 3️⃣  Perform the substitutions */
+/**
+ * Replaces every real character name in `prompt` with its alias.
+ * Pure function – no I/O or side-effects.
+ */
+export function applyCharacterAliases(
+  prompt: string,
+  aliasMap: Record<string, string>,
+): string {
   const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   let out = prompt;
 
@@ -78,7 +114,6 @@ export async function replaceCharacterNames(
     const rx = new RegExp(`\\b${esc(real)}\\b`, "gi");
     out = out.replace(rx, alias);
   }
-
   return out;
 }
 
@@ -549,14 +584,17 @@ export async function generateImageForScene(
   }
 
   const aliasPool = ["Reet", "Jeet", "Meet", "Heet"];
-  prompt = await replaceCharacterNames(
-    prompt,
+
+  const aliasMap = await createAndSaveAliasMap(
     Present_Characters,
     aliasPool,
     bookId,
   );
 
-  console.log("Prompt sent to model:\n", prompt);
+  // 2️⃣  Inject aliases into any prompt
+  const safePrompt = applyCharacterAliases(prompt, aliasMap);
+
+  console.log("Prompt sent to model:\n", safePrompt);
   console.log("Reference images:", imageUrls);
 
   /* ---------- Build Responses-API input array ---------- */
@@ -569,7 +607,7 @@ export async function generateImageForScene(
     {
       role: "user",
       content: [
-        { type: "input_text", text: prompt },
+        { type: "input_text", text: safePrompt },
         ...imageUrls.map((url) => ({
           type: "input_image",
           image_url: url,
@@ -661,14 +699,16 @@ export async function generateImageForFrontCover(
     removeDuplicateAdjacentWords(basePrompt);
 
   const aliasPool = ["Reet", "Jeet", "Meet", "Heet"];
-  prompt = await replaceCharacterNames(
-    prompt,
+  const aliasMap = await createAndSaveAliasMap(
     Present_Characters,
     aliasPool,
     bookId,
   );
 
-  console.log("Front-cover prompt:\n", prompt);
+  // 2️⃣  Inject aliases into any prompt
+  const safePrompt = applyCharacterAliases(prompt, aliasMap);
+
+  console.log("Front-cover prompt:\n", safePrompt);
   console.log("Reference images:", imageUrls);
 
   /* ────────────── 4. Assemble the Responses-API payload ───────────── */
@@ -676,7 +716,7 @@ export async function generateImageForFrontCover(
     {
       role: "user",
       content: [
-        { type: "input_text", text: prompt },
+        { type: "input_text", text: safePrompt },
         ...imageUrls.map((url) => ({ type: "input_image", image_url: url })),
       ],
     },
@@ -928,72 +968,111 @@ function createTitleOverlayPrompt(storyTitle: string): string {
 /**
  * Regenerate final cover with new title or seed
  */
-export async function regenerateFinalCover(
-  finalCoverInputs: FinalCoverRegenerationInput,
-  newSeed?: number,
-  onProgress?: ProgressCallback,
-): Promise<string> {
-  const seedToUse = newSeed ?? finalCoverInputs.seed ?? 3;
+// export async function regenerateFinalCover(
+//   finalCoverInputs: FinalCoverRegenerationInput,
+//   newSeed?: number,
+//   onProgress?: ProgressCallback,
+// ): Promise<string> {
+//   const seedToUse = newSeed ?? finalCoverInputs.seed ?? 3;
 
-  return generateFinalCoverWithTitle(
-    finalCoverInputs.base_cover_url,
-    finalCoverInputs.story_title,
-    seedToUse,
-    onProgress,
-  );
-}
+//   return generateFinalCoverWithTitle(
+//     finalCoverInputs.base_cover_url,
+//     finalCoverInputs.story_title,
+//     seedToUse,
+//     onProgress,
+//   );
+// }
 
 // Update existing regenerateCoverImage to be more specific
 export async function regenerateBaseCoverImage(
-  baseCoverInputs: BaseCoverRegenerationInput,
-  newSeed?: number,
+  bookId: string,
+  coverResponseId: string,
+  revisedPrompt: string,
   onProgress?: ProgressCallback,
-): Promise<string> {
-  const seedToUse = newSeed ?? baseCoverInputs.seed ?? 3;
+): Promise<{ firebaseUrl: string; responseId: string }> {
+  const tool = buildImageGenTool({ hasInputImage: true });
 
-  return generateImageForFrontCover(
-    baseCoverInputs.front_cover,
-    baseCoverInputs.characterImageMap,
-    onProgress,
-    seedToUse,
+  const bookDoc = await storage.getBook(bookId);
+  const aliasMap = bookDoc?.characterAliases ?? {};
+
+  const safePrompt = applyCharacterAliases(revisedPrompt, aliasMap);
+
+  const resp = await openai.responses.create({
+    model: "gpt-4o-mini",
+    previous_response_id: coverResponseId,
+    input: safePrompt,
+    tools: [tool],
+  });
+
+  const responseId = resp.id;
+  const base64 = resp.output.find(
+    (o) => o.type === "image_generation_call",
+  )?.result;
+  if (!base64) throw new Error("No image returned from OpenAI.");
+
+  const firebaseUrl = await uploadBase64ToFirebase(
+    base64,
+    `books/${bookId}/revisedbasecover_${responseId}.png`,
   );
+
+  onProgress?.("generating_cover", 100, "Front-cover image ready");
+  console.log("Firebase URL for front cover:", firebaseUrl);
+
+  return { firebaseUrl, responseId };
 }
 
 // New function for regenerating individual scenes
 export async function regenerateSceneImage(
-  sceneRespo,
-  newSeed?: number,
+  bookId: string,
+  sceneResponseId: string,
+  revisedPrompt: string,
   onProgress?: ProgressCallback,
-): Promise<string> {
-  const seedToUse = newSeed ?? sceneInputs.seed ?? 3;
-
+): Promise<{ firebaseUrl: string; responseId: string }> {
   // Create a mock scene object for the existing function
-  const mockScene = {
-    scene_description: sceneInputs.scene_description,
-    scene_text: [], // Not needed for image generation
-  } as Scene | Scenewochar;
 
-  return generateImageForScene(
-    mockScene,
-    sceneInputs.previousImageUrl || null,
-    sceneInputs.characterImageMap,
-    onProgress,
-    seedToUse,
+  const tool = buildImageGenTool({ hasInputImage: true });
+
+  const bookDoc = await storage.getBook(bookId);
+  const aliasMap = bookDoc?.characterAliases ?? {};
+
+  const safePrompt = applyCharacterAliases(revisedPrompt, aliasMap);
+
+  const resp = await openai.responses.create({
+    model: "gpt-4o-mini",
+    previous_response_id: sceneResponseId,
+    input: safePrompt,
+    tools: [tool],
+  });
+
+  const responseId = resp.id;
+  const base64 = resp.output.find(
+    (o) => o.type === "image_generation_call",
+  )?.result;
+  if (!base64) throw new Error("No image returned from OpenAI.");
+
+  const firebaseUrl = await uploadBase64ToFirebase(
+    base64,
+    `books/${bookId}/revisedscene_${responseId}.png`,
   );
+
+  onProgress?.("generating_cover", 100, "Front-cover image ready");
+  console.log("Firebase URL for front cover:", firebaseUrl);
+
+  return { firebaseUrl, responseId };
 }
 
 // New function for regenerating cover
-export async function regenerateCoverImage(
-  coverInputs: BaseCoverRegenerationInput,
-  newSeed?: number,
-  onProgress?: ProgressCallback,
-): Promise<string> {
-  const seedToUse = newSeed ?? coverInputs.seed ?? 3;
+// export async function regenerateCoverImage(
+//   coverInputs: BaseCoverRegenerationInput,
+//   newSeed?: number,
+//   onProgress?: ProgressCallback,
+// ): Promise<string> {
+//   const seedToUse = newSeed ?? coverInputs.seed ?? 3;
 
-  return generateImageForFrontCover(
-    coverInputs.front_cover,
-    coverInputs.characterImageMap,
-    onProgress,
-    seedToUse,
-  );
-}
+//   return generateImageForFrontCover(
+//     coverInputs.front_cover,
+//     coverInputs.characterImageMap,
+//     onProgress,
+//     seedToUse,
+//   );
+// }
