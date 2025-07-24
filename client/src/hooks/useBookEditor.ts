@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
@@ -14,6 +14,11 @@ export interface Page {
   coverInputs?: unknown;
   sceneResponseId?: string;
   coverResponseId?: string;
+  original_url?: string;
+  regenerated_url?: string;
+  regenerated_count?: number;
+  is_regenerated?: boolean;
+  regenerated_prompt?: string;
 }
 
 interface CharacterData {
@@ -225,7 +230,7 @@ export function useBookEditor({
           : {
               pageId,
               sceneResponseId: page.sceneResponseId,
-              revisedPrompt
+              revisedPrompt,
             }),
     };
 
@@ -407,6 +412,47 @@ export function useBookEditor({
     }
   };
 
+  const getPageRegenerationCount = useCallback(
+    (pageIndex: number): number => {
+      if (!pages?.[pageIndex]) return 0;
+      return pages[pageIndex].regenerated_count || 0;
+    },
+    [pages],
+  );
+
+  // ADD: Helper function to check if page has regenerated version
+  const hasRegeneratedVersion = useCallback(
+    (pageIndex: number): boolean => {
+      if (!pages?.[pageIndex]) return false;
+      const page = pages[pageIndex];
+      return !!page.regenerated_url;
+    },
+    [pages],
+  );
+
+  // ADD: Helper function to get current image URL
+  const getCurrentImageUrl = useCallback(
+    (pageIndex: number): string => {
+      if (!pages?.[pageIndex]) return "";
+      const page = pages[pageIndex];
+      // scene_image_url should always point to the current choice
+      return page.scene_image_url || page.url || "";
+    },
+    [pages],
+  );
+
+  // ADD: Helper function to check if cover has regenerated version
+  const coverHasRegeneratedVersion = useCallback((): boolean => {
+    // return !!book?.cover?.regenerated_url;
+    return !!pages?.[0]?.regenerated_url;
+  }, [pages]);
+
+  // // ADD: Helper function to get cover regeneration count
+  const getCoverRegenerationCount = useCallback((): number => {
+    // return book?.cover?.regenerated_count || 0;
+    return pages?.[0]?.regenerated_count || 0;
+  }, [pages]);
+
   /** ---------- Exposed API ---------- */
   return {
     pages,
@@ -423,5 +469,10 @@ export function useBookEditor({
     regenerateAll,
     regenerateAvatar,
     saveBook,
+    getPageRegenerationCount,
+    hasRegeneratedVersion,
+    getCurrentImageUrl,
+    coverHasRegeneratedVersion,
+    getCoverRegenerationCount,
   };
 }

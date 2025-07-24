@@ -11,7 +11,10 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-
+import { CustomerSupportButton } from "@/components/CustomerSupportButton";
+import { ChatDrawer } from "@/components/ChatDrawer";
+import { CustomerSupportChat } from "@/components/CustomerSupportChat";
+import { auth } from "@/lib/firebase"; // For getting userId
 // Define an interface for the pages stored in the book (raw data)
 
 function transformBookPages(book: any) {
@@ -67,6 +70,10 @@ export default function BookDetailPage() {
   const [orderCompleted, setOrderCompleted] = useState(false);
   const { toast } = useToast();
   const [, setLocation] = useLocation();
+  // ADD new state for chat
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatKey, setChatKey] = useState(0); // For resetting chat if needed
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   const {
     data: book,
@@ -208,6 +215,19 @@ export default function BookDetailPage() {
     }
   };
 
+  // ADD handler for layout changes when drawer opens
+  const handleLayoutChange = (isOpen: boolean) => {
+    setIsDrawerOpen(isOpen);
+  };
+
+  // ADD handler for image updates from chat
+  const handleImageUpdate = () => {
+    // Trigger a refresh of book data
+    // This depends on how you're fetching book data
+    // You might need to refetch or update local state
+    setChatKey((prev) => prev + 1); // Simple way to force refresh
+  };
+
   if (isLoading) return <div>Loading...</div>;
   if (error) return <div>Book not found</div>;
   const disableRegeneration = loadingCharacter || characterError;
@@ -224,72 +244,111 @@ export default function BookDetailPage() {
 
   console.log("loadingStory:", loadingStory, "storyError:", storyError);
 
+  // return (
+  //   <div className="min-h-screen flex flex-col">
+  //     <Header />
+  //     <main className="flex-grow">
+  //       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+  //         {avatarUrl && (
+  //           <div
+  //             className={`flex flex-col items-center mb-8 transition-all duration-300
+  //             ${avatarFinalized ? "lg:flex-row lg:gap-6 mb-4" : ""}`}
+  //           >
+  //             <div className="relative w-32 h-32">
+  //               <img
+  //                 src={avatarUrl}
+  //                 alt="Story avatar"
+  //                 className={`rounded-full shadow-lg object-cover transition-all duration-300
+  //                 ${avatarFinalized ? "w-16 h-16" : "w-32 h-32"}`}
+  //               />
+
+  //               {avatarRegenerating && (
+  //                 <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/60 rounded-full">
+  //                   <i className="fas fa-spinner fa-spin text-gray-600 text-3xl" />
+  //                 </div>
+  //               )}
+  //             </div>
+
+  //             {/* 4) Action buttons below */}
+  //             {!avatarFinalized ? (
+  //               <>
+  //                 <div className="mt-3 flex gap-2">
+  //                   <Button
+  //                     size="sm"
+  //                     onClick={() => warnAndRegenAvatar("cartoon")}
+  //                     disabled={avatarRegenerating}
+  //                   >
+  //                     More Cartoonish
+  //                   </Button>
+  //                   <Button
+  //                     size="sm"
+  //                     variant="outline"
+  //                     onClick={() => warnAndRegenAvatar("hyper")}
+  //                     disabled={avatarRegenerating}
+  //                   >
+  //                     More Realistic
+  //                   </Button>
+  //                 </div>
+
+  //                 {/* Primary call-to-action */}
+  //                 <Button
+  //                   className="mt-4"
+  //                   disabled={avatarRegenerating}
+  //                   onClick={finalizeAvatar}
+  //                 >
+  //                   Looks good → Start editing pages
+  //                 </Button>
+  //               </>
+  //             ) : (
+  //               /* After finalize – just show small label */
+  //               <span className="mt-2 text-sm text-gray-500">
+  //                 Avatar locked in ✓
+  //               </span>
+  //             )}
+
+  //             {/* 5) LORA scale label */}
+  //           </div>
+  //         )}
+
+  //         <BookPreview
+  //           bookTitle={pages.find((p) => p.isCover)?.content || book.title}
+  //           pages={pages}
+  //           onDownload={disableDownload ? () => {} : handleDownloadPDF}
+  //           onPrint={handlePrint}
+  //           onUpdatePage={handleUpdatePage}
+  //           onRegenerate={disableRegeneration ? () => {} : handleRegenerate}
+  //           onRegenerateAll={
+  //             disableRegeneration ? () => {} : handleRegenerateAll
+  //           }
+  //           onSave={handleSaveBook}
+  //           isDirty={isDirty}
+  //           avatarFinalized={avatarFinalized}
+  //         />
+  //         {showShippingForm && !orderCompleted && (
+  //           <ShippingForm onSubmit={handleShippingSubmit} />
+  //         )}
+  //         {orderCompleted && (
+  //           <div className="flex items-center justify-center bg-green-100 text-green-800 p-4 rounded-lg mb-8 max-w-md mx-auto mt-8">
+  //             <i className="fas fa-check-circle text-green-500 mr-2 text-xl"></i>
+  //             <span>
+  //               Order successfully placed! Your book will be delivered soon.
+  //             </span>
+  //           </div>
+  //         )}
+  //       </div>
+  //     </main>
+  //     <Footer />
+  //   </div>
+  // );
   return (
-    <div className="min-h-screen flex flex-col">
+    <div
+      className={`min-h-screen flex flex-col relative transition-all duration-300 ${
+        isDrawerOpen ? "md:mr-[400px]" : ""
+      }`}
+    >
       <Header />
       <main className="flex-grow">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          {avatarUrl && (
-            <div
-              className={`flex flex-col items-center mb-8 transition-all duration-300
-              ${avatarFinalized ? "lg:flex-row lg:gap-6 mb-4" : ""}`}
-            >
-              <div className="relative w-32 h-32">
-                <img
-                  src={avatarUrl}
-                  alt="Story avatar"
-                  className={`rounded-full shadow-lg object-cover transition-all duration-300
-                  ${avatarFinalized ? "w-16 h-16" : "w-32 h-32"}`}
-                />
-
-                {avatarRegenerating && (
-                  <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/60 rounded-full">
-                    <i className="fas fa-spinner fa-spin text-gray-600 text-3xl" />
-                  </div>
-                )}
-              </div>
-
-              {/* 4) Action buttons below */}
-              {!avatarFinalized ? (
-                <>
-                  <div className="mt-3 flex gap-2">
-                    <Button
-                      size="sm"
-                      onClick={() => warnAndRegenAvatar("cartoon")}
-                      disabled={avatarRegenerating}
-                    >
-                      More Cartoonish
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => warnAndRegenAvatar("hyper")}
-                      disabled={avatarRegenerating}
-                    >
-                      More Realistic
-                    </Button>
-                  </div>
-
-                  {/* Primary call-to-action */}
-                  <Button
-                    className="mt-4"
-                    disabled={avatarRegenerating}
-                    onClick={finalizeAvatar}
-                  >
-                    Looks good → Start editing pages
-                  </Button>
-                </>
-              ) : (
-                /* After finalize – just show small label */
-                <span className="mt-2 text-sm text-gray-500">
-                  Avatar locked in ✓
-                </span>
-              )}
-
-              {/* 5) LORA scale label */}
-            </div>
-          )}
-
           <BookPreview
             bookTitle={pages.find((p) => p.isCover)?.content || book.title}
             pages={pages}
@@ -304,20 +363,29 @@ export default function BookDetailPage() {
             isDirty={isDirty}
             avatarFinalized={avatarFinalized}
           />
-          {showShippingForm && !orderCompleted && (
-            <ShippingForm onSubmit={handleShippingSubmit} />
-          )}
-          {orderCompleted && (
-            <div className="flex items-center justify-center bg-green-100 text-green-800 p-4 rounded-lg mb-8 max-w-md mx-auto mt-8">
-              <i className="fas fa-check-circle text-green-500 mr-2 text-xl"></i>
-              <span>
-                Order successfully placed! Your book will be delivered soon.
-              </span>
-            </div>
-          )}
         </div>
       </main>
       <Footer />
+
+      {/* ADD: Customer Support Button - Only show when book exists */}
+      {book && <CustomerSupportButton onClick={() => setIsChatOpen(true)} />}
+
+      {/* ADD: Chat Drawer */}
+      {book && user && (
+        <ChatDrawer
+          isOpen={isChatOpen}
+          onClose={() => setIsChatOpen(false)}
+          onLayoutChange={handleLayoutChange}
+        >
+          <CustomerSupportChat
+            key={chatKey}
+            bookId={id!}
+            bookData={book}
+            userId={user.uid}
+            onImageUpdate={handleImageUpdate}
+          />
+        </ChatDrawer>
+      )}
     </div>
   );
 }
