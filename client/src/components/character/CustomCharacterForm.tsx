@@ -207,6 +207,7 @@ export function CustomCharacterForm({
         const idx = prev.findIndex((i) => i.finalUrl === firstUrl);
         const before = prev.slice(0, idx + 1);
         const after = prev.slice(idx + 1);
+        
         return [
           ...before,
           { localUrl: toonUrl, finalUrl: toonUrl, uploading: false },

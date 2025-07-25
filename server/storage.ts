@@ -222,6 +222,41 @@ export class FirestoreStorage implements IStorage {
     return { id, ...updatedData };
   }
 
+  async updateBookPageContent(
+    bookId: string,
+    pageId: number,
+    newContent: string,
+  ): Promise<Book | null> {
+    const bookRef = db.collection("books").doc(bookId);
+
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(bookRef);
+      if (!snap.exists) {
+        console.log(`return null reason no-document bookId ${bookId}`);
+        return null;
+      }
+
+      const data = snap.data() as Book;
+      if (!Array.isArray(data.pages)) {
+        console.log(`return null reason pages-not-array bookId ${bookId}`);
+        return null;
+      }
+
+      const pages = [...data.pages]; // clone
+      const idx = pages.findIndex((p) => p.scene_number === pageId - 1);
+      if (idx === -1) {
+        console.log(`return null reason pageId-not-found ${pageId}`);
+        return null;
+      }
+
+      pages[idx] = { ...pages[idx], content: newContent }; // mutate
+      tx.update(bookRef, { pages }); // write whole array
+    });
+
+    const after = await bookRef.get();
+    return { id: bookId, ...(after.data() as Book) };
+  }
+
   // ---------- Order operations -----------
   async getOrder(id: string): Promise<Order | undefined> {
     const doc = await db.collection("orders").doc(id).get();

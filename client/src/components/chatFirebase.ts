@@ -7,7 +7,7 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase"; // Adjust import path
-import { ChatMessage, ChatSession, ChatState } from "@/utils/ChatLogic";
+import { ChatMessage, ChatSession, ChatState } from "@/types/";
 
 export async function initializeChatSession(
   userId: string,
@@ -45,25 +45,41 @@ export async function saveChatMessage(
   bookId: string,
   message: ChatMessage,
 ): Promise<void> {
-  try {
-    const chatRef = doc(db, "chatSessions", userId, "books", bookId);
+  const chatRef = doc(db, "chatSessions", userId, "books", bookId);
+  // Stamp the message with a client-side Date()
+  const msgWithClientTs = {
+    ...message,
+    timestamp: new Date(),
+  };
 
+  // 1) stamp with concrete Date()
+  const msgWithTs = { ...message, timestamp: new Date() };
+
+  // 2) remove any undefined-valued keys
+  const cleaned: Record<string, any> = Object.fromEntries(
+    Object.entries(msgWithTs).filter(([, v]) => v !== undefined),
+  );
+
+  try {
+    console.log(">>> about to save message:", JSON.stringify(cleaned, null, 2));
+    // Try to append to the messages array + update lastActive
     await updateDoc(chatRef, {
-      messages: arrayUnion({
-        ...message,
-        timestamp: serverTimestamp(),
-      }),
-      lastActive: serverTimestamp(),
+      messages: arrayUnion(cleaned),
+      lastActive: serverTimestamp(), // top-level only
     });
-  } catch (error) {
-    console.error("Error saving chat message:", error);
-    // If document doesn't exist, create it
-    if (error.code === "not-found") {
-      await setDoc(doc(db, "chatSessions", userId, "books", bookId), {
-        messages: [message],
+  } catch (err: any) {
+    console.error("Error saving chat message:", err);
+
+    // If the document is missing, create it anew
+    if (err.code === "not-found") {
+      await setDoc(chatRef, {
+        messages: [cleaned],
         lastActive: serverTimestamp(),
         currentState: "initial",
       });
+    } else {
+      // Propagate other errors (e.g. permission issues)
+      throw err;
     }
   }
 }

@@ -320,9 +320,9 @@ export async function generateCompleteStory(
   /* ── 5. Assemble output ───────────────────────────────────────────── */
   const scenes: SceneOutput[] = story.scenes.map((scene, i) => ({
     scene_number: i + 1,
-    scene_url: generatedScenes[i].firebaseUrl,
-    scene_response_id: generatedScenes[i].responseId, // NEW
-    scene_text: scene.scene_text,
+    imageUrl: generatedScenes[i].firebaseUrl,
+    sceneResponseId: generatedScenes[i].responseId, // NEW
+    content: scene.scene_text,
     side: sides[i],
     scene_inputs: {
       scene_description: scene.scene_description,

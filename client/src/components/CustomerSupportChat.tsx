@@ -1,19 +1,25 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Send, Image as ImageIcon, Type } from "lucide-react";
-import {
-  ChatLogic,
-  ChatMessage,
-  ChatState,
-  ChatOption,
-} from "@/utils/ChatLogic";
-import { useImageVersioning } from "@/hooks/useImageVersioning";
+import { Send, Image as ImageIcon, Type, RotateCcw } from "lucide-react";
+import { ChatLogic } from "@/utils/ChatLogic";
+import { ChatMessage, ChatState, ChatOption } from "@/types/ChatTypes";
+// import { saveChatMessage, getChatHistory } from "@/utils/chatFirebase";
 import { saveChatMessage, getChatHistory } from "@/components/chatFirebase";
+import { updateDoc, doc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface CustomerSupportChatProps {
   bookId: string;
-  bookData: any; // Your book type
+  bookData: any; // Your book type with transformed pages
   userId: string;
   onImageUpdate?: () => void;
+  regeneratePage: (
+    page: any,
+    mode: string,
+    titleOverride?: string,
+    revisedPrompt?: string,
+  ) => Promise<void>;
+  updatePage: (pageId: number, updates: any) => void;
 }
 
 export const CustomerSupportChat: React.FC<CustomerSupportChatProps> = ({
@@ -21,17 +27,20 @@ export const CustomerSupportChat: React.FC<CustomerSupportChatProps> = ({
   bookData,
   userId,
   onImageUpdate,
+  regeneratePage,
+  updatePage,
 }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [currentState, setCurrentState] = useState<ChatState>("initial");
   const [userInput, setUserInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [selectedContext, setSelectedContext] = useState<any>({});
+  const [regenerationCounts, setRegenerationCounts] = useState<
+    Map<string, number>
+  >(new Map());
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatLogic = useRef(new ChatLogic());
-  const { regenerateImage, toggleImageVersion, canRegenerate } =
-    useImageVersioning();
 
   // Initialize chat
   useEffect(() => {
@@ -49,6 +58,12 @@ export const CustomerSupportChat: React.FC<CustomerSupportChatProps> = ({
       if (history && history.messages.length > 0) {
         setMessages(history.messages);
         setCurrentState(history.currentState || "initial");
+        // Restore regeneration counts
+        if (history.regenerationTracking) {
+          setRegenerationCounts(
+            new Map(Object.entries(history.regenerationTracking)),
+          );
+        }
       } else {
         const initial = chatLogic.current.getInitialMessage();
         const initialMessage: ChatMessage = {
@@ -107,16 +122,33 @@ export const CustomerSupportChat: React.FC<CustomerSupportChatProps> = ({
       await handleCoverRegeneration(userInput);
     } else if (selectedContext.actionType === "regenerate_title") {
       await handleTitleRegeneration(userInput);
-    } else if (currentState === "text_scene_selection") {
+    } else if (selectedContext.actionType === "update_text") {
       await handleTextUpdate(selectedContext.selectedPageIndex, userInput);
     }
   };
 
   const processUserSelection = async (selection: string) => {
+    // Handle go back
+    if (selection === "go_back" || selection === "start_over") {
+      setCurrentState("initial");
+      setSelectedContext({});
+      const initial = chatLogic.current.getInitialMessage();
+      const resetMessage: ChatMessage = {
+        id: Date.now().toString(),
+        type: "bot",
+        content: initial.message,
+        timestamp: new Date(),
+        options: initial.options,
+      };
+      setMessages((prev) => [...prev, resetMessage]);
+      return;
+    }
+
     const context = {
       bookId,
       pages: bookData.pages,
       cover: bookData.cover,
+      regenerationCounts,
       ...selectedContext,
     };
 
@@ -163,33 +195,47 @@ export const CustomerSupportChat: React.FC<CustomerSupportChatProps> = ({
   ) => {
     setIsLoading(true);
     try {
-      await regenerateImage({
-        bookId,
-        pageIndex,
-        revisedPrompt: feedback,
-      });
+      const page = bookData.pages[pageIndex];
 
-      chatLogic.current.trackRegeneration(bookId, `page_${pageIndex}`);
+      // Call the existing regeneratePage function
+      await regeneratePage(pageIndex + 2, "image", undefined, feedback);
+
+      // Track regeneration
+      const imageKey = `page_${pageIndex}`;
+      const newCount = (regenerationCounts.get(imageKey) || 0) + 1;
+      setRegenerationCounts((prev) => new Map(prev).set(imageKey, newCount));
+
       onImageUpdate?.();
 
       const successMessage: ChatMessage = {
         id: Date.now().toString(),
         type: "bot",
         content:
-          "Perfect! I've updated the image based on your feedback. You can toggle between the original and new version anytime.",
+          "Perfect! I've updated the image based on your feedback. The new image is now displayed. Would you like to make any other changes?",
         timestamp: new Date(),
+        options: [
+          {
+            id: "toggle_version",
+            label: "Toggle to previous version",
+            value: "toggle_" + pageIndex,
+          },
+          { id: "more_yes", label: "Yes, something else", value: "yes" },
+          { id: "more_no", label: "No, everything looks good", value: "no" },
+        ],
       };
 
       setMessages((prev) => [...prev, successMessage]);
       await saveChatMessage(userId, bookId, successMessage);
-
-      // Ask if more help needed
-      setTimeout(() => {
-        processUserSelection("continue");
-      }, 1000);
     } catch (error) {
       console.error("Error regenerating image:", error);
-      // Handle error
+      const errorMessage: ChatMessage = {
+        id: Date.now().toString(),
+        type: "bot",
+        content:
+          "I'm sorry, there was an error updating the image. Please try again.",
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
     }
@@ -198,16 +244,35 @@ export const CustomerSupportChat: React.FC<CustomerSupportChatProps> = ({
   const handleCoverRegeneration = async (feedback: string) => {
     setIsLoading(true);
     try {
-      await regenerateImage({
-        bookId,
-        revisedPrompt: feedback,
-        isCover: true,
-      });
+      const coverPage = bookData.pages.find((p) => p.isCover);
+      if (!coverPage) return;
 
-      chatLogic.current.trackRegeneration(bookId, "cover");
+      await regeneratePage(1, "cover", undefined, feedback);
+
+      // Track regeneration
+      const newCount = (regenerationCounts.get("cover") || 0) + 1;
+      setRegenerationCounts((prev) => new Map(prev).set("cover", newCount));
+
       onImageUpdate?.();
 
-      // Success handling similar to above
+      const successMessage: ChatMessage = {
+        id: Date.now().toString(),
+        type: "bot",
+        content:
+          "Great! I've updated the cover based on your feedback. The new cover is now displayed. What would you like to do next?",
+        timestamp: new Date(),
+        options: [
+          {
+            id: "toggle_cover",
+            label: "Toggle to previous version",
+            value: "toggle_cover",
+          },
+          { id: "more_yes", label: "Make more changes", value: "yes" },
+          { id: "more_no", label: "Everything looks good", value: "no" },
+        ],
+      };
+
+      setMessages((prev) => [...prev, successMessage]);
     } catch (error) {
       console.error("Error regenerating cover:", error);
     } finally {
@@ -218,15 +283,24 @@ export const CustomerSupportChat: React.FC<CustomerSupportChatProps> = ({
   const handleTitleRegeneration = async (newTitle: string) => {
     setIsLoading(true);
     try {
-      await regenerateImage({
-        bookId,
-        isCover: true,
-        revisedPrompt: "",
-        newTitle,
-      });
+      const coverPage = bookData.pages.find((p) => p.isCover);
+      if (!coverPage) return;
 
+      await regeneratePage(1, "coverTitle", newTitle);
       onImageUpdate?.();
-      // Success handling
+
+      const successMessage: ChatMessage = {
+        id: Date.now().toString(),
+        type: "bot",
+        content: `Perfect! I've updated the title to "${newTitle}". Is there anything else you'd like to change?`,
+        timestamp: new Date(),
+        options: [
+          { id: "more_yes", label: "Yes, something else", value: "yes" },
+          { id: "more_no", label: "No, everything looks good", value: "no" },
+        ],
+      };
+
+      setMessages((prev) => [...prev, successMessage]);
     } catch (error) {
       console.error("Error regenerating title:", error);
     } finally {
@@ -235,9 +309,39 @@ export const CustomerSupportChat: React.FC<CustomerSupportChatProps> = ({
   };
 
   const handleTextUpdate = async (pageIndex: number, newText: string) => {
-    // Implement text update logic
-    // This would update the scene text in Firebase
-    console.log("Update text for page", pageIndex, "to:", newText);
+    setIsLoading(true);
+    try {
+      // Update the page content
+      const { ok } = await updatePage(pageIndex + 2, newText); // +2 because of 0-based index and cover is 1
+      if (!ok) {
+        throw new Error("PATCH failed");
+      }
+
+      // Update in Firebase
+      // await updateDoc(doc(db, "books", bookId), {
+      //   [`pages.${pageIndex}.scene_text`]: newText,
+      // });
+
+      // onImageUpdate?.();
+
+      const successMessage: ChatMessage = {
+        id: Date.now().toString(),
+        type: "bot",
+        content:
+          "I've updated the text for that scene. Is there anything else you'd like to change?",
+        timestamp: new Date(),
+        options: [
+          { id: "more_yes", label: "Yes, something else", value: "yes" },
+          { id: "more_no", label: "No, everything looks good", value: "no" },
+        ],
+      };
+
+      setMessages((prev) => [...prev, successMessage]);
+    } catch (error) {
+      console.error("Error updating text:", error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const renderMessage = (message: ChatMessage) => {
@@ -255,7 +359,7 @@ export const CustomerSupportChat: React.FC<CustomerSupportChatProps> = ({
               : "bg-gray-100 text-gray-800 rounded-r-2xl rounded-tl-2xl"
           } px-4 py-3`}
         >
-          <p className="text-sm">{message.content}</p>
+          <p className="text-sm whitespace-pre-wrap">{message.content}</p>
 
           {/* Render options if bot message */}
           {!isUser && message.options && (
@@ -265,6 +369,7 @@ export const CustomerSupportChat: React.FC<CustomerSupportChatProps> = ({
                   key={option.id}
                   onClick={() => handleOptionClick(option)}
                   className="block w-full text-left px-3 py-2 bg-white hover:bg-gray-50 rounded-lg text-sm transition-colors border border-gray-200"
+                  disabled={isLoading}
                 >
                   {option.imageUrl ? (
                     <div className="flex items-center space-x-2">
@@ -294,6 +399,14 @@ export const CustomerSupportChat: React.FC<CustomerSupportChatProps> = ({
     );
   };
 
+  // Check if we should show text input
+  const lastBotMessage = messages.filter((m) => m.type === "bot").pop();
+  const showTextInput =
+    lastBotMessage &&
+    (lastBotMessage.content.includes("type") ||
+      lastBotMessage.content.includes("describe") ||
+      lastBotMessage.content.includes("What would you like"));
+
   return (
     <div className="flex flex-col h-full">
       {/* Messages */}
@@ -314,9 +427,7 @@ export const CustomerSupportChat: React.FC<CustomerSupportChatProps> = ({
       </div>
 
       {/* Input area */}
-      {(messages[messages.length - 1]?.requiresTextInput ||
-        (messages[messages.length - 1]?.type === "bot" &&
-          messages[messages.length - 1]?.content.includes("type"))) && (
+      {showTextInput && !isLoading && (
         <div className="border-t p-4">
           <form
             onSubmit={(e) => {
@@ -332,6 +443,7 @@ export const CustomerSupportChat: React.FC<CustomerSupportChatProps> = ({
               placeholder="Type your response..."
               className="flex-1 px-4 py-2 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-black"
               disabled={isLoading}
+              autoFocus
             />
             <button
               type="submit"

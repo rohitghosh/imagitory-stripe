@@ -93,125 +93,70 @@ export function useBookEditor({
   }, [avatarFinalizedInitial]);
 
   /** ---------- Page text updates ---------- */
-  const updatePage = (pageId: number, newContent: string) => {
+  const updatePage = async (pageId: number, newContent: string) => {
+    // 1️⃣ keep a copy in case we must roll back
+    const oldContent = pages.find((p) => p.id === pageId)?.content ?? "";
+
+    // 2️⃣ optimistic UI
     setPages((prev) =>
       prev.map((p) => (p.id === pageId ? { ...p, content: newContent } : p)),
     );
-    setDirty(true);
+    // setDirty(true);
+
+    try {
+      // 3️⃣ PATCH the minimal payload
+      await apiRequest("PATCH", `/api/books/${bookId}`, {
+        pages: [{ id: pageId, content: newContent }],
+      });
+
+      // 4️⃣ success feedback ↑ back to the caller
+      return { ok: true } as const;
+    } catch (err) {
+      console.error("[updatePage] server patch failed →", err);
+
+      // 5️⃣ *optional* rollback
+      setPages((prev) =>
+        prev.map((p) => (p.id === pageId ? { ...p, content: oldContent } : p)),
+      );
+
+      return { ok: false, error: err } as const;
+    }
   };
 
   type RegenMode = "coverTitle" | "vanilla";
   const DELTA = 0.05;
 
-  /** ---------- Image re-generation ---------- */
-  // async function regeneratePage(pageId: number, mode?: RegenMode) {
-  //   if (!avatarFinalized && mode !== "syncAvatar") return;
-  //   const page = pages.find((p) => p.id === pageId);
-  //   if (!page) return;
-
-  //   let lora = page.loraScale ?? avatarLora;
-  //   let ctrl = page.controlLoraStrength ?? 0.5;
-
-  //   console.log("Lora", lora, "controlLoraStrength", ctrl);
-
-  //   if (mode === "cartoon") lora = Math.max(0, lora - DELTA);
-  //   if (mode === "hyper") lora = Math.min(1, lora + DELTA);
-  //   if (mode === "consistent") ctrl = Math.min(1, ctrl + DELTA);
-  //   if (mode === "syncAvatar") lora = avatarLora;
-
-  //   // optimistic UI flag
-  //   setPages((prev) =>
-  //     prev.map((p) => (p.id === pageId ? { ...p, regenerating: true } : p)),
-  //   );
-
-  //   const promptForCover = (isFront: boolean, kidName = "Hero") => {
-  //     const safeTitle = pages[0]?.content ?? title;
-  //     return isFront
-  //       ? `A captivating front-cover illustration for "${safeTitle}" featuring <${kidName}kidName> as the hero. The title text "${safeTitle}" should appear boldly on the cover.`
-  //       : `A minimal, portrait-style back-cover illustration for the story "${safeTitle}".`;
-  //   };
-
-  //   const payload = {
-  //     bookId,
-  //     pageId,
-  //     modelId: characterData?.modelId ?? "defaultModelId",
-  //     kidName: characterData?.name,
-  //     age: characterData?.age,
-  //     gender: characterData?.gender,
-  //     avatarUrl: avatarUrl,
-  //     stylePreference,
-  //     isCover: page.isCover || page.isBackCover,
-  //     prompt: page.isCover
-  //       ? promptForCover(true, characterData?.name)
-  //       : page.isBackCover
-  //         ? promptForCover(false)
-  //         : page.prompt,
-  //     loraScale: lora,
-  //     controlLoraStrength: ctrl,
-  //     randomSeed: mode === "vanilla",
-  //   };
-
-  //   console.log("Regenerating page with payload:", payload);
-
-  //   try {
-  //     const res = await fetch("/api/regenerateImage", {
-  //       method: "POST",
-  //       headers: { "Content-Type": "application/json" },
-  //       body: JSON.stringify(payload),
-  //     });
-  //     if (!res.ok) throw new Error(`API ${res.status}`);
-
-  //     const { newUrl } = await res.json();
-  //     setPages((prev) =>
-  //       prev.map((p) =>
-  //         p.id === pageId
-  //           ? {
-  //               ...p,
-  //               regenerating: false,
-  //               imageUrl: newUrl,
-  //               loraScale: lora,
-  //               controlLoraStrength: ctrl,
-  //             }
-  //           : p,
-  //       ),
-  //     );
-  //     setDirty(true);
-  //   } catch (err) {
-  //     console.error("Regeneration failed:", err);
-  //     setPages((prev) =>
-  //       prev.map((p) => (p.id === pageId ? { ...p, regenerating: false } : p)),
-  //     );
-  //     toast({
-  //       title: "Regeneration error",
-  //       description: `Couldn’t regenerate page ${pageId}.`,
-  //       variant: "destructive",
-  //     });
-  //   }
-  // }
-
+  /* ───────────────── regenerate one page ───────────────── */
   async function regeneratePage(
     pageId: number,
-    mode?: RegenMode,
+    mode?: string,
     titleOverride?: string,
+    revisedPrompt?: string,
   ) {
+    console.log(`regenPage start id ${pageId} mode ${mode ?? "none"}`);
+
     const page = pages.find((p) => p.id === pageId);
-    if (!page) return;
+    if (!page) {
+      console.log(`regenPage abort id-not-found ${pageId}`);
+      return;
+    }
 
     /* optimistic spinner */
     setPages((prev) =>
       prev.map((p) => (p.id === pageId ? { ...p, regenerating: true } : p)),
     );
+    console.log(`spinner on id ${pageId}`);
 
     /* choose endpoint + payload */
-    const isCover = page.isCover;
     let endpoint: string;
     if (mode === "coverTitle") {
       endpoint = "/api/regenerateCoverTitle";
-    } else if (page.isCover) {
+    } else if (mode === "cover") {
       endpoint = "/api/regenerateCover";
     } else {
       endpoint = "/api/regenerateImage";
     }
+    console.log(`endpoint ${endpoint}`);
 
     const payload = {
       bookId,
@@ -221,18 +166,22 @@ export function useBookEditor({
             title: titleOverride ?? page.content,
             randomSeed: false,
           }
-        : page.isCover
+        : mode === "cover"
           ? {
               title: title,
               coverResponseId: page.coverResponseId,
               revisedPrompt,
             }
           : {
-              pageId,
+              pageId: page.sceneNumber ?? page.id - 1,
               sceneResponseId: page.sceneResponseId,
               revisedPrompt,
             }),
     };
+
+    console.log(
+      `payload keys ${Object.keys(payload).length} sending to ${endpoint}`,
+    );
 
     try {
       const res = await fetch(endpoint, {
@@ -240,18 +189,23 @@ export function useBookEditor({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
+      console.log(`POST ${endpoint} status ${res.status}`);
+
       if (!res.ok) throw new Error(`API ${res.status}`);
 
       const { newUrl } = await res.json();
+      console.log(`newUrl length ${newUrl.length}`);
 
       setPages((prev) =>
         prev.map((p) =>
           p.id === pageId ? { ...p, regenerating: false, imageUrl: newUrl } : p,
         ),
       );
-      setDirty(true);
-    } catch (err) {
-      console.error("Regeneration failed:", err);
+      // setDirty(true);
+      console.log(`regenPage success id ${pageId}`);
+    } catch (err: any) {
+      console.error(`regenPage error id ${pageId} msg ${err.message}`);
+
       setPages((prev) =>
         prev.map((p) => (p.id === pageId ? { ...p, regenerating: false } : p)),
       );
@@ -263,19 +217,39 @@ export function useBookEditor({
     }
   }
 
-  /** Regenerate every non-cover page in parallel */
+  /* ───────────────── regenerate all pages ───────────────── */
   const regenerateAll = async () => {
-    if (!avatarFinalized) return;
+    console.log(`regenAll start pages ${pages.length}`);
+    if (!avatarFinalized) {
+      console.log(`regenAll abort avatar-not-finalized`);
+      return;
+    }
     try {
       await Promise.all(pages.map((p) => regeneratePage(p.id)));
+      console.log(`regenAll done`);
       toast({
         title: "All pages regenerated!",
         description: "You can review the fresh images now.",
       });
     } catch {
-      /* individual page errors are handled inside regeneratePage */
+      /* individual errors already logged inside regeneratePage */
+      console.log(`regenAll finished with individual errors`);
     }
   };
+
+  /** Regenerate every non-cover page in parallel */
+  // const regenerateAll = async () => {
+  //   if (!avatarFinalized) return;
+  //   try {
+  //     await Promise.all(pages.map((p) => regeneratePage(p.id)));
+  //     toast({
+  //       title: "All pages regenerated!",
+  //       description: "You can review the fresh images now.",
+  //     });
+  //   } catch {
+  //     /* individual page errors are handled inside regeneratePage */
+  //   }
+  // };
 
   const regenerateAllSyncWithAvatar = async () => {
     try {
@@ -394,6 +368,7 @@ export function useBookEditor({
       characterId,
       storyId,
     };
+    console.log("Saving book with payload: ", payload);
 
     try {
       setLoading(true);

@@ -10,7 +10,8 @@ export const SceneTextOverlay: React.FC<SceneTextOverlayProps> = ({
   text,
   isCover = false,
 }) => {
-  const hasText = text && text.trim().length > 0;
+  console.log(`SceneTextOverlay - text: ${text}`);
+  const hasText = typeof text === "string" && text.trim().length > 0;
 
   return (
     <div className="absolute bottom-0 left-0 right-0 z-10">

@@ -730,7 +730,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       /* 4️⃣   build the updated list */
       const updatedPages = book.pages.map((p: any) =>
         p.scene_number === pageId
-          ? { ...p, scene_url: newUrl, scene_response_id: newResponseId }
+          ? { ...p, imageUrl: newUrl, scene_response_id: newResponseId }
           : p,
       );
 
@@ -759,9 +759,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         book.cover?.final_cover_inputs?.seed ??
         3;
 
-      const seed = randomSeed
-        ? Math.floor(Math.random() * 1_000_000)
-        : prevSeed;
+      const seed = Math.floor(Math.random() * 1_000_000);
 
       // const newBaseCoverUrl = await regenerateBaseCoverImage(coverInputs, seed);
       const { firebaseUrl: newBaseCoverUrl, responseId: newResponseId } =
@@ -769,6 +767,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Then add title to create final cover
       const newFinalCoverUrl = await generateFinalCoverWithTitle(
+        bookId,
         newBaseCoverUrl,
         title,
         seed,
@@ -814,6 +813,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Then add title to create final cover
       const newFinalCoverUrl = await generateFinalCoverWithTitle(
+        bookId,
         baseCoverUrl,
         title,
         seed,
@@ -1260,7 +1260,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       const userId = req.session.userId.toString();
       const bookId = req.params.id;
-
+      console.log(`request to update book ${req.body.pages} by user`);
       // Validate the incoming data using insertBookSchema (or a dedicated update schema)
       const updatedData = updateBookSchema.parse({
         ...req.body,
@@ -1291,6 +1291,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const existing = await storage.getBookById(id);
       if (!existing || existing.userId !== userId) {
         return res.status(403).json({ message: "Access denied" });
+      }
+
+      /* ----------------------------------------------------------
+         ❶  Is this the “update just one page” payload?
+            { pages: [ { id: <number>, content: <string> } ] }
+      ---------------------------------------------------------- */
+      if (
+        Array.isArray(req.body.pages) &&
+        req.body.pages.length === 1 &&
+        typeof req.body.pages[0].id === "number" &&
+        typeof req.body.pages[0].content === "string"
+      ) {
+        const { id: pageId, content } = req.body.pages[0];
+        const updated = await storage.updateBookPageContent(
+          id,
+          pageId,
+          content,
+        );
+        return res.json(updated);
       }
 
       const updated = await storage.updateBook(id, { ...req.body });

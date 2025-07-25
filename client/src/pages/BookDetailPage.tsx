@@ -20,13 +20,17 @@ import { auth } from "@/lib/firebase"; // For getting userId
 function transformBookPages(book: any) {
   const middlePages = book.pages.map((p: any, index: number) => ({
     id: index + 2, // start from 2 to leave slot #1 for the cover
-    imageUrl: p.scene_url || "", // fallback if missing
-    content: Array.isArray(p.scene_text)
-      ? p.scene_text.join("\n")
-      : (p.scene_text ?? ""),
+    imageUrl: p.imageUrl || "", // fallback if missing
+    // content: Array.isArray(p.scene_text)
+    //   ? p.scene_text.join("\n")
+    //   : (p.scene_text ?? ""),
+    content: Array.isArray(p.content)
+      ? p.content.join("\n")
+      : (p.content ?? ""),
     sceneInputs: p.scene_inputs ?? p.content ?? "",
     isCover: false,
-    sceneResponseId: p.scene_response_id,
+    sceneNumber: p.scene_number,
+    sceneResponseId: p.sceneResponseId,
   }));
 
   const pages = [];
@@ -233,113 +237,10 @@ export default function BookDetailPage() {
   const disableRegeneration = loadingCharacter || characterError;
   const disableDownload = loadingStory || storyError;
 
-  console.log(
-    "loadingCharacter:",
-    loadingCharacter,
-    "characterError:",
-    characterError,
-    "avatarUrl:",
-    avatarUrl,
-  );
+  console.log("pages:", pages);
 
   console.log("loadingStory:", loadingStory, "storyError:", storyError);
 
-  // return (
-  //   <div className="min-h-screen flex flex-col">
-  //     <Header />
-  //     <main className="flex-grow">
-  //       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-  //         {avatarUrl && (
-  //           <div
-  //             className={`flex flex-col items-center mb-8 transition-all duration-300
-  //             ${avatarFinalized ? "lg:flex-row lg:gap-6 mb-4" : ""}`}
-  //           >
-  //             <div className="relative w-32 h-32">
-  //               <img
-  //                 src={avatarUrl}
-  //                 alt="Story avatar"
-  //                 className={`rounded-full shadow-lg object-cover transition-all duration-300
-  //                 ${avatarFinalized ? "w-16 h-16" : "w-32 h-32"}`}
-  //               />
-
-  //               {avatarRegenerating && (
-  //                 <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/60 rounded-full">
-  //                   <i className="fas fa-spinner fa-spin text-gray-600 text-3xl" />
-  //                 </div>
-  //               )}
-  //             </div>
-
-  //             {/* 4) Action buttons below */}
-  //             {!avatarFinalized ? (
-  //               <>
-  //                 <div className="mt-3 flex gap-2">
-  //                   <Button
-  //                     size="sm"
-  //                     onClick={() => warnAndRegenAvatar("cartoon")}
-  //                     disabled={avatarRegenerating}
-  //                   >
-  //                     More Cartoonish
-  //                   </Button>
-  //                   <Button
-  //                     size="sm"
-  //                     variant="outline"
-  //                     onClick={() => warnAndRegenAvatar("hyper")}
-  //                     disabled={avatarRegenerating}
-  //                   >
-  //                     More Realistic
-  //                   </Button>
-  //                 </div>
-
-  //                 {/* Primary call-to-action */}
-  //                 <Button
-  //                   className="mt-4"
-  //                   disabled={avatarRegenerating}
-  //                   onClick={finalizeAvatar}
-  //                 >
-  //                   Looks good → Start editing pages
-  //                 </Button>
-  //               </>
-  //             ) : (
-  //               /* After finalize – just show small label */
-  //               <span className="mt-2 text-sm text-gray-500">
-  //                 Avatar locked in ✓
-  //               </span>
-  //             )}
-
-  //             {/* 5) LORA scale label */}
-  //           </div>
-  //         )}
-
-  //         <BookPreview
-  //           bookTitle={pages.find((p) => p.isCover)?.content || book.title}
-  //           pages={pages}
-  //           onDownload={disableDownload ? () => {} : handleDownloadPDF}
-  //           onPrint={handlePrint}
-  //           onUpdatePage={handleUpdatePage}
-  //           onRegenerate={disableRegeneration ? () => {} : handleRegenerate}
-  //           onRegenerateAll={
-  //             disableRegeneration ? () => {} : handleRegenerateAll
-  //           }
-  //           onSave={handleSaveBook}
-  //           isDirty={isDirty}
-  //           avatarFinalized={avatarFinalized}
-  //         />
-  //         {showShippingForm && !orderCompleted && (
-  //           <ShippingForm onSubmit={handleShippingSubmit} />
-  //         )}
-  //         {orderCompleted && (
-  //           <div className="flex items-center justify-center bg-green-100 text-green-800 p-4 rounded-lg mb-8 max-w-md mx-auto mt-8">
-  //             <i className="fas fa-check-circle text-green-500 mr-2 text-xl"></i>
-  //             <span>
-  //               Order successfully placed! Your book will be delivered soon.
-  //             </span>
-  //           </div>
-  //         )}
-  //       </div>
-  //     </main>
-  //     <Footer />
-  //   </div>
-  // );
   return (
     <div
       className={`min-h-screen flex flex-col relative transition-all duration-300 ${
@@ -349,6 +250,65 @@ export default function BookDetailPage() {
       <Header />
       <main className="flex-grow">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          {avatarUrl && (
+            <div
+              className={`flex flex-col items-center mb-8 transition-all duration-300
+              ${avatarFinalized ? "lg:flex-row lg:gap-6 mb-4" : ""}`}
+            >
+              <div className="relative w-32 h-32">
+                <img
+                  src={avatarUrl}
+                  alt="Story avatar"
+                  className={`rounded-full shadow-lg object-cover transition-all duration-300
+                  ${avatarFinalized ? "w-16 h-16" : "w-32 h-32"}`}
+                />
+
+                {avatarRegenerating && (
+                  <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/60 rounded-full">
+                    <i className="fas fa-spinner fa-spin text-gray-600 text-3xl" />
+                  </div>
+                )}
+              </div>
+
+              {/* Action buttons below */}
+              {!avatarFinalized ? (
+                <>
+                  <div className="mt-3 flex gap-2">
+                    <Button
+                      size="sm"
+                      onClick={() => warnAndRegenAvatar("cartoon")}
+                      disabled={avatarRegenerating}
+                    >
+                      More Cartoonish
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => warnAndRegenAvatar("hyper")}
+                      disabled={avatarRegenerating}
+                    >
+                      More Realistic
+                    </Button>
+                  </div>
+
+                  {/* Primary call-to-action */}
+                  <Button
+                    className="mt-4"
+                    disabled={avatarRegenerating}
+                    onClick={finalizeAvatar}
+                  >
+                    Looks good → Start editing pages
+                  </Button>
+                </>
+              ) : (
+                /* After finalize – just show small label */
+                <span className="mt-2 text-sm text-gray-500">
+                  Avatar locked in ✓
+                </span>
+              )}
+            </div>
+          )}
+
           <BookPreview
             bookTitle={pages.find((p) => p.isCover)?.content || book.title}
             pages={pages}
@@ -363,15 +323,28 @@ export default function BookDetailPage() {
             isDirty={isDirty}
             avatarFinalized={avatarFinalized}
           />
+
+          {showShippingForm && !orderCompleted && (
+            <ShippingForm onSubmit={handleShippingSubmit} />
+          )}
+
+          {orderCompleted && (
+            <div className="flex items-center justify-center bg-green-100 text-green-800 p-4 rounded-lg mb-8 max-w-md mx-auto mt-8">
+              <i className="fas fa-check-circle text-green-500 mr-2 text-xl"></i>
+              <span>
+                Order successfully placed! Your book will be delivered soon.
+              </span>
+            </div>
+          )}
         </div>
       </main>
       <Footer />
 
-      {/* ADD: Customer Support Button - Only show when book exists */}
+      {/* Customer Support Button */}
       {book && <CustomerSupportButton onClick={() => setIsChatOpen(true)} />}
 
-      {/* ADD: Chat Drawer */}
-      {book && user && (
+      {/* Chat Drawer with transformed pages and functions */}
+      {book && user && pages.length > 0 && (
         <ChatDrawer
           isOpen={isChatOpen}
           onClose={() => setIsChatOpen(false)}
@@ -380,9 +353,14 @@ export default function BookDetailPage() {
           <CustomerSupportChat
             key={chatKey}
             bookId={id!}
-            bookData={book}
+            bookData={{
+              ...book,
+              pages: pages, // Pass transformed pages instead of raw pages
+            }}
             userId={user.uid}
             onImageUpdate={handleImageUpdate}
+            regeneratePage={handleRegenerate}
+            updatePage={handleUpdatePage}
           />
         </ChatDrawer>
       )}
