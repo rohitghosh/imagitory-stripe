@@ -276,9 +276,7 @@ export function useBookEditor({
             }),
     };
 
-    console.log(
-      `payload keys ${Object.keys(payload).length} sending to ${endpoint}`,
-    );
+    console.log(`payload sending to ${endpoint} → ${JSON.stringify(payload)}`);
 
     try {
       const res = await fetch(endpoint, {
