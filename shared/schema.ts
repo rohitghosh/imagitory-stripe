@@ -74,6 +74,8 @@ export const bookSchema = z.object({
       z.object({
         id: z.number().optional(),
         imageUrl: z.string().nullable().optional(),
+        imageUrls: z.array(z.string()).optional(), // NEW
+        currentImageIndex: z.number().optional(), // NEW;
         content: z.string().nullable().optional(),
         prompt: z.string().optional(),
         loraScale: z.number().optional(),

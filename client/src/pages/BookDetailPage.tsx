@@ -17,40 +17,199 @@ import { CustomerSupportChat } from "@/components/CustomerSupportChat";
 import { auth } from "@/lib/firebase"; // For getting userId
 // Define an interface for the pages stored in the book (raw data)
 
+// function transformBookPages(book: any) {
+//   const middlePages = book.pages.map((p: any, index: number) => ({
+//     id: index + 2, // start from 2 to leave slot #1 for the cover
+//     imageUrl: p.imageUrl || "", // fallback if missing
+//     // content: Array.isArray(p.scene_text)
+//     //   ? p.scene_text.join("\n")
+//     //   : (p.scene_text ?? ""),
+//     content: Array.isArray(p.content)
+//       ? p.content.join("\n")
+//       : (p.content ?? ""),
+//     sceneInputs: p.scene_inputs ?? p.content ?? "",
+//     isCover: false,
+//     sceneNumber: p.scene_number,
+//     sceneResponseId: p.sceneResponseId,
+//   }));
+
+//   const pages = [];
+
+//   // Cover page
+//   if (book.cover.final_cover_url) {
+//     pages.push({
+//       id: 1,
+//       imageUrl: book.cover.final_cover_url,
+//       content: book.title,
+//       coverInputs: book.cover, // e.g. display the book title
+//       isCover: true,
+//       coverResponseId: book.cover.base_cover_response_id,
+//     });
+//   }
+
+//   // Middle pages
+//   pages.push(...middlePages);
+
+//   // Back cover page
+//   if (book.backCoverUrl) {
+//     pages.push({
+//       id: pages.length + 1,
+//       imageUrl: book.backCoverUrl,
+//       content: "",
+//       isBackCover: true,
+//     });
+//   }
+
+//   return pages;
+// }
+
+// function transformBookPages(book: any) {
+//   const middlePages = book.pages.map((p: any, index: number) => {
+//     // Get current image based on tracker
+//     const currentIndex = p.current_scene_index || 0;
+//     const imageUrls = Array.isArray(p.imageUrls)
+//       ? p.imageUrls
+//       : [p.imageUrl || p.scene_url || ""];
+//     const responseIds = Array.isArray(p.scene_response_ids)
+//       ? p.scene_response_ids
+//       : [p.sceneResponseId || p.scene_response_id];
+
+//     return {
+//       id: index + 2,
+//       imageUrl: imageUrls[currentIndex] || imageUrls[0] || "",
+//       imageUrls, // NEW: Keep array reference
+//       currentImageIndex: currentIndex, // NEW: Track current index
+//       content: Array.isArray(p.content)
+//         ? p.content.join("\n")
+//         : (p.content ?? ""),
+//       sceneInputs: p.scene_inputs ?? p.content ?? "",
+//       isCover: false,
+//       sceneNumber: p.scene_number,
+//       sceneResponseId: responseIds[currentIndex] || responseIds[0],
+//       sceneResponseIds: responseIds, // NEW: Keep array reference
+//     };
+//   });
+
+//   const pages = [];
+
+//   // Cover page
+//   if (book.cover) {
+//     // Get current cover based on tracker
+//     const currentCoverIndex = book.cover.current_final_cover_index || 0;
+//     const finalCoverUrls = Array.isArray(book.cover.final_cover_urls)
+//       ? book.cover.final_cover_urls
+//       : [book.cover.final_cover_url];
+//     const baseCoverResponseIds = Array.isArray(
+//       book.cover.base_cover_response_ids,
+//     )
+//       ? book.cover.base_cover_response_ids
+//       : [book.cover.base_cover_response_id];
+
+//     pages.push({
+//       id: 1,
+//       imageUrl: finalCoverUrls[currentCoverIndex] || finalCoverUrls[0] || "",
+//       imageUrls: finalCoverUrls, // NEW: Keep array reference
+//       currentImageIndex: currentCoverIndex, // NEW: Track current index
+//       content: book.title,
+//       coverInputs: book.cover,
+//       isCover: true,
+//       coverResponseId:
+//         baseCoverResponseIds[currentCoverIndex] || baseCoverResponseIds[0],
+//       coverResponseIds: baseCoverResponseIds, // NEW: Keep array reference
+//     });
+//   }
+
+//   // Middle pages
+//   pages.push(...middlePages);
+
+//   // Back cover page
+//   if (book.backCoverUrl) {
+//     pages.push({
+//       id: pages.length + 1,
+//       imageUrl: book.backCoverUrl,
+//       content: "",
+//       isBackCover: true,
+//     });
+//   }
+
+//   return pages;
+// }
+
 function transformBookPages(book: any) {
-  const middlePages = book.pages.map((p: any, index: number) => ({
-    id: index + 2, // start from 2 to leave slot #1 for the cover
-    imageUrl: p.imageUrl || "", // fallback if missing
-    // content: Array.isArray(p.scene_text)
-    //   ? p.scene_text.join("\n")
-    //   : (p.scene_text ?? ""),
-    content: Array.isArray(p.content)
-      ? p.content.join("\n")
-      : (p.content ?? ""),
-    sceneInputs: p.scene_inputs ?? p.content ?? "",
-    isCover: false,
-    sceneNumber: p.scene_number,
-    sceneResponseId: p.sceneResponseId,
-  }));
+  /* ────────── overall start ────────── */
+  console.log(
+    `transformBookPages start rawPages ${Array.isArray(book.pages) ? book.pages.length : 0}`,
+  );
 
-  const pages = [];
+  /* ────────── middle pages ────────── */
+  const middlePages = (book.pages || []).map((p: any, index: number) => {
+    const currentIndex = p.current_scene_index || 0;
+    const imageUrls = Array.isArray(p.imageUrls)
+      ? p.imageUrls
+      : [p.imageUrl || p.scene_url || ""];
+    const responseIds = Array.isArray(p.scene_response_ids)
+      ? p.scene_response_ids
+      : [p.sceneResponseId || p.scene_response_id];
 
-  // Cover page
-  if (book.cover.final_cover_url) {
+    console.log(
+      `midPage idx ${index} imagesLen ${imageUrls.length} currIdx ${currentIndex} responsesLen ${responseIds.length}`,
+    );
+
+    return {
+      id: index + 2,
+      imageUrl: imageUrls[currentIndex] || imageUrls[0] || "",
+      imageUrls,
+      currentImageIndex: currentIndex,
+      content: Array.isArray(p.content)
+        ? p.content.join("\n")
+        : (p.content ?? ""),
+      sceneInputs: p.scene_inputs ?? p.content ?? "",
+      isCover: false,
+      sceneNumber: p.scene_number,
+      sceneResponseId: responseIds[currentIndex] || responseIds[0],
+      sceneResponseIds: responseIds,
+    };
+  });
+
+  const pages: any[] = [];
+
+  /* ────────── cover page ────────── */
+  if (book.cover) {
+    const currentCoverIndex = book.cover.current_final_cover_index || 0;
+    const finalCoverUrls = Array.isArray(book.cover.final_cover_urls)
+      ? book.cover.final_cover_urls
+      : [book.cover.final_cover_url];
+    const baseCoverResponseIds = Array.isArray(
+      book.cover.base_cover_response_ids,
+    )
+      ? book.cover.base_cover_response_ids
+      : [book.cover.base_cover_response_id];
+
+    console.log(
+      `cover imagesLen ${finalCoverUrls.length} currCoverIdx ${currentCoverIndex}`,
+    );
+
     pages.push({
       id: 1,
-      imageUrl: book.cover.final_cover_url,
+      imageUrl: finalCoverUrls[currentCoverIndex] || finalCoverUrls[0] || "",
+      imageUrls: finalCoverUrls,
+      currentImageIndex: currentCoverIndex,
       content: book.title,
-      coverInputs: book.cover, // e.g. display the book title
+      coverInputs: book.cover,
       isCover: true,
-      coverResponseId: book.cover.base_cover_response_id,
+      coverResponseId:
+        baseCoverResponseIds[currentCoverIndex] || baseCoverResponseIds[0],
+      coverResponseIds: baseCoverResponseIds,
     });
+  } else {
+    console.log(`noCover present false`);
   }
 
-  // Middle pages
+  /* ────────── middle pages push ────────── */
   pages.push(...middlePages);
+  console.log(`middlePages added count ${middlePages.length}`);
 
-  // Back cover page
+  /* ────────── back cover ────────── */
   if (book.backCoverUrl) {
     pages.push({
       id: pages.length + 1,
@@ -58,8 +217,13 @@ function transformBookPages(book: any) {
       content: "",
       isBackCover: true,
     });
+    console.log(`backCover added id ${pages.length}`);
+  } else {
+    console.log(`noBackCover present false`);
   }
 
+  /* ────────── finish ────────── */
+  console.log(`transformBookPages end totalPages ${pages.length}`);
   return pages;
 }
 
@@ -147,6 +311,7 @@ export default function BookDetailPage() {
     finalizeAvatar,
     updatePage: handleUpdatePage,
     regeneratePage: handleRegenerate,
+    togglePageVersion: handleTogglePageVersion,
     regenerateAll: handleRegenerateAll,
     regenerateAvatar,
     saveBook: handleSaveBook,
@@ -359,6 +524,7 @@ export default function BookDetailPage() {
             }}
             userId={user.uid}
             onImageUpdate={handleImageUpdate}
+            togglePageVersion={handleTogglePageVersion}
             regeneratePage={handleRegenerate}
             updatePage={handleUpdatePage}
           />

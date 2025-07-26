@@ -118,6 +118,24 @@ declare module "express-session" {
   }
 }
 
+// Helper to safely get current values from arrays
+function getCurrentFromArray<T>(
+  arr: T[] | T | undefined,
+  index: number,
+): T | undefined {
+  if (Array.isArray(arr)) {
+    return arr[Math.min(index, arr.length - 1)];
+  }
+  return arr;
+}
+
+// Helper to ensure array format
+function ensureArray<T>(value: T | T[] | undefined): T[] {
+  if (Array.isArray(value)) return value;
+  if (value === undefined) return [];
+  return [value];
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
   app.use(express.json({ limit: "5mb" }));
@@ -710,6 +728,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
     })();
   });
 
+  // app.post("/api/regenerateImage", async (req: Request, res: Response) => {
+  //   try {
+  //     const { bookId, pageId, sceneResponseId, revisedPrompt } = req.body;
+
+  //     const book = await storage.getBookById(bookId);
+  //     if (!book) return res.status(404).json({ error: "Book not found" });
+
+  //     /* 1️⃣   identify the page by scene_number */
+  //     const oldPage = book.pages?.find((p: any) => p.scene_number === pageId);
+  //     if (!oldPage) {
+  //       return res.status(400).json({ error: "Page not found" });
+  //     }
+
+  //     /* 3️⃣   call your image service */
+  //     const { firebaseUrl: newUrl, responseId: newResponseId } =
+  //       await regenerateSceneImage(bookId, sceneResponseId, revisedPrompt);
+
+  //     /* 4️⃣   build the updated list */
+  //     const updatedPages = book.pages.map((p: any) =>
+  //       p.scene_number === pageId
+  //         ? { ...p, imageUrl: newUrl, scene_response_id: newResponseId }
+  //         : p,
+  //     );
+
+  //     /* 5️⃣   persist */
+  //     await storage.updateBook(bookId, { pages: updatedPages });
+
+  //     res.status(200).json({ newUrl });
+  //   } catch (error: any) {
+  //     if (DEBUG_LOGGING) console.error("[/api/regenerateImage] error:", error);
+  //     res.status(500).json({
+  //       error: error.message || "Image regeneration failed",
+  //     });
+  //   }
+  // });
   app.post("/api/regenerateImage", async (req: Request, res: Response) => {
     try {
       const { bookId, pageId, sceneResponseId, revisedPrompt } = req.body;
@@ -717,27 +770,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const book = await storage.getBookById(bookId);
       if (!book) return res.status(404).json({ error: "Book not found" });
 
-      /* 1️⃣   identify the page by scene_number */
       const oldPage = book.pages?.find((p: any) => p.scene_number === pageId);
       if (!oldPage) {
         return res.status(400).json({ error: "Page not found" });
       }
 
-      /* 3️⃣   call your image service */
-      const { firebaseUrl: newUrl, responseId: newResponseId } =
-        await regenerateSceneImage(bookId, sceneResponseId, revisedPrompt);
+      // Get current index or default to 0
+      const currentIndex = oldPage.current_scene_index || 0;
 
-      /* 4️⃣   build the updated list */
+      // Use the last response ID if not provided
+      const responseId =
+        sceneResponseId ||
+        getCurrentFromArray(
+          oldPage.sceneResponseIds || oldPage.sceneResponseId,
+          currentIndex,
+        );
+
+      const { firebaseUrl: newUrl, responseId: newResponseId } =
+        await regenerateSceneImage(bookId, responseId, revisedPrompt);
+
+      // Ensure arrays exist
+      const imageUrls = ensureArray(oldPage.imageUrls || oldPage.imageUrl);
+      const responseIds = ensureArray(
+        oldPage.sceneResponseIds || oldPage.sceneResponseId,
+      );
+
+      // Append new values
+      imageUrls.push(newUrl);
+      responseIds.push(newResponseId);
+
+      // Update index to point to new image
+      const newIndex = imageUrls.length - 1;
+
       const updatedPages = book.pages.map((p: any) =>
         p.scene_number === pageId
-          ? { ...p, imageUrl: newUrl, scene_response_id: newResponseId }
+          ? {
+              ...p,
+              imageUrls, // Store array
+              imageUrl: newUrl, // Keep for backwards compatibility
+              sceneResponseIds: responseIds, // Store array
+              sceneResponseId: newResponseId, // Keep for backwards compatibility
+              current_scene_index: newIndex, // Update tracker
+            }
           : p,
       );
 
-      /* 5️⃣   persist */
       await storage.updateBook(bookId, { pages: updatedPages });
 
-      res.status(200).json({ newUrl });
+      res.status(200).json({ newUrl, newIndex });
     } catch (error: any) {
       if (DEBUG_LOGGING) console.error("[/api/regenerateImage] error:", error);
       res.status(500).json({
@@ -746,26 +826,77 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // app.post("/api/regenerateCover", async (req: Request, res: Response) => {
+  //   try {
+  //     const { bookId, coverInputs, title, coverResponseId, revisedPrompt } =
+  //       req.body;
+
+  //     const book = await storage.getBookById(bookId);
+  //     if (!book) return res.status(404).json({ error: "Book not found" });
+
+  //     const prevSeed =
+  //       book.cover?.base_cover_inputs?.seed ??
+  //       book.cover?.final_cover_inputs?.seed ??
+  //       3;
+
+  //     const seed = Math.floor(Math.random() * 1_000_000);
+
+  //     // const newBaseCoverUrl = await regenerateBaseCoverImage(coverInputs, seed);
+  //     const { firebaseUrl: newBaseCoverUrl, responseId: newResponseId } =
+  //       await regenerateBaseCoverImage(bookId, coverResponseId, revisedPrompt);
+
+  //     // Then add title to create final cover
+  //     const newFinalCoverUrl = await generateFinalCoverWithTitle(
+  //       bookId,
+  //       newBaseCoverUrl,
+  //       title,
+  //       seed,
+  //     );
+
+  //     const updatedCover = {
+  //       ...book.cover,
+  //       base_cover_inputs: { ...coverInputs, seed },
+  //       final_cover_inputs: { ...(book.cover?.final_cover_inputs ?? {}), seed },
+  //       base_cover_url: newBaseCoverUrl,
+  //       final_cover_url: newFinalCoverUrl,
+  //       base_cover_response_id: newResponseId,
+  //     };
+
+  //     console.log("updatedCover:", updatedCover);
+  //     await storage.updateBook(bookId, { cover: updatedCover });
+
+  //     res.status(200).json({ newUrl: newFinalCoverUrl });
+  //   } catch (error: any) {
+  //     if (DEBUG_LOGGING)
+  //       console.error(
+  //         "[/api/regenerateImage] Image regeneration error:",
+  //         error,
+  //       );
+  //     res
+  //       .status(500)
+  //       .json({ error: error.message || "Image regeneration failed" });
+  //   }
+  // });
+
   app.post("/api/regenerateCover", async (req: Request, res: Response) => {
     try {
-      const { bookId, coverInputs, title, coverResponseId, revisedPrompt } =
-        req.body;
+      const { bookId, coverInputs, title, coverResponseId, revisedPrompt } = req.body;
 
       const book = await storage.getBookById(bookId);
       if (!book) return res.status(404).json({ error: "Book not found" });
 
-      const prevSeed =
-        book.cover?.base_cover_inputs?.seed ??
-        book.cover?.final_cover_inputs?.seed ??
-        3;
+      // Get current index or default to 0
+      const currentIndex = book.cover?.current_base_cover_index || 0;
+
+      // Use the last response ID if not provided
+      const responseId = coverResponseId || 
+        getCurrentFromArray(book.cover?.base_cover_response_ids || book.cover?.base_cover_response_id, currentIndex);
 
       const seed = Math.floor(Math.random() * 1_000_000);
 
-      // const newBaseCoverUrl = await regenerateBaseCoverImage(coverInputs, seed);
       const { firebaseUrl: newBaseCoverUrl, responseId: newResponseId } =
-        await regenerateBaseCoverImage(bookId, coverResponseId, revisedPrompt);
+        await regenerateBaseCoverImage(bookId, responseId, revisedPrompt);
 
-      // Then add title to create final cover
       const newFinalCoverUrl = await generateFinalCoverWithTitle(
         bookId,
         newBaseCoverUrl,
@@ -773,28 +904,100 @@ export async function registerRoutes(app: Express): Promise<Server> {
         seed,
       );
 
+      // Ensure arrays exist
+      const baseCoverUrls = ensureArray(book.cover?.base_cover_urls || book.cover?.base_cover_url);
+      const finalCoverUrls = ensureArray(book.cover?.final_cover_urls || book.cover?.final_cover_url);
+      const responseIds = ensureArray(book.cover?.base_cover_response_ids || book.cover?.base_cover_response_id);
+
+      // Append new values
+      baseCoverUrls.push(newBaseCoverUrl);
+      finalCoverUrls.push(newFinalCoverUrl);
+      responseIds.push(newResponseId);
+
+      // Update indices
+      const newIndex = baseCoverUrls.length - 1;
+
       const updatedCover = {
         ...book.cover,
         base_cover_inputs: { ...coverInputs, seed },
         final_cover_inputs: { ...(book.cover?.final_cover_inputs ?? {}), seed },
-        base_cover_url: newBaseCoverUrl,
-        final_cover_url: newFinalCoverUrl,
-        base_cover_response_id: newResponseId,
+        base_cover_urls: baseCoverUrls,                    // Store array
+        base_cover_url: newBaseCoverUrl,                   // Keep for backwards compatibility
+        final_cover_urls: finalCoverUrls,                   // Store array
+        final_cover_url: newFinalCoverUrl,                  // Keep for backwards compatibility
+        base_cover_response_ids: responseIds,               // Store array
+        base_cover_response_id: newResponseId,              // Keep for backwards compatibility
+        current_base_cover_index: newIndex,                 // Update tracker
+        current_final_cover_index: newIndex                 // Update tracker
       };
 
-      console.log("updatedCover:", updatedCover);
       await storage.updateBook(bookId, { cover: updatedCover });
 
-      res.status(200).json({ newUrl: newFinalCoverUrl });
+      res.status(200).json({ newUrl: newFinalCoverUrl, newIndex });
     } catch (error: any) {
-      if (DEBUG_LOGGING)
-        console.error(
-          "[/api/regenerateImage] Image regeneration error:",
-          error,
+      if (DEBUG_LOGGING) console.error("[/api/regenerateCover] error:", error);
+      res.status(500).json({ error: error.message || "Image regeneration failed" });
+    }
+  });
+
+  app.post("/api/toggleImageVersion", async (req: Request, res: Response) => {
+    try {
+      const { bookId, pageId, targetIndex } = req.body;
+
+      const book = await storage.getBookById(bookId);
+      if (!book) return res.status(404).json({ error: "Book not found" });
+
+      if (pageId === 0) {
+        // Handle cover toggle
+        const baseCoverUrls = ensureArray(book.cover?.base_cover_urls || book.cover?.base_cover_url);
+        const finalCoverUrls = ensureArray(book.cover?.final_cover_urls || book.cover?.final_cover_url);
+
+        const newIndex = Math.max(0, Math.min(targetIndex, baseCoverUrls.length - 1));
+
+        const updatedCover = {
+          ...book.cover,
+          current_base_cover_index: newIndex,
+          current_final_cover_index: newIndex,
+          base_cover_url: baseCoverUrls[newIndex],     // Update compatibility field
+          final_cover_url: finalCoverUrls[newIndex]    // Update compatibility field
+        };
+
+        await storage.updateBook(bookId, { cover: updatedCover });
+
+        res.status(200).json({ 
+          newUrl: finalCoverUrls[newIndex],
+          newIndex,
+          totalVersions: baseCoverUrls.length
+        });
+      } else {
+        // Handle page toggle
+        const page = book.pages?.find((p: any) => p.scene_number === pageId);
+        if (!page) return res.status(404).json({ error: "Page not found" });
+
+        const imageUrls = ensureArray(page.imageUrls || page.imageUrl);
+        const newIndex = Math.max(0, Math.min(targetIndex, imageUrls.length - 1));
+
+        const updatedPages = book.pages.map((p: any) =>
+          p.scene_number === pageId
+            ? { 
+                ...p, 
+                current_scene_index: newIndex,
+                imageUrl: imageUrls[newIndex]    // Update compatibility field
+              }
+            : p,
         );
-      res
-        .status(500)
-        .json({ error: error.message || "Image regeneration failed" });
+
+        await storage.updateBook(bookId, { pages: updatedPages });
+
+        res.status(200).json({ 
+          newUrl: imageUrls[newIndex],
+          newIndex,
+          totalVersions: imageUrls.length
+        });
+      }
+    } catch (error: any) {
+      if (DEBUG_LOGGING) console.error("[/api/toggleImageVersion] error:", error);
+      res.status(500).json({ error: error.message || "Toggle version failed" });
     }
   });
 

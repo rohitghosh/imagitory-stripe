@@ -13,6 +13,7 @@ interface CustomerSupportChatProps {
   bookData: any; // Your book type with transformed pages
   userId: string;
   onImageUpdate?: () => void;
+  togglePageVersion: (pageId: number, direction: "prev" | "next") => void;
   regeneratePage: (
     page: any,
     mode: string,
@@ -27,6 +28,7 @@ export const CustomerSupportChat: React.FC<CustomerSupportChatProps> = ({
   bookData,
   userId,
   onImageUpdate,
+  togglePageVersion,
   regeneratePage,
   updatePage,
 }) => {
@@ -128,6 +130,30 @@ export const CustomerSupportChat: React.FC<CustomerSupportChatProps> = ({
   };
 
   const processUserSelection = async (selection: string) => {
+    if (selection.startsWith("toggle_")) {
+      const parts = selection.split("_");
+      if (parts[1] === "prev" || parts[1] === "next") {
+        const pageIndex = parseInt(parts[2]);
+        const actualPageId = pageIndex === -1 ? 1 : pageIndex + 2; // -1 for cover, otherwise +2
+
+        await togglePageVersion(actualPageId, parts[1] as "prev" | "next");
+        onImageUpdate?.();
+
+        const toggleMessage: ChatMessage = {
+          id: Date.now().toString(),
+          type: "bot",
+          content: `I've switched to the ${parts[1] === "prev" ? "previous" : "next"} version. What would you like to do now?`,
+          timestamp: new Date(),
+          options: [
+            { id: "more_yes", label: "Make more changes", value: "yes" },
+            { id: "more_no", label: "Everything looks good", value: "no" },
+          ],
+        };
+
+        setMessages((prev) => [...prev, toggleMessage]);
+        return;
+      }
+    }
     // Handle go back
     if (selection === "go_back" || selection === "start_over") {
       setCurrentState("initial");
@@ -196,11 +222,13 @@ export const CustomerSupportChat: React.FC<CustomerSupportChatProps> = ({
     setIsLoading(true);
     try {
       const page = bookData.pages[pageIndex];
+      if (!page) return;
 
       // Call the existing regeneratePage function
       await regeneratePage(pageIndex + 2, "image", undefined, feedback);
 
       // Track regeneration
+      const imageUrls = page.imageUrls || [page.imageUrl];
       const imageKey = `page_${pageIndex}`;
       const newCount = (regenerationCounts.get(imageKey) || 0) + 1;
       setRegenerationCounts((prev) => new Map(prev).set(imageKey, newCount));
@@ -215,9 +243,9 @@ export const CustomerSupportChat: React.FC<CustomerSupportChatProps> = ({
         timestamp: new Date(),
         options: [
           {
-            id: "toggle_version",
+            id: `toggle_prev_${pageIndex}`,
             label: "Toggle to previous version",
-            value: "toggle_" + pageIndex,
+            value: `toggle_prev_${pageIndex}`,
           },
           { id: "more_yes", label: "Yes, something else", value: "yes" },
           { id: "more_no", label: "No, everything looks good", value: "no" },
@@ -242,18 +270,26 @@ export const CustomerSupportChat: React.FC<CustomerSupportChatProps> = ({
   };
 
   const handleCoverRegeneration = async (feedback: string) => {
+    console.log(`coverRegen start feedbackLen ${feedback.length}`);
+
     setIsLoading(true);
     try {
       const coverPage = bookData.pages.find((p) => p.isCover);
+      console.log(`coverPage found ${coverPage ? "yes" : "no"}`);
       if (!coverPage) return;
 
+      console.log(`calling regeneratePage id 1 mode cover`);
       await regeneratePage(1, "cover", undefined, feedback);
+      console.log(`regeneratePage finished`);
 
       // Track regeneration
-      const newCount = (regenerationCounts.get("cover") || 0) + 1;
+      const prevCount = regenerationCounts.get("cover") || 0;
+      const newCount = prevCount + 1;
+      console.log(`regenCount prev ${prevCount} new ${newCount}`);
       setRegenerationCounts((prev) => new Map(prev).set("cover", newCount));
 
       onImageUpdate?.();
+      console.log(`onImageUpdate called ${!!onImageUpdate}`);
 
       const successMessage: ChatMessage = {
         id: Date.now().toString(),
@@ -273,10 +309,12 @@ export const CustomerSupportChat: React.FC<CustomerSupportChatProps> = ({
       };
 
       setMessages((prev) => [...prev, successMessage]);
-    } catch (error) {
-      console.error("Error regenerating cover:", error);
+      console.log(`successMessage pushed messagesLen ${bookData.pages.length}`);
+    } catch (err: any) {
+      console.error(`coverRegen error msg ${err.message}`);
     } finally {
       setIsLoading(false);
+      console.log(`coverRegen end loading false`);
     }
   };
 

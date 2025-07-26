@@ -310,18 +310,33 @@ export async function generateCompleteStory(
     bookId,
     baseCoverUrl,
     story.story_title,
+    seed,
     (phase, pct, msg) =>
       onProgress?.("generating_cover", 96 + (pct / 100) * 4, msg),
-    seed,
   );
 
   onProgress?.("complete", 100, "Story generation complete");
 
   /* ── 5. Assemble output ───────────────────────────────────────────── */
+  // const scenes: SceneOutput[] = story.scenes.map((scene, i) => ({
+  //   scene_number: i + 1,
+  //   imageUrl: generatedScenes[i].firebaseUrl,
+  //   sceneResponseId: generatedScenes[i].responseId, // NEW
+  //   content: scene.scene_text,
+  //   side: sides[i],
+  //   scene_inputs: {
+  //     scene_description: scene.scene_description,
+  //     characterImageMap,
+  //     previousImageUrl: i > 0 ? generatedScenes[i - 1].firebaseUrl : null,
+  //     seed,
+  //   },
+  // }));
+
   const scenes: SceneOutput[] = story.scenes.map((scene, i) => ({
     scene_number: i + 1,
-    imageUrl: generatedScenes[i].firebaseUrl,
-    sceneResponseId: generatedScenes[i].responseId, // NEW
+    imageUrls: [generatedScenes[i].firebaseUrl], // CHANGED: Array with single element
+    sceneResponseIds: [generatedScenes[i].responseId], // CHANGED: Array with single element
+    current_scene_index: 0, // NEW: Start at index 0
     content: scene.scene_text,
     side: sides[i],
     scene_inputs: {
@@ -332,18 +347,39 @@ export async function generateCompleteStory(
     },
   }));
 
+  // return {
+  //   scenes,
+  //   cover: {
+  //     base_cover_url: baseCoverUrl,
+  //     base_cover_response_id: baseCoverResponseId, // NEW
+  //     story_title: story.story_title,
+  //     base_cover_inputs: {
+  //       front_cover: story.front_cover,
+  //       characterImageMap,
+  //       seed,
+  //     },
+  //     final_cover_url: finalCoverUrl,
+  //     final_cover_inputs: {
+  //       base_cover_url: baseCoverUrl,
+  //       story_title: story.story_title,
+  //       seed,
+  //     },
+  //   },
+  // };
   return {
     scenes,
     cover: {
-      base_cover_url: baseCoverUrl,
-      base_cover_response_id: baseCoverResponseId, // NEW
+      base_cover_urls: [baseCoverUrl], // CHANGED: Array with single element
+      base_cover_response_ids: [baseCoverResponseId], // CHANGED: Array with single element
+      current_base_cover_index: 0, // NEW: Start at index 0
       story_title: story.story_title,
       base_cover_inputs: {
         front_cover: story.front_cover,
         characterImageMap,
         seed,
       },
-      final_cover_url: finalCoverUrl,
+      final_cover_urls: [finalCoverUrl], // CHANGED: Array with single element
+      current_final_cover_index: 0, // NEW: Start at index 0
       final_cover_inputs: {
         base_cover_url: baseCoverUrl,
         story_title: story.story_title,

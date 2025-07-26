@@ -127,6 +127,96 @@ export function useBookEditor({
   const DELTA = 0.05;
 
   /* ───────────────── regenerate one page ───────────────── */
+  // async function regeneratePage(
+  //   pageId: number,
+  //   mode?: string,
+  //   titleOverride?: string,
+  //   revisedPrompt?: string,
+  // ) {
+  //   console.log(`regenPage start id ${pageId} mode ${mode ?? "none"}`);
+
+  //   const page = pages.find((p) => p.id === pageId);
+  //   if (!page) {
+  //     console.log(`regenPage abort id-not-found ${pageId}`);
+  //     return;
+  //   }
+
+  //   /* optimistic spinner */
+  //   setPages((prev) =>
+  //     prev.map((p) => (p.id === pageId ? { ...p, regenerating: true } : p)),
+  //   );
+  //   console.log(`spinner on id ${pageId}`);
+
+  //   /* choose endpoint + payload */
+  //   let endpoint: string;
+  //   if (mode === "coverTitle") {
+  //     endpoint = "/api/regenerateCoverTitle";
+  //   } else if (mode === "cover") {
+  //     endpoint = "/api/regenerateCover";
+  //   } else {
+  //     endpoint = "/api/regenerateImage";
+  //   }
+  //   console.log(`endpoint ${endpoint}`);
+
+  //   const payload = {
+  //     bookId,
+  //     ...(mode === "coverTitle"
+  //       ? {
+  //           baseCoverUrl: page.coverInputs.base_cover_url,
+  //           title: titleOverride ?? page.content,
+  //           randomSeed: false,
+  //         }
+  //       : mode === "cover"
+  //         ? {
+  //             title: title,
+  //             coverResponseId: page.coverResponseId,
+  //             revisedPrompt,
+  //           }
+  //         : {
+  //             pageId: page.sceneNumber ?? page.id - 1,
+  //             sceneResponseId: page.sceneResponseId,
+  //             revisedPrompt,
+  //           }),
+  //   };
+
+  //   console.log(
+  //     `payload keys ${Object.keys(payload).length} sending to ${endpoint}`,
+  //   );
+
+  //   try {
+  //     const res = await fetch(endpoint, {
+  //       method: "POST",
+  //       headers: { "Content-Type": "application/json" },
+  //       body: JSON.stringify(payload),
+  //     });
+  //     console.log(`POST ${endpoint} status ${res.status}`);
+
+  //     if (!res.ok) throw new Error(`API ${res.status}`);
+
+  //     const { newUrl } = await res.json();
+  //     console.log(`newUrl length ${newUrl.length}`);
+
+  //     setPages((prev) =>
+  //       prev.map((p) =>
+  //         p.id === pageId ? { ...p, regenerating: false, imageUrl: newUrl } : p,
+  //       ),
+  //     );
+  //     // setDirty(true);
+  //     console.log(`regenPage success id ${pageId}`);
+  //   } catch (err: any) {
+  //     console.error(`regenPage error id ${pageId} msg ${err.message}`);
+
+  //     setPages((prev) =>
+  //       prev.map((p) => (p.id === pageId ? { ...p, regenerating: false } : p)),
+  //     );
+  //     toast({
+  //       title: "Regeneration error",
+  //       description: `Couldn't regenerate page ${pageId}.`,
+  //       variant: "destructive",
+  //     });
+  //   }
+  // }
+
   async function regeneratePage(
     pageId: number,
     mode?: string,
@@ -141,13 +231,11 @@ export function useBookEditor({
       return;
     }
 
-    /* optimistic spinner */
     setPages((prev) =>
       prev.map((p) => (p.id === pageId ? { ...p, regenerating: true } : p)),
     );
     console.log(`spinner on id ${pageId}`);
 
-    /* choose endpoint + payload */
     let endpoint: string;
     if (mode === "coverTitle") {
       endpoint = "/api/regenerateCoverTitle";
@@ -162,19 +250,28 @@ export function useBookEditor({
       bookId,
       ...(mode === "coverTitle"
         ? {
-            baseCoverUrl: page.coverInputs.base_cover_url,
+            baseCoverUrl:
+              page.coverInputs.base_cover_url ||
+              (page.coverInputs.base_cover_urls &&
+                page.coverInputs.base_cover_urls[page.currentImageIndex || 0]),
             title: titleOverride ?? page.content,
             randomSeed: false,
           }
         : mode === "cover"
           ? {
               title: title,
-              coverResponseId: page.coverResponseId,
+              coverResponseId:
+                page.coverResponseId ||
+                (page.coverResponseIds &&
+                  page.coverResponseIds[page.currentImageIndex || 0]),
               revisedPrompt,
             }
           : {
               pageId: page.sceneNumber ?? page.id - 1,
-              sceneResponseId: page.sceneResponseId,
+              sceneResponseId:
+                page.sceneResponseId ||
+                (page.sceneResponseIds &&
+                  page.sceneResponseIds[page.currentImageIndex || 0]),
               revisedPrompt,
             }),
     };
@@ -193,15 +290,24 @@ export function useBookEditor({
 
       if (!res.ok) throw new Error(`API ${res.status}`);
 
-      const { newUrl } = await res.json();
-      console.log(`newUrl length ${newUrl.length}`);
+      const { newUrl, newIndex } = await res.json();
+      console.log(`newUrl length ${newUrl.length}, newIndex ${newIndex}`);
 
       setPages((prev) =>
         prev.map((p) =>
-          p.id === pageId ? { ...p, regenerating: false, imageUrl: newUrl } : p,
+          p.id === pageId
+            ? {
+                ...p,
+                regenerating: false,
+                imageUrl: newUrl,
+                currentImageIndex:
+                  newIndex !== undefined
+                    ? newIndex
+                    : (p.currentImageIndex || 0) + 1,
+              }
+            : p,
         ),
       );
-      // setDirty(true);
       console.log(`regenPage success id ${pageId}`);
     } catch (err: any) {
       console.error(`regenPage error id ${pageId} msg ${err.message}`);
@@ -212,6 +318,68 @@ export function useBookEditor({
       toast({
         title: "Regeneration error",
         description: `Couldn't regenerate page ${pageId}.`,
+        variant: "destructive",
+      });
+    }
+  }
+
+  async function togglePageVersion(pageId: number, direction: "prev" | "next") {
+    console.log(`togglePageVersion start id ${pageId} dir ${direction}`);
+
+    const page = pages.find((p) => p.id === pageId);
+    if (!page) {
+      console.log(`togglePageVersion abort id-not-found ${pageId}`);
+      return;
+    }
+
+    const currentIndex = page.currentImageIndex || 0;
+    const imageUrls = page.imageUrls || [page.imageUrl];
+    console.log(`currentIndex ${currentIndex} totalImages ${imageUrls.length}`);
+
+    let targetIndex: number;
+    if (direction === "prev") {
+      targetIndex = Math.max(0, currentIndex - 1);
+    } else {
+      targetIndex = Math.min(imageUrls.length - 1, currentIndex + 1);
+    }
+    console.log(`calculated targetIndex ${targetIndex}`);
+
+    if (targetIndex === currentIndex) {
+      console.log(`togglePageVersion abort no-change-needed id ${pageId}`);
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/toggleImageVersion", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bookId,
+          pageId: page.isCover ? 0 : (page.sceneNumber ?? page.id - 1),
+          targetIndex,
+        }),
+      });
+      console.log(`POST /api/toggleImageVersion status ${res.status}`);
+
+      if (!res.ok) throw new Error(`API ${res.status}`);
+
+      const { newUrl, newIndex } = await res.json();
+      console.log(
+        `toggle success newIndex ${newIndex} urlLen ${newUrl.length}`,
+      );
+
+      setPages((prev) =>
+        prev.map((p) =>
+          p.id === pageId
+            ? { ...p, imageUrl: newUrl, currentImageIndex: newIndex }
+            : p,
+        ),
+      );
+    } catch (err: any) {
+      console.error(`togglePageVersion error id ${pageId} msg ${err.message}`);
+      toast({
+        title: "Toggle error",
+        description: "Couldn't switch image version.",
         variant: "destructive",
       });
     }
@@ -441,6 +609,7 @@ export function useBookEditor({
     /* actions */
     updatePage,
     regeneratePage,
+    togglePageVersion, // NEW
     regenerateAll,
     regenerateAvatar,
     saveBook,
