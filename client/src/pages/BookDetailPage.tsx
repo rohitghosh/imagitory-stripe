@@ -15,6 +15,7 @@ import { CustomerSupportButton } from "@/components/CustomerSupportButton";
 import { ChatDrawer } from "@/components/ChatDrawer";
 import { CustomerSupportChat } from "@/components/CustomerSupportChat";
 import { auth } from "@/lib/firebase"; // For getting userId
+import { useQueryClient } from "@tanstack/react-query";
 // Define an interface for the pages stored in the book (raw data)
 
 // function transformBookPages(book: any) {
@@ -242,6 +243,7 @@ export default function BookDetailPage() {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatKey, setChatKey] = useState(0); // For resetting chat if needed
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const queryClient = useQueryClient();
 
   const {
     data: book,
@@ -397,6 +399,19 @@ export default function BookDetailPage() {
     setChatKey((prev) => prev + 1); // Simple way to force refresh
   };
 
+  // NEW: Handler for navigating to specific image in carousel
+  const handleNavigateToImage = (index: number) => {
+    // Use the global navigation callback set up in BookPreview
+    if ((window as any).navigateToImage) {
+      (window as any).navigateToImage(index);
+    }
+  };
+
+  // NEW: Handler for proceeding to PDF
+  const handleProceedToPdf = () => {
+    handleDownloadPDF();
+  };
+
   if (isLoading) return <div>Loading...</div>;
   if (error) return <div>Book not found</div>;
   const disableRegeneration = loadingCharacter || characterError;
@@ -487,6 +502,7 @@ export default function BookDetailPage() {
             onSave={handleSaveBook}
             isDirty={isDirty}
             avatarFinalized={avatarFinalized}
+            onNavigateToImage={handleNavigateToImage}
           />
 
           {showShippingForm && !orderCompleted && (
@@ -527,6 +543,8 @@ export default function BookDetailPage() {
             togglePageVersion={handleTogglePageVersion}
             regeneratePage={handleRegenerate}
             updatePage={handleUpdatePage}
+            onNavigateToImage={handleNavigateToImage}
+            onProceedToPdf={handleProceedToPdf}
           />
         </ChatDrawer>
       )}

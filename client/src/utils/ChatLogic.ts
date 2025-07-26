@@ -238,6 +238,14 @@ export class ChatLogic {
     return {
       message:
         "Perfect! Your book looks amazing. Feel free to reach out if you need any more help.",
+      options: [
+        { id: "start_over", label: "Start Over", value: "start_over" },
+        {
+          id: "proceed_to_pdf",
+          label: "Everything looks good. Proceed to Edit PDF",
+          value: "proceed_to_pdf",
+        },
+      ],
       state: "complete" as ChatState,
     };
   }

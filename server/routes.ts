@@ -880,7 +880,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/regenerateCover", async (req: Request, res: Response) => {
     try {
-      const { bookId, coverInputs, title, coverResponseId, revisedPrompt } = req.body;
+      const { bookId, coverInputs, title, coverResponseId, revisedPrompt } =
+        req.body;
 
       const book = await storage.getBookById(bookId);
       if (!book) return res.status(404).json({ error: "Book not found" });
@@ -889,8 +890,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const currentIndex = book.cover?.current_base_cover_index || 0;
 
       // Use the last response ID if not provided
-      const responseId = coverResponseId || 
-        getCurrentFromArray(book.cover?.base_cover_response_ids || book.cover?.base_cover_response_id, currentIndex);
+      const responseId =
+        coverResponseId ||
+        getCurrentFromArray(
+          book.cover?.base_cover_response_ids ||
+            book.cover?.base_cover_response_id,
+          currentIndex,
+        );
 
       const seed = Math.floor(Math.random() * 1_000_000);
 
@@ -905,9 +911,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
 
       // Ensure arrays exist
-      const baseCoverUrls = ensureArray(book.cover?.base_cover_urls || book.cover?.base_cover_url);
-      const finalCoverUrls = ensureArray(book.cover?.final_cover_urls || book.cover?.final_cover_url);
-      const responseIds = ensureArray(book.cover?.base_cover_response_ids || book.cover?.base_cover_response_id);
+      const baseCoverUrls = ensureArray(
+        book.cover?.base_cover_urls || book.cover?.base_cover_url,
+      );
+      const finalCoverUrls = ensureArray(
+        book.cover?.final_cover_urls || book.cover?.final_cover_url,
+      );
+      const responseIds = ensureArray(
+        book.cover?.base_cover_response_ids ||
+          book.cover?.base_cover_response_id,
+      );
 
       // Append new values
       baseCoverUrls.push(newBaseCoverUrl);
@@ -921,14 +934,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...book.cover,
         base_cover_inputs: { ...coverInputs, seed },
         final_cover_inputs: { ...(book.cover?.final_cover_inputs ?? {}), seed },
-        base_cover_urls: baseCoverUrls,                    // Store array
-        base_cover_url: newBaseCoverUrl,                   // Keep for backwards compatibility
-        final_cover_urls: finalCoverUrls,                   // Store array
-        final_cover_url: newFinalCoverUrl,                  // Keep for backwards compatibility
-        base_cover_response_ids: responseIds,               // Store array
-        base_cover_response_id: newResponseId,              // Keep for backwards compatibility
-        current_base_cover_index: newIndex,                 // Update tracker
-        current_final_cover_index: newIndex                 // Update tracker
+        base_cover_urls: baseCoverUrls, // Store array
+        base_cover_url: newBaseCoverUrl, // Keep for backwards compatibility
+        final_cover_urls: finalCoverUrls, // Store array
+        final_cover_url: newFinalCoverUrl, // Keep for backwards compatibility
+        base_cover_response_ids: responseIds, // Store array
+        base_cover_response_id: newResponseId, // Keep for backwards compatibility
+        current_base_cover_index: newIndex, // Update tracker
+        current_final_cover_index: newIndex, // Update tracker
       };
 
       await storage.updateBook(bookId, { cover: updatedCover });
@@ -936,7 +949,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(200).json({ newUrl: newFinalCoverUrl, newIndex });
     } catch (error: any) {
       if (DEBUG_LOGGING) console.error("[/api/regenerateCover] error:", error);
-      res.status(500).json({ error: error.message || "Image regeneration failed" });
+      res
+        .status(500)
+        .json({ error: error.message || "Image regeneration failed" });
     }
   });
 
@@ -949,25 +964,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (pageId === 0) {
         // Handle cover toggle
-        const baseCoverUrls = ensureArray(book.cover?.base_cover_urls || book.cover?.base_cover_url);
-        const finalCoverUrls = ensureArray(book.cover?.final_cover_urls || book.cover?.final_cover_url);
+        const baseCoverUrls = ensureArray(
+          book.cover?.base_cover_urls || book.cover?.base_cover_url,
+        );
+        const finalCoverUrls = ensureArray(
+          book.cover?.final_cover_urls || book.cover?.final_cover_url,
+        );
 
-        const newIndex = Math.max(0, Math.min(targetIndex, baseCoverUrls.length - 1));
+        const newIndex = Math.max(
+          0,
+          Math.min(targetIndex, baseCoverUrls.length - 1),
+        );
 
         const updatedCover = {
           ...book.cover,
           current_base_cover_index: newIndex,
           current_final_cover_index: newIndex,
-          base_cover_url: baseCoverUrls[newIndex],     // Update compatibility field
-          final_cover_url: finalCoverUrls[newIndex]    // Update compatibility field
+          base_cover_url: baseCoverUrls[newIndex], // Update compatibility field
+          final_cover_url: finalCoverUrls[newIndex], // Update compatibility field
         };
 
         await storage.updateBook(bookId, { cover: updatedCover });
 
-        res.status(200).json({ 
+        res.status(200).json({
           newUrl: finalCoverUrls[newIndex],
           newIndex,
-          totalVersions: baseCoverUrls.length
+          totalVersions: baseCoverUrls.length,
         });
       } else {
         // Handle page toggle
@@ -975,28 +997,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (!page) return res.status(404).json({ error: "Page not found" });
 
         const imageUrls = ensureArray(page.imageUrls || page.imageUrl);
-        const newIndex = Math.max(0, Math.min(targetIndex, imageUrls.length - 1));
+        const newIndex = Math.max(
+          0,
+          Math.min(targetIndex, imageUrls.length - 1),
+        );
 
         const updatedPages = book.pages.map((p: any) =>
           p.scene_number === pageId
-            ? { 
-                ...p, 
+            ? {
+                ...p,
                 current_scene_index: newIndex,
-                imageUrl: imageUrls[newIndex]    // Update compatibility field
+                imageUrl: imageUrls[newIndex], // Update compatibility field
               }
             : p,
         );
 
         await storage.updateBook(bookId, { pages: updatedPages });
 
-        res.status(200).json({ 
+        res.status(200).json({
           newUrl: imageUrls[newIndex],
           newIndex,
-          totalVersions: imageUrls.length
+          totalVersions: imageUrls.length,
         });
       }
     } catch (error: any) {
-      if (DEBUG_LOGGING) console.error("[/api/toggleImageVersion] error:", error);
+      if (DEBUG_LOGGING)
+        console.error("[/api/toggleImageVersion] error:", error);
       res.status(500).json({ error: error.message || "Toggle version failed" });
     }
   });
@@ -1966,8 +1992,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
               const expandedUrl = page.expanded_scene_url
                 ? page.expanded_scene_url
                 : pageSide === "left"
-                  ? await expandImageToLeft(page.scene_url)
-                  : await expandImageToRight(page.scene_url);
+                  ? await expandImageToLeft(page.imageUrl)
+                  : await expandImageToRight(page.imageUrl);
               // const expandedUrl =
               //   "https://v3.fal.media/files/tiger/LfKPl6vdMmKXuAF2X_OjI_67831c38bc95428793087c8908604d19.png";
               return {
@@ -1975,7 +2001,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 id: page.scene_number,
                 side: pageSide,
                 expanded_scene_url: expandedUrl, // Store expanded URL
-                imageUrl: page.scene_url, // Keep original
+                imageUrl: page.imageurl, // Keep original
               };
             }),
           );
@@ -2017,7 +2043,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                     // Use the expanded URL for text overlay
                     hint = await getOverlayHint(
                       page.expanded_scene_url, // Use expanded URL
-                      page.scene_text, // now always string[]
+                      page.content, // now always string[]
                       page.side,
                       isRhyming,
                       {

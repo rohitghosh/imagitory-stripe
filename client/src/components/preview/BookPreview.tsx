@@ -337,10 +337,10 @@
 //     </div>
 //   );
 // }
-import React, { useState } from "react";
 // import { ImageCarousel } from "@../components/ImageCarousel";
 // import { SceneTextOverlay } from "./SceneTextOverlay";
 // import { ImageMaximizeModal } from "./ImageMaximizeModal";
+import React, { useState, useEffect } from "react";
 import { ImageCarousel } from "@/components/ImageCarousel";
 import { SceneTextOverlay } from "@/components/SceneTextOverlay";
 import { ImageMaximizeModal } from "@/components/ImageMaximizeModal";
@@ -363,6 +363,7 @@ interface BookPreviewProps {
   onSave: () => void;
   isDirty: boolean;
   avatarFinalized: boolean;
+  onNavigateToImage?: (index: number) => void; // NEW: Add navigation callback
 }
 
 export function BookPreview({
@@ -376,6 +377,7 @@ export function BookPreview({
   onSave,
   isDirty,
   avatarFinalized,
+  onNavigateToImage,
 }: BookPreviewProps) {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [maximizedImage, setMaximizedImage] = useState<string | null>(null);
@@ -387,6 +389,36 @@ export function BookPreview({
     pageId: page.id || `page-${index}`,
     isCover: page.isCover || false,
   }));
+
+  useEffect(() => {
+    carouselImages.forEach((image, index) => {
+      if (image.url) {
+        const img = new Image();
+        img.src = image.url;
+        img.onload = () => {
+          console.log(`Preloaded image ${index}: ${image.url}`);
+        };
+      }
+    });
+  }, [carouselImages]);
+
+  // Handle navigation from chat
+  useEffect(() => {
+    if (onNavigateToImage) {
+      const handleNavigation = (index: number) => {
+        if (index >= 0 && index < carouselImages.length) {
+          setCurrentImageIndex(index);
+        }
+      };
+
+      // Store the callback for external use
+      (window as any).navigateToImage = handleNavigation;
+
+      return () => {
+        delete (window as any).navigateToImage;
+      };
+    }
+  }, [onNavigateToImage, carouselImages.length]);
 
   return (
     <div className="relative h-screen w-full overflow-hidden">

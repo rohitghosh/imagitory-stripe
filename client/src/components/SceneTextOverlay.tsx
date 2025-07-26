@@ -18,13 +18,13 @@ export const SceneTextOverlay: React.FC<SceneTextOverlayProps> = ({
       <div className="bg-gradient-to-t from-black/90 via-black/70 to-transparent pt-12 pb-6 px-6">
         {hasText ? (
           <div className="max-w-4xl mx-auto">
-            <p className="text-white text-base md:text-lg leading-relaxed font-light">
+            <p className="text-white text-lg md:text-xl leading-relaxed font-light text-center">
               {text}
             </p>
           </div>
         ) : (
           <div className="max-w-4xl mx-auto">
-            <div className="flex items-center space-x-2 text-white/60">
+            <div className="flex items-center justify-center space-x-2 text-white/60">
               <Info className="w-4 h-4" />
               <p className="text-sm italic">
                 {isCover
