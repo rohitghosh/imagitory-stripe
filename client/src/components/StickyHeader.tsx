@@ -1,0 +1,139 @@
+import React, { useState, useEffect } from "react";
+import { ArrowLeft, HelpCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+
+interface StickyHeaderProps {
+  bookTitle: string;
+  onBack: () => void;
+  onEditPDF: () => void;
+  onToggleAssistant: () => void;
+  isAssistantOpen: boolean;
+  isDirty?: boolean;
+}
+
+export const StickyHeader: React.FC<StickyHeaderProps> = ({
+  bookTitle,
+  onBack,
+  onEditPDF,
+  onToggleAssistant,
+  isAssistantOpen,
+  isDirty = false,
+}) => {
+  const [showWelcomeMessage, setShowWelcomeMessage] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
+
+  // Show welcome message for chat support button
+  useEffect(() => {
+    const timer = setTimeout(() => setShowWelcomeMessage(true), 1000);
+    const hideTimer = setTimeout(() => setShowWelcomeMessage(false), 6000); // 5 seconds display
+    return () => {
+      clearTimeout(timer);
+      clearTimeout(hideTimer);
+    };
+  }, []);
+
+  return (
+    <div className="sticky top-16 md:top-0 z-40 bg-white border-b border-gray-200 shadow-sm">
+      <div className="max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between h-14 md:h-16">
+          {/* Left: Back navigation */}
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={onBack}
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              aria-label="Go back"
+            >
+              <ArrowLeft className="w-5 h-5 text-gray-600" />
+            </button>
+            <h1 className="text-lg md:text-xl font-semibold text-gray-900 truncate max-w-xs md:max-w-md">
+              {bookTitle}
+            </h1>
+          </div>
+
+          {/* Right: Primary CTA and Assistant toggle */}
+          <div className="flex items-center space-x-2 md:space-x-3 relative">
+            {/* Chat Support Button with Animation */}
+            <div className="relative">
+              {/* Welcome message */}
+              {showWelcomeMessage && (
+                <div className="absolute bottom-full right-0 mb-3 px-4 py-3 bg-red-600 text-white text-sm rounded-lg shadow-xl max-w-xs animate-slideUp z-50">
+                  <div className="flex items-start space-x-2">
+                    <HelpCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="font-medium">Need help with StoryPal?</p>
+                      <p className="text-xs opacity-90 mt-1">
+                        Click here to get assistance!
+                      </p>
+                    </div>
+                  </div>
+                  <div className="absolute top-full right-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-red-600" />
+                </div>
+              )}
+
+              {/* Tooltip for desktop */}
+              {isHovered && !showWelcomeMessage && (
+                <div className="hidden md:block absolute bottom-full right-0 mb-2 px-3 py-1 bg-gray-800 text-white text-sm rounded-lg whitespace-nowrap z-50">
+                  StoryPal Assistant
+                  <div className="absolute top-full right-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-800" />
+                </div>
+              )}
+
+              <button
+                onClick={onToggleAssistant}
+                onMouseEnter={() => setIsHovered(true)}
+                onMouseLeave={() => setIsHovered(false)}
+                className={`relative p-2 md:p-3 rounded-lg transition-all duration-200 hover:scale-110 ${
+                  isAssistantOpen
+                    ? "bg-red-50 text-red-600 shadow-md"
+                    : "hover:bg-gray-100 text-gray-600"
+                }`}
+                aria-label="Toggle StoryPal Assistant"
+              >
+                <HelpCircle className="w-5 h-5 md:w-6 md:h-6" />
+
+                {/* Enhanced pulse animation */}
+                {!isAssistantOpen && (
+                  <>
+                    <span className="absolute inset-0 rounded-lg bg-red-600 opacity-30 animate-ping" />
+                    <span className="absolute inset-0 rounded-lg bg-red-600 opacity-20 animate-pulse" />
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Primary CTA: Edit PDF - Made Bigger */}
+            <Button
+              onClick={onEditPDF}
+              className="bg-red-600 hover:bg-red-700 text-white font-semibold shadow-md transition-all duration-200 hover:shadow-lg hover:scale-105"
+              size="default" // Changed from "sm" to "default" for bigger size
+            >
+              <span className="hidden sm:inline text-base">Edit PDF</span>
+              <span className="sm:hidden">Edit</span>
+              {isDirty && (
+                <span className="ml-2 w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></span>
+              )}
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* Custom animations */}
+      <style jsx>{`
+        @keyframes slideUp {
+          from {
+            opacity: 0;
+            transform: translateY(10px) scale(0.95);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+        }
+
+        .animate-slideUp {
+          animation: slideUp 0.3s ease-out;
+        }
+      `}</style>
+    </div>
+  );
+};

@@ -14,10 +14,12 @@ export function useJobProgress(jobId?: string) {
     let cancel = false;
 
     const poll = async () => {
+      console.log(`[Client] Polling job ${jobId}...`);
       const r = await fetch(`/api/jobs/${jobId}/progress`, {
         credentials: "include",
       });
       const j = await r.json();
+      console.log(`[Client] Job ${jobId} response:`, j);
       if (!cancel) {
         setState(j);
         if (j.phase !== "complete" && j.phase !== "error")

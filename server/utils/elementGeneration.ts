@@ -222,9 +222,9 @@ export async function preparePageWithImages(page: any) {
 
 export async function expandImageToLeft(imageUrl) {
   // Load the original image to get its dimensions
-  const img = await loadImage(imageUrl);
-  const originalWidth = img.width;
-  const originalHeight = img.height;
+  // const img = await loadImage(imageUrl);
+  // const originalWidth = img.width;
+  // const originalHeight = img.height;
 
   // Set the new canvas size to double the original width
   // const newCanvasWidth = originalWidth * 2;

@@ -536,6 +536,7 @@ export const CustomerSupportChat: React.FC<CustomerSupportChatProps> = ({
       };
 
       setMessages((prev) => [...prev, successMessage]);
+      await saveChatMessage(userId, bookId, successMessage);
     } catch (error) {
       console.error("Error updating text:", error);
     } finally {

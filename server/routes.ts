@@ -98,6 +98,10 @@ const HALF_W = FULL_W / 2; // 789
 const LOGICAL_W = 600;
 const LOGICAL_H = Math.round((FULL_H * LOGICAL_W) / HALF_W);
 
+function time() {
+  return new Date().toISOString().slice(11, 23);
+}
+
 function mapHint(h: OverlayHint) {
   const localX = h.side === "left" ? h.startX : h.startX - HALF_W;
   const sx = LOGICAL_W / HALF_W;
@@ -478,6 +482,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/jobs/:jobId/progress", (req, res) => {
     const st = jobTracker.get(req.params.jobId);
+    console.log(
+      `[Progress] Job ${req.params.jobId} requested, returning: ${JSON.stringify(st, null, 2)}`,
+    );
+
     if (!st) return res.json({ phase: "unknown", pct: 0 });
     res.set("Cache-Control", "no-store");
     res.json(st);
@@ -1662,287 +1670,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  //   app.post(
-  //     "/api/books/:bookId/prepareSplit",
-  //     async (req: Request, res: Response) => {
-  //       console.log("[routes] prepareSplit hit:", req.params.bookId);
-  //       const bookId = req.params.bookId;
-  //       const { pages } = req.body;
-
-  //       if (!Array.isArray(pages)) {
-  //         return res.status(400).json({ message: "Missing pages array" });
-  //       }
-
-  //       const book = await storage.getBookById(bookId);
-
-  //       const alreadyDone =
-  //         !!book.cover?.back_cover_url &&
-  //         book.pages.length === pages.length &&
-  //         book.pages.every((p) => p.leftX != null || p.rightX != null);
-
-  //       if (alreadyDone) {
-  //         console.log("prepareSplit: cached book — returning immediately");
-  //         return res.json({ pages: book.pages });
-  //       }
-
-  //       const jobId = req.get("x-client-job") ?? jobTracker.newJob();
-  //       res.setHeader("X-Job-Id", jobId);
-  //       res.setHeader("Access-Control-Expose-Headers", "X-Job-Id");
-  //       res.status(202).json({ jobId });
-
-  //       (async () => {
-  //         try {
-  //           jobTracker.set(jobId, {
-  //             phase: "expandingCover",
-  //             pct: 5,
-  //             message: "Creating back cover…",
-  //           });
-
-  //           if (!book.cover?.back_cover_url) {
-  //             const backUrl = await expandImageToLeft(book.cover.final_cover_url);
-  //             await storage.updateBook(bookId, {
-  //               cover: { ...book.cover, back_cover_url: backUrl },
-  //             });
-  //           }
-
-  //           // — now split & overlay —
-  //           jobTracker.set(jobId, {
-  //             phase: "splitting",
-  //             pct: 25,
-  //             message: "Preparing pages…",
-  //           });
-
-  //           const isRhyming = Boolean(book.isStoryRhyming);
-  //           const processedPages: any[] = [];
-
-  //           for (let idx = 0; idx < pages.length; idx++) {
-  //             const page = pages[idx];
-
-  //             const inputText: string | string[] = isRhyming
-  //               ? page.scene_text.split("\n")
-  //               : page.scene_text;
-
-  //             let hint: OverlayHint;
-  //             try {
-  //               hint = await getOverlayHint(page.scene_url, inputText, {
-  //                 retainFlow: isRhyming,
-  //                 fontSize: DEFAULT_FONT_SIZE,
-  //                 fontFamily: DEFAULT_FONT_FAMILY,
-  //               });
-  //             } catch (err) {
-  //               console.warn(
-  //                 `[prepareSplit] overlay-text failed for page ${page.id}, using defaults:`,
-  //                 err,
-  //               );
-  //               hint = {
-  //                 startX: FULL_W / 2 - 100,
-  //                 startY: FULL_H / 2 - 25,
-  //                 side: "left",
-  //                 color: DEFAULT_COLOR,
-  //                 lines: isRhyming
-  //                   ? page.scene_text.split("\n")
-  //                   : page.scene_text,
-  //                 imageWidth: FULL_W,
-  //                 imageHeight: FULL_H,
-  //                 fontSize: DEFAULT_FONT_SIZE,
-  //                 fontFamily: DEFAULT_FONT_FAMILY,
-  //               };
-  //             }
-
-  //             const m = mapHint(hint);
-
-  //             const out: any = {
-  //               ...page,
-  //               id: page.scene_number,
-  //               imageUrl: page.scene_url, // one URL, no halves
-  //               side: hint.side, // "left" | "right"
-  //               width: 400,
-  //               height: 100,
-  //               fontSize: m.fontSize,
-  //               leftTextColor: hint.color,
-  //               rightTextColor: hint.color,
-  //             };
-
-  //             if (hint.side === "left") {
-  //               out.leftX = m.x;
-  //               out.leftY = m.y;
-  //               out.leftText = hint.lines;
-  //             } else {
-  //               out.rightX = m.x;
-  //               out.rightY = m.y;
-  //               out.rightText = hint.lines;
-  //             }
-
-  //             processedPages.push(out);
-  //             jobTracker.set(jobId, {
-  //               phase: "generating",
-  //               pct: 25 + Math.round(((idx + 1) / pages.length) * 90), // 5 → 95
-  //               message: `Page ${idx + 1}/${pages.length}`,
-  //             });
-  //           }
-  //           await storage.updateBook(bookId, { pages: processedPages });
-  //           jobTracker.set(jobId, {
-  //             phase: "complete",
-  //             pct: 100,
-  //             message: "Pages ready",
-  //           });
-  //         } catch (error) {
-  //           console.error("prepareSplit error:", error);
-  //           jobTracker.set(jobId, {
-  //             phase: "error",
-  //             pct: 100,
-  //             error: String(error),
-  //           });
-  //         }
-  //       })();
-  //     },
-  //   );
-
-  //   return httpServer;
-  // }
-  // app.post(
-  //   "/api/books/:bookId/prepareSplit",
-  //   async (req: Request, res: Response) => {
-  //     console.log("[routes] prepareSplit hit:", req.params.bookId);
-  //     const bookId = req.params.bookId;
-  //     const { pages } = req.body;
-  //     if (!Array.isArray(pages)) {
-  //       return res.status(400).json({ message: "Missing pages array" });
-  //     }
-
-  //     const book = await storage.getBookById(bookId);
-  //     const alreadyDone =
-  //       !!book.cover?.back_cover_url &&
-  //       book.pages.length === pages.length &&
-  //       book.pages.every((p) => p.final_scene_url != null);
-  //     if (alreadyDone) {
-  //       console.log("prepareSplit: cached book — returning immediately");
-  //       return res.json({ pages: book.pages });
-  //     }
-
-  //     const jobId = req.get("x-client-job") ?? jobTracker.newJob();
-  //     res.setHeader("X-Job-Id", jobId);
-  //     res.setHeader("Access-Control-Expose-Headers", "X-Job-Id");
-  //     res.status(202).json({ jobId });
-
-  //     (async () => {
-  //       try {
-  //         // 1) Expand back cover if needed
-  //         jobTracker.set(jobId, {
-  //           phase: "expandingCover",
-  //           pct: 5,
-  //           message: "Creating back cover…",
-  //         });
-  //         if (!book.cover?.back_cover_url) {
-  //           const backUrl = await expandImageToLeft(book.cover.final_cover_url);
-  //           await storage.updateBook(bookId, {
-  //             cover: { ...book.cover, back_cover_url: backUrl },
-  //           });
-  //         }
-
-  //         // 2) Process pages in parallel
-  //         jobTracker.set(jobId, {
-  //           phase: "splitting",
-  //           pct: 25,
-  //           message: "Preparing pages…",
-  //         });
-
-  //         const isRhyming = Boolean(book.isStoryRhyming);
-  //         const storedPages = book.pages; // contains pre-assigned side
-  //         let completed = 0;
-
-  //         const processedPages = await Promise.all(
-  //           pages.map(async (page, idx) => {
-  //             const pageSide: "left" | "right" =
-  //               storedPages[idx]?.side || "left";
-
-  //             // a) expand the scene image
-  //             // const finalUrl =
-  //             //   pageSide === "left"
-  //             //     ? await expandImageToLeft(page.scene_url)
-  //             //     : await expandImageToRight(page.scene_url);
-  //             const finalUrl =
-  //               "https://v3.fal.media/files/penguin/rXdJmlpczzDv1c18SqckT_20fd7c0944dd4764a34e92b7084c6cd8.png";
-
-  //             // b) overlay text on the expanded image
-  //             const hint: OverlayHint = await getOverlayHint(
-  //               finalUrl,
-  //               page.scene_text, // now always string[]
-  //               pageSide,
-  //               isRhyming,
-  //               {
-  //                 fontSize: DEFAULT_FONT_SIZE,
-  //                 fontFamily: DEFAULT_FONT_FAMILY,
-  //                 debugMode: false,
-  //               },
-  //             );
-  //             const m = mapHint(hint as OverlayHint);
-
-  //             // c) assemble output
-  //             const out: any = {
-  //               ...page,
-  //               id: page.scene_number,
-  //               imageUrl: page.scene_url,
-  //               final_scene_url: finalUrl,
-  //               side: pageSide,
-  //               width: 400,
-  //               height: 100,
-  //               fontSize: m.fontSize,
-  //               leftTextColor: hint.color,
-  //               rightTextColor: hint.color,
-  //             };
-  //             if (hint.side === "left") {
-  //               out.leftX = m.x;
-  //               out.leftY = m.y;
-  //               out.leftText = hint.lines;
-  //             } else {
-  //               out.rightX = m.x;
-  //               out.rightY = m.y;
-  //               out.rightText = hint.lines;
-  //             }
-
-  //             // d) progress update
-  //             completed++;
-  //             jobTracker.set(jobId, {
-  //               phase: "generating",
-  //               pct: 25 + Math.round((completed / pages.length) * 90),
-  //               message: `Page ${completed}/${pages.length}`,
-  //             });
-
-  //             return out;
-  //           }),
-  //         );
-
-  //         // 3) persist and complete
-  //         await storage.updateBook(bookId, { pages: processedPages });
-  //         jobTracker.set(jobId, {
-  //           phase: "complete",
-  //           pct: 100,
-  //           message: "Pages ready",
-  //         });
-  //       } catch (error) {
-  //         console.error("prepareSplit error:", error);
-  //         jobTracker.set(jobId, {
-  //           phase: "error",
-  //           pct: 100,
-  //           error: String(error),
-  //         });
-  //       }
-  //     })();
-  //   },
-  // );
-
   app.post(
     "/api/books/:bookId/prepareSplit",
     async (req: Request, res: Response) => {
       console.log("[routes] prepareSplit hit:", req.params.bookId);
       const bookId = req.params.bookId;
-      const { pages } = req.body;
+
+      const book = await storage.getBookById(bookId);
+      const pages = book.pages;
       if (!Array.isArray(pages)) {
         return res.status(400).json({ message: "Missing pages array" });
       }
 
-      const book = await storage.getBookById(bookId);
       const alreadyDone =
         !!book.cover?.back_cover_url &&
         book.pages.length === pages.length &&
@@ -1965,6 +1704,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             pct: 5,
             message: "Creating back cover…",
           });
+
           if (!book.cover?.back_cover_url) {
             const backUrl = await expandImageToLeft(book.cover.base_cover_url);
             await storage.updateBook(bookId, {
@@ -1973,6 +1713,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
 
           // 2) PHASE 1: Expand all page images in parallel
+          console.log(
+            `[prepareSplit] Starting image expansion for ${pages.length} pages`,
+          );
           jobTracker.set(jobId, {
             phase: "expandingImages",
             pct: 15,
@@ -1983,10 +1726,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const storedPages = book.pages; // contains pre-assigned side
 
           // Expand all images in parallel
+          console.log(
+            `[prepareSplit] Expanding ${pages.length} images in parallel...`,
+          );
+
           const expandedPages = await Promise.all(
             pages.map(async (page, idx) => {
-              const pageSide: "left" | "right" =
-                storedPages[idx]?.side || "left";
+              console.log(
+                `[prepareSplit] Expanding page ${idx + 1}/${pages.length}: ${page.scene_number}`,
+              );
+              const pageSide: "left" | "right" = pages[idx]?.side || "left";
 
               // Expand the scene image based on side
               const expandedUrl = page.expanded_scene_url
@@ -1994,39 +1743,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 : pageSide === "left"
                   ? await expandImageToLeft(page.imageUrl)
                   : await expandImageToRight(page.imageUrl);
+              console.log(
+                `[prepareSplit] Page ${idx + 1} expanded: ${expandedUrl}`,
+              );
               // const expandedUrl =
               //   "https://v3.fal.media/files/tiger/LfKPl6vdMmKXuAF2X_OjI_67831c38bc95428793087c8908604d19.png";
               return {
                 ...page,
-                id: page.scene_number,
-                side: pageSide,
                 expanded_scene_url: expandedUrl, // Store expanded URL
-                imageUrl: page.imageurl, // Keep original
               };
             }),
           );
 
+          console.log(
+            `[prepareSplit] All ${expandedPages.length} images expanded successfully`,
+          );
+
+          console.log(
+            `[prepareSplit] About to update book with expanded URLs...`,
+          );
           // Update book with expanded URLs
           await storage.updateBook(bookId, {
             pages: expandedPages.map((page) => ({
-              ...(storedPages.find((p) => p.id === page.id) || {}),
+              ...(storedPages.find(
+                (p) => p.scene_number === page.scene_number,
+              ) || {}),
               ...page,
             })),
           });
+          console.log(`[prepareSplit] Book updated successfully`);
 
+          console.log(
+            `[prepareSplit] Book updated with expanded URLs, moving to text overlay phase`,
+          );
           jobTracker.set(jobId, {
             phase: "expandingComplete",
             pct: 35,
             message: "Image expansion complete. Starting text overlay…",
           });
+          console.log(
+            `[prepareSplit] Progress updated to expandingComplete phase`,
+          );
 
           // 3) PHASE 2: Process text overlay in batches of 3
+
           const batchSize = 3;
           const processedPages = [];
           let completed = 0;
 
+          console.log(
+            `[prepareSplit] Starting text overlay processing with ${expandedPages.length} pages in batches of ${batchSize}`,
+          );
+
           for (let i = 0; i < expandedPages.length; i += batchSize) {
             const batch = expandedPages.slice(i, i + batchSize);
+            console.log(
+              `[prepareSplit] Processing batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(expandedPages.length / batchSize)}`,
+            );
 
             jobTracker.set(jobId, {
               phase: "processingBatch",
@@ -2038,7 +1811,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const batchResults = await Promise.all(
               batch.map(async (page) => {
                 let hint;
-                if (page.scene_text) {
+                if (page.content) {
                   try {
                     // Use the expanded URL for text overlay
                     hint = await getOverlayHint(
@@ -2064,10 +1837,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
                       side: page.side,
                       color: DEFAULT_COLOR,
                       lines: isRhyming
-                        ? page.scene_text
-                        : Array.isArray(page.scene_text)
-                          ? page.scene_text
-                          : [page.scene_text],
+                        ? page.content
+                        : Array.isArray(page.content)
+                          ? page.content
+                          : [page.content],
                       imageWidth: FULL_W,
                       imageHeight: FULL_H,
                       fontSize: DEFAULT_FONT_SIZE,
@@ -2132,13 +1905,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
 
           // 4) Final update with all processed pages
+          console.log(
+            `[prepareSplit] About to update book with final processed pages...`,
+          );
           await storage.updateBook(bookId, { pages: processedPages });
+          console.log(`[prepareSplit] Final book update completed`);
 
           jobTracker.set(jobId, {
             phase: "complete",
             pct: 100,
             message: "Pages ready",
           });
+          console.log(`[prepareSplit] Job marked as complete`);
+
+          await new Promise((resolve) => setTimeout(resolve, 1000));
 
           console.log(
             `[prepareSplit] Successfully processed ${processedPages.length} pages in batches`,

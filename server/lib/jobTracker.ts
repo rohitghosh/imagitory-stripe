@@ -20,14 +20,13 @@ export type JobPhase = (typeof phases)[number] | (string & {});
  * full page list, covers, etc.
  */
 
-
 export interface JobState<P = Record<string, unknown>> {
   phase: JobPhase;
   pct: number;
   message?: string;
-  log?    : string; 
+  log?: string;
   error?: string;
-  payload?: P;       // <— one escape hatch
+  payload?: P; // <— one escape hatch
 }
 
 const m = new Map<string, JobState>();
@@ -49,9 +48,17 @@ class JobTracker extends EventEmitter {
 
   /** Patch state + emit update */
   set(id: string, patch: Partial<JobState>): void {
-    const prev  = this.store.get(id) ?? { phase: "uploading", pct: 0 };
-    const next  = { ...prev, ...patch };
+    const prev = this.store.get(id) ?? { phase: "uploading", pct: 0 };
+    const next = { ...prev, ...patch };
     this.store.set(id, next);
+
+    console.log(`[JobTracker] Job ${id} updated:`, {
+      phase: next.phase,
+      pct: next.pct,
+      message: next.message,
+      prevPhase: prev.phase,
+      prevPct: prev.pct,
+    });
 
     /* 🔴 broadcast */
     this.emit("update", id, next);

@@ -203,7 +203,7 @@ export class FirestoreStorage implements IStorage {
         console.log("storage.ts - Book not found for id:", id);
         return null;
       }
-      const bookData = bookDoc.data() as Book;
+      const bookData = bookDoc.data();
       console.log("storage.ts - Book found for id:", id, bookData);
       return bookData;
     } catch (error) {

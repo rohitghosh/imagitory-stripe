@@ -421,7 +421,7 @@ export default function EditPDFPage() {
           body: JSON.stringify({ id: bookId, pages: meta.pages }),
         });
 
-        // • As-a-Service (202)  → save jobId, stay in “loading”
+        // • As-a-Service (202)  → save jobId, stay in "loading"
         if (splitRes.status === 202) {
           const jid = splitRes.headers.get("X-Job-Id");
           if (!cancelled && jid) setJobId(jid);
@@ -454,7 +454,7 @@ export default function EditPDFPage() {
   }, [bookId, toast]);
 
   /* --------------------------------------------------------- *
-   * 2) Completion – when poller hits “complete”, refetch book *
+   * 2) Completion – when poller hits "complete", refetch book *
    * --------------------------------------------------------- */
   useEffect(() => {
     if (!jobId) return; // nothing to poll
@@ -490,98 +490,6 @@ export default function EditPDFPage() {
       cancelled = true;
     };
   }, [prog?.phase, jobId, bookId, toast]);
-
-  // // useEffect(() => {
-  //   async function fetchBook() {
-  //     console.log("[EditPDF] ▶️ fetchBook start, bookId=", bookId);
-  //     try {
-  //       const res = await fetch(`/api/books/${bookId}`, {
-  //         credentials: "include",
-  //       });
-  //       if (!res.ok) throw new Error("Failed to fetch book data");
-  //       const data = await res.json();
-  //       console.log("[EditPDF] ← Book data:", data);
-
-  //       console.log("[EditPDF] → POST /api/books/" + bookId + "/prepareSplit");
-  //       const splitResp = await fetch(`/api/books/${bookId}/prepareSplit`, {
-  //         method: "POST",
-  //         headers: {
-  //           "Content-Type": "application/json",
-  //         },
-  //         body: JSON.stringify({ id: bookId, pages: data.pages }),
-  //       });
-
-  //       setJobId(splitResp.headers.get("X-Job-Id") ?? undefined);
-
-  //       console.log("[EditPDF] ← prepareSplit status:", splitResp.status);
-  //       if (!splitResp.ok) throw new Error("Failed to split images");
-  //       const { pages: splitPages } = await splitResp.json();
-
-  //       const updatedPages = splitPages.map((p) => {
-  //         // 1) pull out your raw coordinates (in the 0→789 × 0→672 space)
-  //         const rawLX = p.leftX ?? p.x ?? HALF_W / 2;
-  //         const rawLY = p.leftY ?? p.y ?? FULL_H / 2;
-  //         const rawRX = p.rightX ?? p.x ?? HALF_W / 2;
-  //         const rawRY = p.rightY ?? p.y ?? FULL_H / 2;
-
-  //         // 2) normalize them into your 600×LOGICAL_H canvas
-  //         const { x: leftX, y: leftY } = normalize(rawLX, rawLY);
-  //         const { x: rightX, y: rightY } = normalize(rawRX, rawRY);
-
-  //         return {
-  //           ...p,
-  //           leftX,
-  //           leftY,
-  //           rightX,
-  //           rightY,
-
-  //           // if you also want to scale the box size itself:
-  //           width: ((p.width ?? 400) / HALF_W) * pageConfig.finalWidth,
-  //           height: ((p.height ?? 100) / FULL_H) * pageConfig.finalHeight,
-
-  //           fontSize: p.fontSize ?? 16,
-  //           color: p.color ?? "#000",
-  //           leftText: Array.isArray(p.leftText)
-  //             ? p.leftText
-  //             : (p.leftText || "").split("\n"),
-  //           rightText: Array.isArray(p.rightText)
-  //             ? p.rightText
-  //             : (p.rightText || "").split("\n"),
-  //           fontFamily: p.fontFamily,
-  //           leftTextColor: p.leftTextColor,
-  //           rightTextColor: p.rightTextColor,
-  //           leftFontFamily: p.leftFontFamily,
-  //           rightFontFamily: p.rightFontFamily,
-  //         };
-  //       });
-  //       setBook({ ...data, pages: updatedPages });
-  //       console.groupCollapsed("📝 Normalised page data");
-  //       updatedPages.forEach((p, i) => {
-  //         console.log(`#${i + 1}`, {
-  //           rawLX: p._rawLX, // add these two temp props in your map() below
-  //           rawLY: p._rawLY,
-  //           leftX: p.leftX,
-  //           leftY: p.leftY,
-  //           rightX: p.rightX,
-  //           rightY: p.rightY,
-  //           width: p.width,
-  //           height: p.height,
-  //         });
-  //       });
-  //       console.groupEnd();
-  //     } catch (err) {
-  //       console.error("Error loading book data:", err);
-  //       toast({
-  //         title: "Error",
-  //         description: "Could not load book data",
-  //         variant: "destructive",
-  //       });
-  //     } finally {
-  //       setLoading(false);
-  //     }
-  //   }
-  //   fetchBook();
-  // }, [bookId, toast]);
 
   useEffect(() => {
     const logWidths = () => {
@@ -934,7 +842,7 @@ export default function EditPDFPage() {
       : pageConfig.finalWidth * 2 + 32;
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
+    <div className="min-h-screen flex flex-col bg-white">
       <Header />
       <main className="flex-grow mx-auto px-4 py-8 w-full max-w-full overflow-hidden">
         <h1 className="text-2xl font-bold mb-4 text-center">
@@ -961,14 +869,14 @@ export default function EditPDFPage() {
                 />
               </div>
             ) : (
-              <div className="animate-spin rounded-full h-10 w-10 border-t-4 border-primary" />
+              <div className="animate-spin rounded-full h-10 w-10 border-t-4 border-red-600" />
             )}
           </div>
         ) : (
           <>
             <div
               ref={viewerRef}
-              className="flex justify-center bg-gray-50 p-4 shadow-lg rounded relative mx-auto overflow-hidden"
+              className="flex justify-center bg-white p-4 shadow-lg rounded relative mx-auto overflow-hidden"
               style={{
                 maxWidth: "100%",
                 width: singlePageMode
@@ -995,7 +903,7 @@ export default function EditPDFPage() {
               >
                 <div className="flex gap-0.5 justify-center w-full">
                   {pagesToRender.map((fp) => {
-                    // ── Log 4: show every frame’s key props before rendering
+                    // ── Log 4: show every frame's key props before rendering
                     console.log("🖼️ Render FP", {
                       id: fp.id,
                       x: fp.x,
@@ -1231,12 +1139,12 @@ export default function EditPDFPage() {
               </div>
             )}
 
-            {/* PDF & Print Buttons */}
+            {/* PDF & Print Buttons - Red colored and mobile optimized */}
             <div className="flex flex-col md:flex-row justify-center items-center space-y-4 md:space-y-0 md:space-x-6 mt-6 md:mt-12">
               <Button
                 variant="default"
                 size="lg"
-                className="w-full md:w-auto flex items-center justify-center"
+                className="w-full md:w-auto flex items-center justify-center bg-red-600 hover:bg-red-700 text-white shadow-lg font-semibold"
                 onClick={handleSaveAndGeneratePDF}
                 disabled={isGeneratingPdf}
               >
@@ -1256,7 +1164,7 @@ export default function EditPDFPage() {
               <Button
                 variant="outline"
                 size="lg"
-                className="w-full md:w-auto flex items-center justify-center border-2 border-primary text-primary"
+                className="w-full md:w-auto flex items-center justify-center border-2 border-red-600 text-red-600 hover:bg-red-50"
                 onClick={handlePrint}
               >
                 <i className="fas fa-print mr-2"></i>

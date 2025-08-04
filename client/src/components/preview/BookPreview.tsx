@@ -340,12 +340,142 @@
 // import { ImageCarousel } from "@../components/ImageCarousel";
 // import { SceneTextOverlay } from "./SceneTextOverlay";
 // import { ImageMaximizeModal } from "./ImageMaximizeModal";
+// import React, { useState, useEffect } from "react";
+// import { ImageCarousel } from "@/components/ImageCarousel";
+// import { SceneTextOverlay } from "@/components/SceneTextOverlay";
+// import { ImageMaximizeModal } from "@/components/ImageMaximizeModal";
+// import { Button } from "@/components/ui/button";
+// import { FileText } from "lucide-react";
+
+// interface BookPreviewProps {
+//   bookTitle: string;
+//   pages: any[];
+//   onDownload: () => void;
+//   onPrint: () => void;
+//   onUpdatePage: (pageId: number, updates: any) => void;
+//   onRegenerate: (
+//     page: any,
+//     mode: string,
+//     titleOverride?: string,
+//     revisedPrompt?: string,
+//   ) => Promise<void>;
+//   onRegenerateAll: () => void;
+//   onSave: () => void;
+//   isDirty: boolean;
+//   avatarFinalized: boolean;
+//   onNavigateToImage?: (index: number) => void; // NEW: Add navigation callback
+// }
+
+// export function BookPreview({
+//   bookTitle,
+//   pages,
+//   onDownload,
+//   onPrint,
+//   onUpdatePage,
+//   onRegenerate,
+//   onRegenerateAll,
+//   onSave,
+//   isDirty,
+//   avatarFinalized,
+//   onNavigateToImage,
+// }: BookPreviewProps) {
+//   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+//   const [maximizedImage, setMaximizedImage] = useState<string | null>(null);
+
+//   // Prepare images data for carousel
+//   const carouselImages = pages.map((page, index) => ({
+//     url: page.imageUrl || page.url || "",
+//     sceneText: page.isCover ? bookTitle : page.content,
+//     pageId: page.id || `page-${index}`,
+//     isCover: page.isCover || false,
+//   }));
+
+//   useEffect(() => {
+//     carouselImages.forEach((image, index) => {
+//       if (image.url) {
+//         const img = new Image();
+//         img.src = image.url;
+//         img.onload = () => {
+//           console.log(`Preloaded image ${index}: ${image.url}`);
+//         };
+//       }
+//     });
+//   }, [carouselImages]);
+
+//   // Handle navigation from chat
+//   useEffect(() => {
+//     if (onNavigateToImage) {
+//       const handleNavigation = (index: number) => {
+//         if (index >= 0 && index < carouselImages.length) {
+//           setCurrentImageIndex(index);
+//         }
+//       };
+
+//       // Store the callback for external use
+//       (window as any).navigateToImage = handleNavigation;
+
+//       return () => {
+//         delete (window as any).navigateToImage;
+//       };
+//     }
+//   }, [onNavigateToImage, carouselImages.length]);
+
+//   return (
+//     <div className="relative h-screen w-full overflow-hidden">
+//       {/* Image Carousel */}
+//       <ImageCarousel
+//         images={carouselImages}
+//         currentIndex={currentImageIndex}
+//         onNavigate={setCurrentImageIndex}
+//         onMaximize={setMaximizedImage}
+//       />
+
+//       {/* Scene Text Overlay */}
+//       <SceneTextOverlay
+//         text={carouselImages[currentImageIndex]?.sceneText}
+//         isCover={carouselImages[currentImageIndex]?.isCover}
+//       />
+
+//       {/* Maximize Modal */}
+//       {maximizedImage && (
+//         <ImageMaximizeModal
+//           imageUrl={maximizedImage}
+//           isOpen={!!maximizedImage}
+//           onClose={() => setMaximizedImage(null)}
+//         />
+//       )}
+
+//       {/* Edit PDF Button - Top left */}
+//       <div className="absolute top-4 left-4 z-20">
+//         <Button
+//           onClick={onDownload}
+//           className="flex items-center gap-2 bg-white/90 hover:bg-white text-black shadow-md"
+//           variant="outline"
+//         >
+//           <FileText className="w-4 h-4" />
+//           Edit PDF
+//         </Button>
+//       </div>
+
+//       {/* Save Button - Show only if dirty */}
+//       {isDirty && (
+//         <div className="absolute top-4 right-4 z-20">
+//           <Button
+//             onClick={onSave}
+//             className="bg-green-600 hover:bg-green-700 text-white"
+//           >
+//             Save Changes
+//           </Button>
+//         </div>
+//       )}
+//     </div>
+//   );
+// }
+
 import React, { useState, useEffect } from "react";
 import { ImageCarousel } from "@/components/ImageCarousel";
 import { SceneTextOverlay } from "@/components/SceneTextOverlay";
 import { ImageMaximizeModal } from "@/components/ImageMaximizeModal";
-import { Button } from "@/components/ui/button";
-import { FileText } from "lucide-react";
 
 interface BookPreviewProps {
   bookTitle: string;
@@ -363,7 +493,7 @@ interface BookPreviewProps {
   onSave: () => void;
   isDirty: boolean;
   avatarFinalized: boolean;
-  onNavigateToImage?: (index: number) => void; // NEW: Add navigation callback
+  onNavigateToImage?: (index: number) => void;
 }
 
 export function BookPreview({
@@ -421,8 +551,8 @@ export function BookPreview({
   }, [onNavigateToImage, carouselImages.length]);
 
   return (
-    <div className="relative h-screen w-full overflow-hidden">
-      {/* Image Carousel */}
+    <div className="relative w-full h-full overflow-hidden bg-white">
+      {/* Image Carousel - Full screen experience */}
       <ImageCarousel
         images={carouselImages}
         currentIndex={currentImageIndex}
@@ -430,7 +560,7 @@ export function BookPreview({
         onMaximize={setMaximizedImage}
       />
 
-      {/* Scene Text Overlay */}
+      {/* Scene Text Overlay - Enhanced visibility */}
       <SceneTextOverlay
         text={carouselImages[currentImageIndex]?.sceneText}
         isCover={carouselImages[currentImageIndex]?.isCover}
@@ -445,29 +575,12 @@ export function BookPreview({
         />
       )}
 
-      {/* Edit PDF Button - Top left */}
-      <div className="absolute top-4 left-4 z-20">
-        <Button
-          onClick={onDownload}
-          className="flex items-center gap-2 bg-white/90 hover:bg-white text-black shadow-md"
-          variant="outline"
-        >
-          <FileText className="w-4 h-4" />
-          Edit PDF
-        </Button>
-      </div>
-
-      {/* Save Button - Show only if dirty */}
-      {isDirty && (
-        <div className="absolute top-4 right-4 z-20">
-          <Button
-            onClick={onSave}
-            className="bg-green-600 hover:bg-green-700 text-white"
-          >
-            Save Changes
-          </Button>
+      {/* Page turning animation overlay */}
+      <div className="absolute inset-0 pointer-events-none z-10">
+        <div className="w-full h-full bg-transparent">
+          {/* This will be used for page turning animations */}
         </div>
-      )}
+      </div>
     </div>
   );
 }
