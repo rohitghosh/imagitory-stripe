@@ -621,14 +621,14 @@ export async function generateImageForScene(
   /* ---------- Call OpenAI Responses API ---------- */
   onProgress?.("generating", 25, "Contacting OpenAI…");
 
-  // const resp = await openai.responses.create({
-  //   model: "gpt-4o-mini",
-  //   input: inputs,
-  //   tools: [tool], // ← single, well-formed tool object
-  // });
-  const resp = await openai.responses.retrieve(
-    "resp_6880d4746124819f85bac69f0055c03700d1ab5d60bfc8c6",
-  );
+  const resp = await openai.responses.create({
+    model: "gpt-4o-mini",
+    input: inputs,
+    tools: [tool], // ← single, well-formed tool object
+  });
+  // const resp = await openai.responses.retrieve(
+  //   "resp_6880d4746124819f85bac69f0055c03700d1ab5d60bfc8c6",
+  // );
 
   const responseId = resp.id;
   const imageBase64 = resp.output.find(
@@ -732,15 +732,15 @@ export async function generateImageForFrontCover(
   /* ────────────── 5. Call OpenAI Responses API ────────────────────── */
   onProgress?.("generating_cover", 25, "Contacting OpenAI…");
 
-  // const resp = await openai.responses.create({
-  //   model: "gpt-4o-mini", // chat wrapper; tool invokes GPT-Image-1
-  //   input: inputs,
-  //   tools: [tool],
-  // });
+  const resp = await openai.responses.create({
+    model: "gpt-4o-mini", // chat wrapper; tool invokes GPT-Image-1
+    input: inputs,
+    tools: [tool],
+  });
 
-  const resp = await openai.responses.retrieve(
-    "resp_6880d4746124819f85bac69f0055c03700d1ab5d60bfc8c6",
-  );
+  // const resp = await openai.responses.retrieve(
+  //   "resp_6880d4746124819f85bac69f0055c03700d1ab5d60bfc8c6",
+  // );
 
   /* ────────────── 6. Extract image & persist to Firebase ───────────── */
   const responseId = resp.id;
@@ -935,21 +935,21 @@ export async function generateFinalCoverWithTitle(
   console.log(`Base cover URL: ${baseCoverUrl}`);
   console.log(`Title prompt: ${titlePrompt}`);
 
-  // const falRes = await fal.subscribe("fal-ai/flux-pro/kontext", {
-  //   input: {
-  //     prompt: titlePrompt,
-  //     image_url: baseCoverUrl,
-  //     guidance_scale: 3.5,
-  //     num_images: 1,
-  //     output_format: "jpeg",
-  //     safety_tolerance: "2",
-  //     seed: seed,
-  //   },
-  //   logs: true,
-  //   onQueueUpdate,
-  // });
-  // const finalCoverUrl = falRes?.data?.images?.[0]?.url;
-  const finalCoverUrl = baseCoverUrl;
+  const falRes = await fal.subscribe("fal-ai/flux-pro/kontext", {
+    input: {
+      prompt: titlePrompt,
+      image_url: baseCoverUrl,
+      guidance_scale: 3.5,
+      num_images: 1,
+      output_format: "jpeg",
+      safety_tolerance: "2",
+      seed: seed,
+    },
+    logs: true,
+    onQueueUpdate,
+  });
+  const finalCoverUrl = falRes?.data?.images?.[0]?.url;
+  // const finalCoverUrl = baseCoverUrl;
 
   onProgress?.(
     "generating_final_cover",
@@ -1004,15 +1004,15 @@ export async function regenerateBaseCoverImage(
 
   const safePrompt = applyCharacterAliases(revisedPrompt, aliasMap);
 
-  // const resp = await openai.responses.create({
-  //   model: "gpt-4o-mini",
-  //   previous_response_id: coverResponseId,
-  //   input: safePrompt,
-  //   tools: [tool],
-  // });
-  const resp = await openai.responses.retrieve(
-    "resp_68829838fc8081a2bae1eaca792759180397c21e6f5837fd",
-  );
+  const resp = await openai.responses.create({
+    model: "gpt-4o-mini",
+    previous_response_id: coverResponseId,
+    input: safePrompt,
+    tools: [tool],
+  });
+  // const resp = await openai.responses.retrieve(
+  //   "resp_68829838fc8081a2bae1eaca792759180397c21e6f5837fd",
+  // );
 
   const responseId = resp.id;
   const base64 = resp.output.find(
@@ -1047,15 +1047,15 @@ export async function regenerateSceneImage(
 
   const safePrompt = applyCharacterAliases(revisedPrompt, aliasMap);
 
-  // const resp = await openai.responses.create({
-  //   model: "gpt-4o-mini",
-  //   previous_response_id: sceneResponseId,
-  //   input: safePrompt,
-  //   tools: [tool],
-  // });
-  const resp = await openai.responses.retrieve(
-    "resp_68829838e654819f8b2fb24f421b7cd70a524d78cb442626",
-  );
+  const resp = await openai.responses.create({
+    model: "gpt-4o-mini",
+    previous_response_id: sceneResponseId,
+    input: safePrompt,
+    tools: [tool],
+  });
+  // const resp = await openai.responses.retrieve(
+  //   "resp_68829838e654819f8b2fb24f421b7cd70a524d78cb442626",
+  // );
 
   const responseId = resp.id;
   const base64 = resp.output.find(
