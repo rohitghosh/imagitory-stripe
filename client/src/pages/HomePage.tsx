@@ -7,20 +7,19 @@ import DecorativeElements from "@/components/DecorativeElements";
 
 const PROCESS_STEPS = [
   {
-    icon: "👤",
-    title: "Upload photo",
-    description: "Choose a nice photo of the kid",
+    image: "/step-1.png",
+    title: "Upload photos of your characters",
+    description: "",
   },
   {
-    icon: "📝",
-    title: "Write a general blurb",
-    description:
-      "Add characters or themes to your story; you can even write your story",
+    image: "/step-2.png",
+    title: "Write a general blurb of your story",
+    description: "(include any storyline or characters)",
   },
   {
-    icon: "✨",
-    title: "Edit & Place Order",
-    description: "If need be change visuals or text or PDF details",
+    image: "/step-3.png",
+    title: "Let us work our magic!",
+    description: "",
   },
 ];
 
@@ -81,24 +80,33 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* How It Works Section - Simplified */}
+        {/* How It Works Section - Screenshot Style */}
         <section className="relative py-16 bg-white/50">
           <div className="imaginory-container">
-            <div className="text-center mb-12">
-              <h2 className="font-heading font-bold text-3xl md:text-4xl text-foreground mb-8">
+            <div className="text-center mb-16">
+              <h2 className="font-heading font-bold text-3xl md:text-4xl text-foreground">
                 How It Works
               </h2>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto">
+            <div className="flex flex-col md:flex-row justify-center items-start space-y-12 md:space-y-0 md:space-x-4 lg:space-x-8 max-w-5xl mx-auto">
               {PROCESS_STEPS.map((step, index) => (
-                <div key={index} className="text-center">
-                  <div className="text-5xl mb-6">{step.icon}</div>
-                  <h3 className="text-xl font-heading font-bold mb-3 text-foreground">
+                <div
+                  key={index}
+                  className="flex flex-col items-center text-center flex-1"
+                >
+                  <div className="mb-8">
+                    <img
+                      src={step.image}
+                      alt={step.title}
+                      className="w-32 h-32 md:w-48 md:h-48 lg:w-56 lg:h-56 object-contain"
+                    />
+                  </div>
+                  <h3 className="text-lg md:text-xl font-heading font-bold mb-2 text-foreground">
                     {step.title}
                   </h3>
                   {step.description && (
-                    <p className="text-lg font-body text-muted-foreground">
+                    <p className="text-sm md:text-base font-body text-muted-foreground">
                       {step.description}
                     </p>
                   )}
