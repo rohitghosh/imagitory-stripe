@@ -88,32 +88,6 @@ export default function ProfilePage() {
 
   const allCharacters = [...customCharacters, ...predefinedCharacters];
 
-  // Query for custom stories only
-  // const { data: customStories = [], isLoading: loadingCustomStories } =
-  //   useQuery({
-  //     queryKey: ["/api/stories", "custom", user?.uid],
-  //     queryFn: async () => {
-  //       try {
-  //         const response = await fetch(
-  //           "/api/stories?type=custom&userId=" + user?.uid,
-  //           { credentials: "include" },
-  //         );
-  //         console.log("Stories API response:", response);
-  //         if (!response.ok) {
-  //           console.error("Failed to fetch stories:", response.statusText);
-  //           return [];
-  //         }
-  //         const data = await response.json();
-  //         console.log("Stories data received:", data);
-  //         return Array.isArray(data) ? data : [];
-  //       } catch (error) {
-  //         console.error("Error fetching stories:", error);
-  //         return [];
-  //       }
-  //     },
-  //     enabled: !!user,
-  //   }) as { data: Story[]; isLoading: boolean };
-
   // Query for books (generated books)
   const { data: books = [], isLoading: loadingBooks } = useQuery({
     queryKey: ["/api/books", user?.uid],

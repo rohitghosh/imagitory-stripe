@@ -248,15 +248,36 @@ The \`scene_description\` is a granular, multi-layered directive for an image ge
 #### **Guiding Philosophy for \`scene_description\`:**
 
 * **Nine-Beat Arc:** **Nine-Beat Arc:** The story **must** follow this structure:
-    *   **Scenes 1 (Introduction):** Introduce the hero and their world.
-    *   **Scenes 2-3 (Inciting Incident/Curiosity):** Spark curiosity, introduce the main conflict or discovery.
-    *   **Scenes 4-5 (Rising Action/Challenge):** Develop the main challenge, leading to a crucial moment.
-    *   **Scene 6 (Climax/Turning Point):** The peak of the story, where the hero faces the central obstacle. This scene **must** demonstrate the hero using **empathy, cleverness, or teamwork – never aggression or violence**.
-    *   **Scenes 7-8 (Falling Action/Resolution):** Resolve the main conflict and deal with the aftermath.
-    *   **Scene 9 (Conclusion/Moral Visualized):** Clearly visualize the story's moral: **"\`\${moral}\`"**.
+    Scene 1 (Hero's World): Introduce \`\${kidName}\` in their familiar environment, engaged with \`\${kidInterest}\`. Establish their personality and current emotional state.
+    Scene 2 (Call to Adventure): \`\${kidName}\` discovers something intriguing related to\`\${storyTheme}\` that sparks genuine curiosity and wonder.
+    Scene 3 (Crossing the Threshold): \`\${kidName}\` takes their first step into the adventure, showing determination. Begin weaving\`\${moral}\` into the environmental storytelling through natural elements, colors, or atmospheric cues.
+    Scene 4 (First Challenge): \`\${kidName}\` encounters their first obstacle related to\`\${storyTheme}\`. This should be a learning moment, not a threat.
+    Scene 5 (Deepening Journey): \`\${kidName}\` explores deeper into the adventure, developing new understanding or skills. The moral lesson begins to emerge through their interactions with the environment.
+    Scene 6 (Central Crisis & Realization): \`\${kidName}\` faces the story's central challenge where they must apply\`\${moral}\` to succeed. This scene must show the child using empathy, creativity, problem-solving, or collaboration with their environment—never aggression or violence.
+    Scene 7 (Transformation): \`\${kidName}\` successfully applies the moral lesson, showing clear growth and positive change in their approach.
+    Scene 8 (New Understanding): \`\${kidName}\` integrates their learning, showing how the experience has changed them for the better.
+    Scene 9 (Return & Integration): \`\${kidName}\` returns to their world, now embodying\`\${moral}\` in a way that's visible and inspiring. The visual should clearly demonstrate how they've grown.
 * **Targeted Art Direction:** You must directly address and control for common weaknesses in image generation models. This includes explicit instructions for character gaze, hand positioning, and spatial relationships between elements.
 * **Interest & Theme Integration:** The child's interest, **\`\${kidInterest}\`**, must be a core element in scenes 1-3. The story's central challenge in scenes 4-6 must be directly inspired by the story theme which is **\`\${storyTheme}\`**.
-* **Moral Symbolism:** Introduce a visual symbol( need not be a prop necessarily ) that represents the story's moral: **"\`\${moral}\`"**. This symbol must be introduced in scene 3 and reappear prominently in scene 9. This is a non-negotiable rule.
+
+### **Moral Representation:**
+* **Environmental Morality:** Instead of relying on symbolic objects, weave the moral of the story( **"\`\${moral}\`"** ) into the story through environmental storytelling, atmospheric changes, and the child's evolving interaction with their surroundings.
+* **Behavioral Demonstration:** Show the moral through \`\${kidName}\`'s actions, body language, and how they treat elements in their environment (plants, animals, objects, weather patterns).
+* **Progressive Revelation:** The moral emerges naturally through the story progression—from scenes 3-6 as a growing understanding, culminating in clear demonstration by scene 9.
+* **Atmospheric Reinforcement:** Use lighting, weather, color temperature, and environmental details to reinforce the moral themes (e.g., warm, inclusive lighting for kindness; collaborative natural elements for teamwork)
+
+
+### Interest & Theme Integration Strategy:
+
+KidInterest Foundation: Scenes 1-3 must authentically incorporate the child's interest( \`\${kidInterest}\`) as the gateway into the adventure. This interest should feel genuine and age-appropriate for \`\${age}\` years old.
+Story Theme Development: The central premise( \`\${storyTheme}\` ) drives scenes 4-7, creating challenges and growth opportunities that feel natural and engaging rather than forced or didactic.
+Seamless Blending: By scene 6, the kid's interest ( \`\${kidInterest}\` ) , the base premise(  \`\${storyTheme}\` ), and the moral( \`\${moral}\`) should work together harmoniously to create the story's climactic moment.
+
+### Character-Centric Design:
+Solo Journey Focus: \`\${kidName}\` is the sole human character. Any interactions occur with simple, friendly environmental elements (gentle animals, responsive plants, helpful weather patterns, magical but simple objects).
+Environmental Characters: If interaction partners are needed, use simple, archetypal forms that image generation handles well: friendly woodland creatures, wise old trees, playful weather elements, or responsive natural phenomena.
+Pronoun Consistency: Maintain consistent use of pronoun( \`\${pronoun}\` ) throughout all scene descriptions to ensure proper representation.
+
 * **Emotional Journey:** The hero, \`\${kidName}\`, **must** display at least four distinct, age-appropriate emotions throughout the 9 scenes (e.g., joy, curiosity, worry, frustration, relief, pride, excitement, wonder). Ensure these emotions are clearly articulated through expression and pose.
 * **Dynamic Environments:** Each scene must feature a distinct setting or a significant change in the existing setting (e.g., location, weather, time of day) to ensure visual variety.
 * **Cinematic Shot Variety:** Strictly adhere to a repeating Wide-Medium-Close-up camera shot pattern:

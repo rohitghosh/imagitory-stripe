@@ -4,7 +4,6 @@ import { Footer } from "@/components/Footer";
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
 import DecorativeElements from "@/components/DecorativeElements";
-import StoryBookIllustration from "@/components/StoryBookIllustration";
 
 const PROCESS_STEPS = [
   {
@@ -66,18 +65,13 @@ export default function HomePage() {
                 </Button>
               </div>
 
-              {/* Right Column - Illustration */}
+              {/* Right Column - New Asset Image */}
               <div className="relative z-10 flex justify-center lg:justify-end">
-                <div className="imaginory-card max-w-md w-full aspect-square relative">
-                  <StoryBookIllustration className="w-full h-full" />
-                  {/* Decorative elements on the card */}
-                  <div className="absolute top-4 right-4">
-                    <div className="star"></div>
-                  </div>
-                  <div className="absolute bottom-4 left-4">
-                    <div className="squiggle"></div>
-                  </div>
-                </div>
+                <img 
+                  src="/storybook-illustration.png" 
+                  alt="Children reading a magical storybook"
+                  className="w-full max-w-lg h-auto object-contain"
+                />
               </div>
             </div>
           </div>
