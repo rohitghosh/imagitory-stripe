@@ -8,19 +8,20 @@ import DecorativeElements from "@/components/DecorativeElements";
 const PROCESS_STEPS = [
   {
     icon: "👤",
-    title: "Upload photo of your character",
-    description: ""
+    title: "Upload photo",
+    description: "Choose a nice photo of the kid",
   },
   {
     icon: "📝",
     title: "Write a general blurb",
-    description: "(add characters or themes)"
+    description:
+      "Add characters or themes to your story; you can even write your story",
   },
   {
     icon: "✨",
-    title: "Let us work our magic!",
-    description: ""
-  }
+    title: "Edit & Place Order",
+    description: "If need be change visuals or text or PDF details",
+  },
 ];
 
 export default function HomePage() {
@@ -49,15 +50,18 @@ export default function HomePage() {
                     Create your own{" "}
                     <span className="playful-underline">customised</span>{" "}
                     storybook in under{" "}
-                    <span className="bg-imaginory-yellow px-2 py-1 rounded-md inline-block transform -rotate-1">three</span>{" "}
+                    <span className="bg-imaginory-yellow px-2 py-1 rounded-md inline-block transform -rotate-1">
+                      three
+                    </span>{" "}
                     minutes
                   </h1>
                   <p className="text-xl font-body text-muted-foreground mb-8 leading-relaxed">
-                    Your child becomes the star of their own magical adventure! ✨
+                    Your child becomes the star of their own magical adventure!
+                    ✨
                   </p>
                 </div>
 
-                <Button 
+                <Button
                   className="imaginory-button text-lg px-10 py-5"
                   onClick={handleStartCreating}
                 >
@@ -67,8 +71,8 @@ export default function HomePage() {
 
               {/* Right Column - New Asset Image */}
               <div className="relative z-10 flex justify-center lg:justify-end">
-                <img 
-                  src="/storybook-illustration.png" 
+                <img
+                  src="/storybook-illustration.png"
                   alt="Children reading a magical storybook"
                   className="w-full max-w-lg h-auto object-contain"
                 />
@@ -89,9 +93,7 @@ export default function HomePage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto">
               {PROCESS_STEPS.map((step, index) => (
                 <div key={index} className="text-center">
-                  <div className="text-5xl mb-6">
-                    {step.icon}
-                  </div>
+                  <div className="text-5xl mb-6">{step.icon}</div>
                   <h3 className="text-xl font-heading font-bold mb-3 text-foreground">
                     {step.title}
                   </h3>
@@ -114,9 +116,10 @@ export default function HomePage() {
                 Ready to create magic? ✨
               </h2>
               <p className="text-xl font-body text-muted-foreground mb-8">
-                Join thousands of families who've created unforgettable stories with their children!
+                Join thousands of families who've created unforgettable stories
+                with their children!
               </p>
-              <Button 
+              <Button
                 className="imaginory-button text-xl px-12 py-6"
                 onClick={handleStartCreating}
               >
