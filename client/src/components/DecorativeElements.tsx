@@ -11,22 +11,22 @@ export const DecorativeElements: React.FC<DecorativeElementsProps> = ({
     <div
       className={`absolute inset-0 pointer-events-none overflow-hidden ${className}`}
     >
-      {/* Squiggles - clean teal */}
-      <div className="absolute top-10 left-10 w-16 h-6">
+      {/* Squiggles - clean teal with animations */}
+      <div className="absolute top-10 left-10 w-16 h-6 animate-twirl">
         <div className="squiggle"></div>
       </div>
-      <div className="absolute top-20 right-20 w-12 h-4">
-        <div className="squiggle" style={{ transform: "rotate(45deg)" }}></div>
+      <div className="absolute top-20 right-20 w-12 h-4 animate-slither" style={{ transform: "rotate(45deg)" }}>
+        <div className="squiggle"></div>
       </div>
-      <div className="absolute bottom-20 left-1/4 w-14 h-5">
-        <div className="squiggle" style={{ transform: "rotate(-30deg)" }}></div>
+      <div className="absolute bottom-20 left-1/4 w-14 h-5 animate-twirl" style={{ transform: "rotate(-30deg)", animationDelay: "2s" }}>
+        <div className="squiggle"></div>
       </div>
 
-      {/* S-like curly lines - red and blue - MUCH LONGER */}
+      {/* S-like curly lines - red and blue - MUCH LONGER with animations */}
 
       {/* Angled curve with twists */}
       <div
-        className="absolute top-1/3 right-1/3 w-28 h-10"
+        className="absolute top-1/3 right-1/3 w-28 h-10 animate-slither"
         style={{ transform: "rotate(25deg)" }}
       >
         <svg viewBox="0 0 112 40" className="w-full h-full">
@@ -42,8 +42,8 @@ export const DecorativeElements: React.FC<DecorativeElementsProps> = ({
 
       {/* Ribbon-like curve with multiple twists */}
       <div
-        className="absolute bottom-1/4 left-1/3 w-30 h-11"
-        style={{ transform: "rotate(-15deg)" }}
+        className="absolute bottom-1/4 left-1/3 w-30 h-11 animate-twirl"
+        style={{ transform: "rotate(-15deg)", animationDelay: "1s" }}
       >
         <svg viewBox="0 0 120 44" className="w-full h-full">
           <path
@@ -58,8 +58,8 @@ export const DecorativeElements: React.FC<DecorativeElementsProps> = ({
 
       {/* Free-form curves - more organic - LONGER */}
       <div
-        className="absolute top-1/2 right-1/4 w-24 h-8"
-        style={{ transform: "rotate(35deg)" }}
+        className="absolute top-1/2 right-1/4 w-24 h-8 animate-slither"
+        style={{ transform: "rotate(35deg)", animationDelay: "0.5s" }}
       >
         <svg viewBox="0 0 96 32" className="w-full h-full">
           <path
@@ -74,8 +74,8 @@ export const DecorativeElements: React.FC<DecorativeElementsProps> = ({
 
       {/* Ribbon with extra twists */}
       <div
-        className="absolute bottom-1/3 right-1/4 w-20 h-7"
-        style={{ transform: "rotate(-20deg)" }}
+        className="absolute bottom-1/3 right-1/4 w-20 h-7 animate-twirl"
+        style={{ transform: "rotate(-20deg)", animationDelay: "1.5s" }}
       >
         <svg viewBox="0 0 80 28" className="w-full h-full">
           <path
@@ -88,10 +88,10 @@ export const DecorativeElements: React.FC<DecorativeElementsProps> = ({
         </svg>
       </div>
 
-      {/* More organic S-curves - LONGER */}
+      {/* More organic S-curves - LONGER with animations */}
       <div
-        className="absolute top-1/6 left-1/2 w-26 h-9"
-        style={{ transform: "rotate(40deg)" }}
+        className="absolute top-1/6 left-1/2 w-26 h-9 animate-twirl"
+        style={{ transform: "rotate(40deg)", animationDelay: "0.3s" }}
       >
         <svg viewBox="0 0 104 36" className="w-full h-full">
           <path
@@ -105,8 +105,8 @@ export const DecorativeElements: React.FC<DecorativeElementsProps> = ({
       </div>
 
       <div
-        className="absolute bottom-1/6 right-1/2 w-24 h-8"
-        style={{ transform: "rotate(-25deg)" }}
+        className="absolute bottom-1/6 right-1/2 w-24 h-8 animate-slither"
+        style={{ transform: "rotate(-25deg)", animationDelay: "1.2s" }}
       >
         <svg viewBox="0 0 96 32" className="w-full h-full">
           <path
@@ -119,10 +119,10 @@ export const DecorativeElements: React.FC<DecorativeElementsProps> = ({
         </svg>
       </div>
 
-      {/* How It Works Section - Side Curves (Left Side) - MUCH LONGER */}
+      {/* How It Works Section - Side Curves (Left Side) - MUCH LONGER with animations */}
       <div
-        className="absolute top-2/3 left-8 w-32 h-12"
-        style={{ transform: "rotate(30deg)" }}
+        className="absolute top-2/3 left-8 w-32 h-12 animate-slither"
+        style={{ transform: "rotate(30deg)", animationDelay: "0.7s" }}
       >
         <svg viewBox="0 0 128 48" className="w-full h-full">
           <path
@@ -136,8 +136,8 @@ export const DecorativeElements: React.FC<DecorativeElementsProps> = ({
       </div>
 
       <div
-        className="absolute top-3/4 left-12 w-28 h-10"
-        style={{ transform: "rotate(-35deg)" }}
+        className="absolute top-3/4 left-12 w-28 h-10 animate-twirl"
+        style={{ transform: "rotate(-35deg)", animationDelay: "1.4s" }}
       >
         <svg viewBox="0 0 112 40" className="w-full h-full">
           <path
@@ -151,8 +151,8 @@ export const DecorativeElements: React.FC<DecorativeElementsProps> = ({
       </div>
 
       <div
-        className="absolute top-5/6 left-6 w-30 h-11"
-        style={{ transform: "rotate(45deg)" }}
+        className="absolute top-5/6 left-6 w-30 h-11 animate-slither"
+        style={{ transform: "rotate(45deg)", animationDelay: "0.9s" }}
       >
         <svg viewBox="0 0 120 44" className="w-full h-full">
           <path
@@ -165,10 +165,10 @@ export const DecorativeElements: React.FC<DecorativeElementsProps> = ({
         </svg>
       </div>
 
-      {/* How It Works Section - Side Curves (Right Side) - MUCH LONGER */}
+      {/* How It Works Section - Side Curves (Right Side) - MUCH LONGER with animations */}
       <div
-        className="absolute top-2/3 right-8 w-32 h-12"
-        style={{ transform: "rotate(-30deg)" }}
+        className="absolute top-2/3 right-8 w-32 h-12 animate-twirl"
+        style={{ transform: "rotate(-30deg)", animationDelay: "0.6s" }}
       >
         <svg viewBox="0 0 128 48" className="w-full h-full">
           <path
@@ -182,8 +182,8 @@ export const DecorativeElements: React.FC<DecorativeElementsProps> = ({
       </div>
 
       <div
-        className="absolute top-3/4 right-12 w-28 h-10"
-        style={{ transform: "rotate(25deg)" }}
+        className="absolute top-3/4 right-12 w-28 h-10 animate-slither"
+        style={{ transform: "rotate(25deg)", animationDelay: "1.1s" }}
       >
         <svg viewBox="0 0 112 40" className="w-full h-full">
           <path
@@ -197,8 +197,8 @@ export const DecorativeElements: React.FC<DecorativeElementsProps> = ({
       </div>
 
       <div
-        className="absolute top-5/6 right-6 w-30 h-11"
-        style={{ transform: "rotate(-40deg)" }}
+        className="absolute top-5/6 right-6 w-30 h-11 animate-twirl"
+        style={{ transform: "rotate(-40deg)", animationDelay: "1.3s" }}
       >
         <svg viewBox="0 0 120 44" className="w-full h-full">
           <path
@@ -211,10 +211,10 @@ export const DecorativeElements: React.FC<DecorativeElementsProps> = ({
         </svg>
       </div>
 
-      {/* Additional curves around How It Works - scattered - LONGER */}
+      {/* Additional curves around How It Works - scattered - LONGER with animations */}
       <div
-        className="absolute top-2/3 left-1/4 w-20 h-7"
-        style={{ transform: "rotate(20deg)" }}
+        className="absolute top-2/3 left-1/4 w-20 h-7 animate-slither"
+        style={{ transform: "rotate(20deg)", animationDelay: "0.4s" }}
       >
         <svg viewBox="0 0 80 28" className="w-full h-full">
           <path
@@ -228,8 +228,8 @@ export const DecorativeElements: React.FC<DecorativeElementsProps> = ({
       </div>
 
       <div
-        className="absolute top-2/3 right-1/4 w-20 h-7"
-        style={{ transform: "rotate(-15deg)" }}
+        className="absolute top-2/3 right-1/4 w-20 h-7 animate-twirl"
+        style={{ transform: "rotate(-15deg)", animationDelay: "0.8s" }}
       >
         <svg viewBox="0 0 80 28" className="w-full h-full">
           <path
@@ -243,8 +243,8 @@ export const DecorativeElements: React.FC<DecorativeElementsProps> = ({
       </div>
 
       <div
-        className="absolute top-3/4 left-1/3 w-16 h-6"
-        style={{ transform: "rotate(35deg)" }}
+        className="absolute top-3/4 left-1/3 w-16 h-6 animate-slither"
+        style={{ transform: "rotate(35deg)", animationDelay: "1.6s" }}
       >
         <svg viewBox="0 0 64 24" className="w-full h-full">
           <path
@@ -258,8 +258,8 @@ export const DecorativeElements: React.FC<DecorativeElementsProps> = ({
       </div>
 
       <div
-        className="absolute top-3/4 right-1/3 w-16 h-6"
-        style={{ transform: "rotate(-25deg)" }}
+        className="absolute top-3/4 right-1/3 w-16 h-6 animate-twirl"
+        style={{ transform: "rotate(-25deg)", animationDelay: "0.2s" }}
       >
         <svg viewBox="0 0 64 24" className="w-full h-full">
           <path
@@ -272,10 +272,10 @@ export const DecorativeElements: React.FC<DecorativeElementsProps> = ({
         </svg>
       </div>
 
-      {/* Extra ribbon-like curves with more twists */}
+      {/* Extra ribbon-like curves with more twists and animations */}
       <div
-        className="absolute top-1/4 right-1/6 w-24 h-8"
-        style={{ transform: "rotate(50deg)" }}
+        className="absolute top-1/4 right-1/6 w-24 h-8 animate-twirl"
+        style={{ transform: "rotate(50deg)", animationDelay: "0.1s" }}
       >
         <svg viewBox="0 0 96 32" className="w-full h-full">
           <path
@@ -289,8 +289,8 @@ export const DecorativeElements: React.FC<DecorativeElementsProps> = ({
       </div>
 
       <div
-        className="absolute bottom-1/4 right-1/6 w-22 h-7"
-        style={{ transform: "rotate(-45deg)" }}
+        className="absolute bottom-1/4 right-1/6 w-22 h-7 animate-slither"
+        style={{ transform: "rotate(-45deg)", animationDelay: "1.7s" }}
       >
         <svg viewBox="0 0 88 28" className="w-full h-full">
           <path
@@ -304,8 +304,8 @@ export const DecorativeElements: React.FC<DecorativeElementsProps> = ({
       </div>
 
       <div
-        className="absolute top-1/3 left-1/6 w-20 h-6"
-        style={{ transform: "rotate(60deg)" }}
+        className="absolute top-1/3 left-1/6 w-20 h-6 animate-twirl"
+        style={{ transform: "rotate(60deg)", animationDelay: "0.5s" }}
       >
         <svg viewBox="0 0 80 24" className="w-full h-full">
           <path
@@ -319,8 +319,8 @@ export const DecorativeElements: React.FC<DecorativeElementsProps> = ({
       </div>
 
       <div
-        className="absolute bottom-1/3 left-1/6 w-18 h-5"
-        style={{ transform: "rotate(-55deg)" }}
+        className="absolute bottom-1/3 left-1/6 w-18 h-5 animate-slither"
+        style={{ transform: "rotate(-55deg)", animationDelay: "1.0s" }}
       >
         <svg viewBox="0 0 72 20" className="w-full h-full">
           <path
@@ -333,40 +333,40 @@ export const DecorativeElements: React.FC<DecorativeElementsProps> = ({
         </svg>
       </div>
 
-      {/* Stars - clean yellow */}
-      <div className="absolute top-1/4 right-10">
+      {/* Stars - clean yellow with twinkle animation */}
+      <div className="absolute top-1/4 right-10 animate-twinkle">
         <div className="star"></div>
       </div>
-      <div className="absolute bottom-1/3 left-10">
+      <div className="absolute bottom-1/3 left-10 animate-twinkle" style={{ animationDelay: "1s" }}>
         <div className="star"></div>
       </div>
-      <div className="absolute top-1/2 left-1/2">
+      <div className="absolute top-1/2 left-1/2 animate-twinkle" style={{ animationDelay: "2s" }}>
         <div className="star"></div>
       </div>
 
-      {/* Dot clusters - clean teal */}
-      <div className="absolute top-1/3 left-1/3">
+      {/* Dot clusters - clean teal with pulse animation */}
+      <div className="absolute top-1/3 left-1/3 animate-pulse">
         <div className="dot-cluster"></div>
       </div>
-      <div className="absolute bottom-1/4 right-1/4">
+      <div className="absolute bottom-1/4 right-1/4 animate-pulse" style={{ animationDelay: "0.5s" }}>
         <div className="dot-cluster"></div>
       </div>
 
-      {/* Blobs - clean yellow */}
-      <div className="absolute top-1/4 left-1/4 opacity-20">
+      {/* Blobs - clean yellow with blob animation */}
+      <div className="absolute top-1/4 left-1/4 opacity-20 animate-blob">
         <div className="blob w-20 h-20"></div>
       </div>
-      <div className="absolute bottom-1/4 right-1/4 opacity-20">
+      <div className="absolute bottom-1/4 right-1/4 opacity-20 animate-blob" style={{ animationDelay: "1s" }}>
         <div className="blob w-16 h-16"></div>
       </div>
 
-      {/* Hand-drawn circles - minimal colors */}
-      <div className="absolute top-10 right-1/3 w-8 h-8 border-2 border-imaginory-blue rounded-full opacity-60"></div>
-      <div className="absolute bottom-10 left-1/3 w-6 h-6 border-2 border-imaginory-yellow rounded-full opacity-60"></div>
+      {/* Hand-drawn circles - minimal colors with bounce */}
+      <div className="absolute top-10 right-1/3 w-8 h-8 border-2 border-imaginory-blue rounded-full opacity-60 animate-bounce-gentle"></div>
+      <div className="absolute bottom-10 left-1/3 w-6 h-6 border-2 border-imaginory-yellow rounded-full opacity-60 animate-bounce-gentle" style={{ animationDelay: "0.5s" }}></div>
 
-      {/* Abstract lines - clean colors */}
-      <div className="absolute top-1/2 left-10 w-20 h-1 bg-imaginory-yellow rounded-full transform rotate-12"></div>
-      <div className="absolute bottom-1/2 right-10 w-16 h-1 bg-imaginory-blue rounded-full transform -rotate-12"></div>
+      {/* Abstract lines - clean colors with float */}
+      <div className="absolute top-1/2 left-10 w-20 h-1 bg-imaginory-yellow rounded-full transform rotate-12 animate-float"></div>
+      <div className="absolute bottom-1/2 right-10 w-16 h-1 bg-imaginory-blue rounded-full transform -rotate-12 animate-float" style={{ animationDelay: "1s" }}></div>
 
       {/* Floating elements - minimal */}
       <div className="absolute top-1/3 right-1/4 animate-float">
