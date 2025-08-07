@@ -1197,14 +1197,36 @@ export async function generateStoryImagesWithAvatar(
 }
 
 export async function cartoonifyImage(imageUrl: string): Promise<string> {
-  const result = await fal.subscribe("fal-ai/image-editing/cartoonify", {
-    input: { image_url: imageUrl },
+  // const result = await fal.subscribe("fal-ai/image-editing/cartoonify", {
+  //   input: { image_url: imageUrl },
+  // });
+  // if (result.data && result.data.images && result.data.images.length > 0) {
+  //   return result.data.images[0].url;
+  // } else {
+  //   throw new Error("No image returned from toonify generation");
+  // }
+  const result = await fal.subscribe("fal-ai/instant-character", {
+    input: {
+      prompt: "Pixar style 3D character of a young kid, based on the reference photo. Full body shot, character is standing straight and erect, symmetrical pose, looking directly at the camera. Retain the exact hair color, skin tone, and facial features from the photo. Plain white background.",
+      image_url: imageUrl, 
+      image_size: "square_hd",
+      scale: 1,
+      negative_prompt: "",
+      guidance_scale: 3.5,
+      num_inference_steps: 28,
+      num_images: 1,
+      enable_safety_checker: true,
+      output_format: "jpeg"
+    },
+    logs: true,
+    onQueueUpdate: (update) => {
+      if (update.status === "IN_PROGRESS") {
+        update.logs.map((log) => log.message).forEach(console.log);
+      }
+    },
   });
-  if (result.data && result.data.images && result.data.images.length > 0) {
-    return result.data.images[0].url;
-  } else {
-    throw new Error("No image returned from toonify generation");
-  }
+  console.log(result.data);
+  console.log(result.requestId);
 
   // await new Promise((resolve) => setTimeout(resolve, 15000));
 

@@ -3,22 +3,24 @@ import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
+import DecorativeElements from "@/components/DecorativeElements";
+import StoryBookIllustration from "@/components/StoryBookIllustration";
 
 const PROCESS_STEPS = [
   {
-    icon: "fas fa-child",
+    icon: "👶",
     title: "Choose a Character",
-    description: "Pick from our collection or create your own custom character."
+    description: "Pick from our collection or create your own custom character with your child's photo!"
   },
   {
-    icon: "fas fa-book-open",
+    icon: "📚",
     title: "Select a Story",
-    description: "Browse our story library or create a custom adventure."
+    description: "Browse our magical story library or create a custom adventure just for your child."
   },
   {
-    icon: "fas fa-download",
+    icon: "✨",
     title: "Preview & Download",
-    description: "Review your story, make edits, and get your book!"
+    description: "Review your personalized story, make edits, and get your beautiful book!"
   }
 ];
 
@@ -30,43 +32,113 @@ export default function HomePage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col bg-background">
       <Header />
-      
-      <main className="flex-grow">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="text-center mb-12">
-            <h2 className="text-4xl font-heading font-bold text-text-primary mb-4">
-              Create Custom Stories About Your Kids
-            </h2>
-            <p className="text-lg text-text-secondary max-w-2xl mx-auto">
-              Turn your child into the hero of their own magical adventure in just three simple steps!
-            </p>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto mb-12">
-            {PROCESS_STEPS.map((step, index) => (
-              <div key={index} className="bg-white rounded-xl shadow-card p-6 text-center hover:shadow-card-hover transition-shadow">
-                <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <i className={`${step.icon} text-2xl text-primary`}></i>
+
+      <main className="flex-grow relative">
+        {/* Decorative background elements */}
+        <DecorativeElements />
+
+        {/* Hero Section */}
+        <section className="relative py-16 md:py-24 overflow-hidden">
+          <div className="imaginory-container">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+              {/* Left Column - Text Content */}
+              <div className="relative z-10">
+                <div className="mb-6">
+                  <h1 className="font-heading font-bold text-foreground mb-6 leading-tight text-4xl md:text-5xl lg:text-6xl">
+                    Create your own{" "}
+                    <span className="playful-underline">customised</span>{" "}
+                    storybook in under{" "}
+                    <span className="bg-imaginory-yellow px-2 py-1 rounded-md inline-block transform -rotate-1">three</span>{" "}
+                    minutes
+                  </h1>
+                  <p className="text-xl font-body text-muted-foreground mb-8 leading-relaxed">
+                    Your child becomes the star of their own magical adventure! ✨
+                  </p>
                 </div>
-                <h3 className="text-xl font-heading font-bold mb-2">{step.title}</h3>
-                <p className="text-text-secondary">{step.description}</p>
+
+                <Button 
+                  className="imaginory-button text-lg px-10 py-5"
+                  onClick={handleStartCreating}
+                >
+                  Start Your Story
+                </Button>
               </div>
-            ))}
+
+              {/* Right Column - Illustration */}
+              <div className="relative z-10 flex justify-center lg:justify-end">
+                <div className="imaginory-card max-w-md w-full aspect-square relative">
+                  <StoryBookIllustration className="w-full h-full" />
+                  {/* Decorative elements on the card */}
+                  <div className="absolute top-4 right-4">
+                    <div className="star"></div>
+                  </div>
+                  <div className="absolute bottom-4 left-4">
+                    <div className="squiggle"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
-          
-          <div className="text-center">
-            <Button 
-              className="bg-primary hover:bg-primary/90 text-white font-bold py-3 px-8 rounded-full text-lg shadow-lg hover:shadow-xl transition-all"
-              onClick={handleStartCreating}
-            >
-              Start Creating Your Story
-            </Button>
+        </section>
+
+        {/* How It Works Section */}
+        <section className="relative py-16 bg-white/50">
+          <div className="imaginory-container">
+            <div className="text-center mb-16">
+              <h2 className="font-heading font-bold text-4xl md:text-5xl text-foreground mb-6">
+                How It Works
+              </h2>
+              <div className="w-24 h-1 bg-gradient-to-r from-imaginory-yellow to-imaginory-orange mx-auto rounded-full"></div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+              {PROCESS_STEPS.map((step, index) => (
+                <div key={index} className="relative group">
+                  <div className="imaginory-card text-center transform group-hover:scale-105 transition-all duration-300">
+                    <div className="text-6xl mb-6 animate-bounce-gentle">
+                      {step.icon}
+                    </div>
+                    <h3 className="text-2xl font-heading font-bold mb-4 text-foreground">
+                      {step.title}
+                    </h3>
+                    <p className="text-muted-foreground font-body leading-relaxed">
+                      {step.description}
+                    </p>
+
+                    {/* Step number */}
+                    <div className="absolute -top-4 -left-4 w-8 h-8 bg-imaginory-yellow rounded-full flex items-center justify-center text-foreground font-bold text-sm border-2 border-imaginory-orange">
+                      {index + 1}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
+        </section>
+
+        {/* CTA Section */}
+        <section className="relative py-16">
+          <div className="imaginory-container text-center">
+            <div className="max-w-3xl mx-auto">
+              <h2 className="font-heading font-bold text-3xl md:text-4xl text-foreground mb-6">
+                Ready to create magic? ✨
+              </h2>
+              <p className="text-xl font-body text-muted-foreground mb-8">
+                Join thousands of families who've created unforgettable stories with their children!
+              </p>
+              <Button 
+                className="imaginory-button text-xl px-12 py-6"
+                onClick={handleStartCreating}
+              >
+                Start Creating Your Story
+              </Button>
+            </div>
+          </div>
+        </section>
       </main>
-      
+
       <Footer />
     </div>
   );

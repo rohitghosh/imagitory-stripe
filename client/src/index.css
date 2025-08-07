@@ -2,20 +2,22 @@
 @tailwind components;
 @tailwind utilities;
 
-
 /* Fix for any rendering issues */
-html, body, #root {
+html,
+body,
+#root {
   height: 100%;
   margin: 0;
   padding: 0;
 }
 
 body {
-  font-family: 'Inter', 'Segoe UI', -apple-system, sans-serif;
+  font-family: 'Inter', 'system-ui', -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: #ffffff;
-  color: #333333;
+  background-color: #FEFEF7;
+  color: #2C3E50;
+  line-height: 1.6;
 }
 
 /* Fix for scroll issues */
@@ -23,26 +25,18 @@ html {
   overflow-y: scroll;
 }
 
-.resizable-text-box {
-  transition: border 0.2s ease-in-out;
-}
-
-.resizable-text-box:hover {
-  border: 2px solid rgba(59, 130, 246, 0.5);
-}
-
 /* Default app background */
 #root {
   display: flex;
   flex-direction: column;
-  background-color: #ffffff;
+  background-color: #FEFEF7;
 }
 
-/* Remove dark mode styling to maintain consistent white background */
+/* Remove dark mode styling to maintain consistent warm background */
 @media (prefers-color-scheme: dark) {
   #root {
-    background-color: #ffffff;
-    color: #333333;
+    background-color: #FEFEF7;
+    color: #2C3E50;
   }
 }
 
@@ -52,55 +46,143 @@ html {
   }
 
   body {
-    @apply font-sans antialiased bg-background text-foreground;
+    @apply font-body antialiased bg-background text-foreground;
   }
-  
-  h1, h2, h3, h4, h5, h6 {
-    @apply font-sans font-medium tracking-tight;
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-heading font-semibold tracking-tight;
+  }
+
+  h1 {
+    @apply text-4xl md:text-5xl lg:text-6xl;
+  }
+
+  h2 {
+    @apply text-3xl md:text-4xl lg:text-5xl;
+  }
+
+  h3 {
+    @apply text-2xl md:text-3xl;
   }
 }
 
 @layer utilities {
   @keyframes fadeAway {
-    to { opacity: 0; transform: translateY(-4px); }
+    to {
+      opacity: 0;
+      transform: translateY(-4px);
+    }
   }
 
   .fade-away {
-    /* show instantly, then animate towards 0 opacity */
     animation: fadeAway 0.35s ease-out forwards;
   }
-  @keyframes shimmer {
-    0%   { background-position: 200% 0; }
-    100% { background-position: -200% 0; }
+
+  /* Clean underline for "customised" */
+  .playful-underline {
+    position: relative;
+    display: inline-block;
   }
 
-  .shimmer {
-    /* 1️⃣ A narrow dark band in the middle of two bright reds */
-    background: linear-gradient(
-      135deg,
-      #F87171 40%,    /* Tailwind red-400 */
-      #B91C1C 50%,    /* Tailwind red-800 — your “spotlight” darkening */
-      #F87171 60%
-    );
-    background-size: 200% 100%;     /* make the gradient twice as wide as the text */
-    background-clip: text;          /* clip the gradient to the text shape */
-    -webkit-background-clip: text;  /* for Safari */
-    color: transparent;             /* hide the solid fill */
-    animation: shimmer 5s linear infinite;
+  .playful-underline::after {
+    content: '';
+    position: absolute;
+    bottom: -5px;
+    left: 0;
+    width: 100%;
+    height: 3px;
+    background: #4ECDC4;
+    /* Clean teal underline */
+    border-radius: 2px;
+  }
+
+  /* Minimal decorative elements */
+  .squiggle {
+    position: relative;
+    width: 60px;
+    height: 20px;
+  }
+
+  .squiggle::before {
+    content: '';
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background: #4ECDC4;
+    /* Clean teal */
+    border-radius: 50px;
+    transform: rotate(-5deg);
+  }
+
+  .star {
+    position: relative;
+    width: 20px;
+    height: 20px;
+  }
+
+  .star::before {
+    content: '★';
+    color: #FFD93D;
+    /* Clean yellow */
+    font-size: 24px;
+    animation: twinkle 2s infinite;
+  }
+
+  .dot-cluster {
+    display: flex;
+    gap: 4px;
+  }
+
+  .dot-cluster::before {
+    content: '•••';
+    color: #4ECDC4;
+    /* Clean teal */
+    font-size: 16px;
+    letter-spacing: 2px;
+  }
+
+  .blob {
+    width: 100px;
+    height: 100px;
+    background: #FFD93D;
+    /* Clean yellow */
+    border-radius: 50% 30% 70% 40% / 60% 40% 60% 40%;
+    animation: blob 4s ease-in-out infinite;
   }
 }
 
-/* Custom classes for minimalist UI */
+/* Clean imaginory-style component classes */
 @layer components {
-  .minimal-card {
-    @apply bg-white rounded-lg shadow-sm border border-gray-100 p-6 transition-all hover:shadow-md;
+  .imaginory-card {
+    @apply bg-white rounded-3xl shadow-lg border-2 border-imaginory-yellow p-8 transition-all hover:shadow-xl hover:scale-105;
+    position: relative;
+    overflow: hidden;
   }
-  
-  .minimal-input {
-    @apply border border-gray-200 rounded-md px-4 py-2 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary;
+
+  .imaginory-button {
+    @apply bg-imaginory-yellow hover:bg-yellow-400 text-imaginory-black font-bold py-4 px-8 rounded-full text-lg shadow-lg hover:shadow-xl transition-all transform hover:scale-105;
+    border: 1px solid #2C3E50;
+    /* Black border to match imaginory screenshot */
+    font-family: 'Inter', 'system-ui', sans-serif;
   }
-  
-  .minimal-container {
+
+  .imaginory-container {
     @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8;
+  }
+
+  .imaginory-input {
+    @apply border-2 border-imaginory-blue rounded-2xl px-6 py-4 focus:outline-none focus:border-imaginory-yellow focus:ring-2 focus:ring-imaginory-yellow bg-white;
+    font-family: 'Inter', 'system-ui', sans-serif;
+  }
+
+  .decorative-bg {
+    background-image:
+      radial-gradient(circle at 10% 20%, rgba(255, 217, 61, 0.1) 0%, transparent 50%),
+      radial-gradient(circle at 90% 80%, rgba(78, 205, 196, 0.1) 0%, transparent 50%);
   }
 }
