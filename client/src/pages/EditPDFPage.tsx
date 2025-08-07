@@ -1060,7 +1060,7 @@ export default function EditPDFPage() {
                 }
                 className="absolute left-2 top-1/2 -translate-y-1/2 bg-white p-2 rounded-full shadow disabled:opacity-40 z-10"
               >
-                a��
+                ◀
               </button>
               <button
                 onClick={next}

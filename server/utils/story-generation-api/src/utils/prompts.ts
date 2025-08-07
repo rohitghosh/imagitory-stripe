@@ -728,8 +728,6 @@ Act III (Scenes 7-9): Moral demonstrated through transformed behavior and unders
     *   **Safety & Content Filters:** The world is **safe**. No sharp objects, dangerous situations, menacing creatures, readable text, or brand logos are allowed in the image.
 
 6. **Dramatic Pacing and Character Presence:** For narrative and visual variety, **at least one** of the nine scenes **must be a character-free shot**. This scene should be used for dramatic effect—to build suspense, establish a beautiful or imposing environment, or focus entirely on a key storytelling prop. All character-related fields in the JSON for this scene will be empty or null. This should be a scene in the middle of the story, not at the beginning or the end. 
-
-
 ---
 
 ### **The 15-Field Scene Definition (Non-Negotiable Structure)**
