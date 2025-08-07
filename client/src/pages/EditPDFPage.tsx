@@ -520,7 +520,7 @@ export default function EditPDFPage() {
   function buildFlipPages() {
     if (!book) return [];
 
-    const coverUrl = book.cover?.final_cover_url;
+    const coverUrl = book.cover?.final_cover_urls[0];
     const backCoverUrl = book.cover?.back_cover_url;
 
     const result = [];
@@ -540,7 +540,7 @@ export default function EditPDFPage() {
     book.pages.forEach((p) => {
       if (!p.isCover && !p.isBackCover) {
         result.push({
-          id: p.id * 1000,
+          id: p.current_scene_index * 1000,
           side: "left",
           imageUrl: p.expanded_scene_url,
           content: p.leftText || [],
@@ -553,7 +553,7 @@ export default function EditPDFPage() {
           fontFamily: p.leftFontFamily ?? "Nunito",
         });
         result.push({
-          id: p.id * 1000 + 1,
+          id: p.current_scene_index * 1000 + 1,
           side: "right",
           imageUrl: p.expanded_scene_url,
           content: p.rightText || [],
@@ -590,14 +590,16 @@ export default function EditPDFPage() {
       spreads.push([pages[0]]);
       idx = 1;
     }
-    while (idx < pages.length) {
-      if (idx === pages.length - 1) {
-        spreads.push([pages[idx]]);
-        idx++;
-      } else {
-        spreads.push([pages[idx], pages[idx + 1]]);
-        idx += 2;
-      }
+
+    // Handle story pages (always in pairs of 2)
+    while (idx < pages.length - 1) {
+      spreads.push([pages[idx], pages[idx + 1]]);
+      idx += 2;
+    }
+
+    // Handle back cover (single page spread)
+    if (idx < pages.length && pages[idx].isBackCover) {
+      spreads.push([pages[idx]]);
     }
     return spreads;
   }
@@ -605,18 +607,60 @@ export default function EditPDFPage() {
   const flipPages = buildFlipPages();
   const spreads = buildSpreads(flipPages);
 
+  // Ensure currentSpreadIdx is valid when spreads change
+  useEffect(() => {
+    if (spreads.length > 0 && currentSpreadIdx >= spreads.length) {
+      setCurrentSpreadIdx(spreads.length - 1);
+    }
+  }, [spreads.length, currentSpreadIdx]);
+
+  // Debug logging
+  console.log("📚 Book structure:", {
+    flipPagesCount: flipPages.length,
+    spreadsCount: spreads.length,
+    flipPages: flipPages.map((fp) => ({
+      id: fp.id,
+      isCover: fp.isCover,
+      isBackCover: fp.isBackCover,
+    })),
+    spreads: spreads.map((spread, idx) => ({
+      spreadIdx: idx,
+      pages: spread.map((p) => ({
+        id: p.id,
+        isCover: p.isCover,
+        isBackCover: p.isBackCover,
+      })),
+    })),
+  });
+
   const next = () => {
     if (singlePageMode) {
       setCurrentPageIdx((i) => Math.min(i + 1, flipPages.length - 1));
     } else {
-      setCurrentSpreadIdx((i) => Math.min(i + 1, spreads.length - 1));
+      setCurrentSpreadIdx((i) => {
+        const newIdx = Math.min(i + 1, spreads.length - 1);
+        console.log("🔄 Next navigation:", {
+          from: i,
+          to: newIdx,
+          spreadsLength: spreads.length,
+        });
+        return newIdx;
+      });
     }
   };
   const prev = () => {
     if (singlePageMode) {
       setCurrentPageIdx((i) => Math.max(i - 1, 0));
     } else {
-      setCurrentSpreadIdx((i) => Math.max(i - 1, 0));
+      setCurrentSpreadIdx((i) => {
+        const newIdx = Math.max(i - 1, 0);
+        console.log("🔄 Prev navigation:", {
+          from: i,
+          to: newIdx,
+          spreadsLength: spreads.length,
+        });
+        return newIdx;
+      });
     }
   };
 
@@ -836,10 +880,47 @@ export default function EditPDFPage() {
       : []
     : (spreads[currentSpreadIdx] ?? []);
 
+  // Debug spread selection
+  console.log("📖 Spread selection:", {
+    currentSpreadIdx,
+    spreadsLength: spreads.length,
+    selectedSpread: spreads[currentSpreadIdx]?.map((p) => ({
+      id: p.id,
+      isCover: p.isCover,
+      isBackCover: p.isBackCover,
+    })),
+    pagesToRenderCount: pagesToRender.length,
+  });
+
+  // Debug current spread
+  console.log("🎯 Current spread:", {
+    currentSpreadIdx,
+    spreadsLength: spreads.length,
+    singlePageMode,
+    currentPageIdx,
+    pagesToRenderCount: pagesToRender.length,
+    pagesToRender: pagesToRender.map((p) => ({
+      id: p.id,
+      isCover: p.isCover,
+      isBackCover: p.isBackCover,
+    })),
+    isValidIndex: currentSpreadIdx < spreads.length,
+  });
+
   const spreadPx =
     pagesToRender.length === 1
       ? pageConfig.finalWidth
       : pageConfig.finalWidth * 2 + 32;
+
+  // Debug container width calculation
+  console.log("📏 Container width:", {
+    pagesToRenderLength: pagesToRender.length,
+    spreadPx,
+    pageConfigFinalWidth: pageConfig.finalWidth,
+    calculatedWidth:
+      pagesToRender.length * pageConfig.finalWidth +
+      (pagesToRender.length > 1 ? 32 : 0),
+  });
 
   return (
     <div className="min-h-screen flex flex-col bg-white">
@@ -869,7 +950,7 @@ export default function EditPDFPage() {
                 />
               </div>
             ) : (
-              <div className="animate-spin rounded-full h-10 w-10 border-t-4 border-red-600" />
+              <div className="animate-spin rounded-full h-10 w-10 border-t-4 border-imaginory-yellow" />
             )}
           </div>
         ) : (
@@ -979,7 +1060,7 @@ export default function EditPDFPage() {
                 }
                 className="absolute left-2 top-1/2 -translate-y-1/2 bg-white p-2 rounded-full shadow disabled:opacity-40 z-10"
               >
-                ◀
+                a��
               </button>
               <button
                 onClick={next}
@@ -1139,12 +1220,12 @@ export default function EditPDFPage() {
               </div>
             )}
 
-            {/* PDF & Print Buttons - Red colored and mobile optimized */}
+            {/* PDF & Print Buttons - Yellow themed and mobile optimized */}
             <div className="flex flex-col md:flex-row justify-center items-center space-y-4 md:space-y-0 md:space-x-6 mt-6 md:mt-12">
-              <Button
+              {/* <Button
                 variant="default"
                 size="lg"
-                className="w-full md:w-auto flex items-center justify-center bg-red-600 hover:bg-red-700 text-white shadow-lg font-semibold"
+                className="w-full md:w-auto flex items-center justify-center bg-imaginory-yellow hover:bg-imaginory-yellow/90 text-imaginory-black shadow-lg font-semibold"
                 onClick={handleSaveAndGeneratePDF}
                 disabled={isGeneratingPdf}
               >
@@ -1159,12 +1240,12 @@ export default function EditPDFPage() {
                     <span>Download PDF</span>
                   </>
                 )}
-              </Button>
+              </Button> */}
 
               <Button
                 variant="outline"
                 size="lg"
-                className="w-full md:w-auto flex items-center justify-center border-2 border-red-600 text-red-600 hover:bg-red-50"
+                className="w-full md:w-auto flex items-center justify-center bg-imaginory-yellow border-2 border-imaginory-yellow text-imaginory-black hover:bg-imaginory-yellow/90"
                 onClick={handlePrint}
               >
                 <i className="fas fa-print mr-2"></i>

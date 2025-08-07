@@ -28,7 +28,7 @@ const TypingDots = () => (
     {[0, 1, 2].map((i) => (
       <span
         key={i}
-        className="w-1.5 h-1.5 rounded-full bg-red-500 animate-bounce"
+        className="w-1.5 h-1.5 rounded-full bg-imaginory-yellow animate-bounce"
         style={{ animationDelay: `${i * 0.15}s` }}
       />
     ))}
@@ -378,7 +378,7 @@ export default function CreateStoryPage() {
             {(imagesProg?.phase === "prompting" || reasoningLog) && (
               <div className="mt-6">
                 <p className="text-xs mb-1 flex items-center">
-                  <span className="font-semibold text-red-600">
+                  <span className="font-semibold text-imaginory-black">
                     {imagesProg?.phase === "prompting"
                       ? "Planning story"
                       : "Story planner reasoning"}
@@ -393,7 +393,7 @@ export default function CreateStoryPage() {
                     </p>
                     <div
                       ref={cardRef}
-                      className="bg-white border border-red-300 rounded-md p-3
+                      className="bg-white border border-imaginory-yellow/30 rounded-md p-3
                                  text-xs text-gray-800 whitespace-pre-wrap
                                  max-h-56 overflow-y-auto"
                     >

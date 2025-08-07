@@ -517,8 +517,205 @@ The \`scene_description\` is a granular, multi-layered directive for an image ge
     *   **Scenes 4-6 (Act II):** The main challenge, driven by the theme **\`\${storyTheme}\`**. The climax in Scene 6 **must** show the hero solving the problem through **empathy, cleverness, or teamwork**, often with the help or guidance of \`\${character1}\`.
     *   **Scenes 7-9 (Act III):** Resolution and a final, clear visualization of the story's moral: **"\`\${moral}\`"**.
 
-4.  **Moral & Emotional Journey:**
-    *   A visual symbol representing the story's moral, **"\`\${moral}\`"**, **must** be introduced as a key prop in Scene 3 and reappear prominently in Scene 9.
+3.  **Nine-Beat Narrative Ac:** The story must follow this structure: 
+Each scene serves core functions that adapt to any input combination:
+Act I: Discovery & Setup (Scenes 1-3) - "The World Awakens"
+Scene 1 (Wide Shot): The Invitation - UNIVERSAL FUNCTION: "Hero in Their Element"
+Adaptable Purpose: Establish \`\${kidName}\` authentically engaged with $\`\${kidInterest}\` within a world shaped by the story theme: \`\${storyTheme}\`
+Universal Emotional Beat: Wonder and Natural Competence
+Flexible Framework:
+For ANY Interest + ANY Theme Combination:
+
+Opening Activity: \`\${kidName}\` actively engaged in kid's interest: $\`\${kidInterest}\` (physical activity, creative expression, exploration, learning, etc.)
+World Context: Environment reflects both interest and theme (sports field for sports + competition theme, art studio for art + creation theme, etc.)
+Gentle Hook: Subtle indication that today will be special - discoverable through interest lens (unusual butterfly for nature lovers, new art supplies appearing, mysterious music for music lovers)
+Character Establishment: Natural expertise/passion without being unrealistic for \`\${age}\`
+
+Adaptation Examples:
+
+Interest: Dinosaurs + Theme: Exploring: \`\${kidName}\` examining fossils in backyard when they notice a strange rock formation
+Interest: Music + Theme: Helping Others: \`\${kidName}\` practicing instrument when they hear someone struggling with the same piece
+Interest: Cooking + Theme: Building: \`\${kidName}\` organizing ingredients when they envision creating something special for community
+
+
+Scene 2 (Medium Shot): The Companion - UNIVERSAL FUNCTION: "Alliance Formation"
+Adaptable Purpose: Introduce \`\${character1}\` in way that makes sense for their relationship and enhances the interest/theme combination
+Universal Emotional Beat: Connection and Mutual Recognition
+Flexible Framework:
+For ANY Character + ANY Interest/Theme:
+
+Natural Arrival: \`\${character1}\` appears in context that makes sense for relationship (family member checks in, friend joins activity, pet seeks attention, imaginary friend materializes)
+Interest Validation: \`\${character1}\` shows understanding/appreciation for \`\${kidName}\`'s passion
+Theme Introduction: Together they discover or discuss the opportunity that drives the story theme
+Relationship Dynamic: Communication style matches description (wise guidance, playful energy, protective concern, equal partnership)
+
+Adaptation Examples:
+
+Father + Art + Creation: Dad admires painting and mentions community center needs art for their walls
+Pet Dog + Sports + Overcoming Fear: Dog playfully demonstrates courage that \`\${kidName}\` admires
+Grandmother + Reading + Helping: Grandma shares story about someone who needs exactly the knowledge \`\${kidName}\` has been learning
+
+
+Scene 3 (Close-up): The Challenge Revealed - UNIVERSAL FUNCTION: "Mission Acceptance"
+Adaptable Purpose: Present central challenge that requires both interest application AND moral growth
+Universal Emotional Beat: Determined Acceptance with Underlying Complexity Recognition
+Flexible Framework:
+Challenge Design Matrix:
+
+Interest Integration: Problem directly relates to kid's interest domain : $\`\${kidInterest}\` 
+Theme Connection: Solution approach aligns with the base premise of the story: \`\${storyTheme}\`
+Moral Requirement: Cannot be solved without applying moral: \`\${moral}\`
+Age Appropriateness: Stakes meaningful but not overwhelming for \`\${age}\`
+Relationship Dynamic: \`\${character1}\` provides support that matches their description
+
+Universal Challenge Types:
+
+Someone Needs Help: Problem affecting others that \`\${kidName}\`'s interest could address
+Something is Missing/Broken: Gap or problem in the interest domain requiring restoration
+Creative/Collaborative Opportunity: Chance to use interest skills for broader benefit
+Understanding/Communication Need: Situation requiring interest knowledge to bridge differences
+
+
+Act II: Challenge & Growth (Scenes 4-6) - "The Test of Character"
+Scene 4 (Wide Shot): Into the Unknown - UNIVERSAL FUNCTION: "World Expansion"
+Adaptable Purpose: Dramatically expand environment while beginning active challenge engagement
+Universal Emotional Beat: Adventure with Purposeful Determination
+Flexible Framework:
+Environment Scaling System:
+
+Physical Interests: Environments become larger, more detailed, or more challenging versions
+Creative Interests: Environments become more responsive, magical, or infinite in creative possibility
+Social Interests: Environments introduce more characters, complexity, or community elements
+Learning Interests: Environments become more information-rich, mysterious, or interconnected
+
+Character-Free Scene Option: When dramatic effect serves story, focus entirely on:
+
+Challenge Location: The place where moral choice will be tested
+Symbolic Environment: Setting that emotionally represents the moral stakes
+Transition Space: Bridge between familiar world and transformation space
+
+
+Scene 5 (Medium Shot): The Crucial Decision - UNIVERSAL FUNCTION: "Moral Crossroads"
+Adaptable Purpose: Present specific situation where the oral( \`\${moral}\` ) is directly tested through choice
+Universal Emotional Beat: Internal Conflict Leading to Moral Clarity
+Flexible Framework:
+Universal Choice Structure:
+
+Tempting Alternative: Path that would achieve interest-related goal but violates moral
+Moral Path: Choice that upholds moral but requires sacrifice or difficulty
+Clear Stakes: Both options' consequences are comprehensible to \`\${age}\` audience
+Character Support: \`\${character1}\` provides guidance that matches relationship dynamic
+Interest Connection: Both choices relate to kid's interest domain : \`\${kidInterest}\` 
+
+Moral Application Matrix:
+
+Kindness Morals: Choose helping others over personal interest achievement
+Courage Morals: Choose facing difficulty over taking easy but wrong path
+Honesty Morals: Choose truth-telling over deception that would solve problems
+Perseverance Morals: Choose continued effort over giving up when frustrated
+Inclusion Morals: Choose including others over exclusive success
+
+
+Scene 6 (Close-up): The Moment of Truth - UNIVERSAL FUNCTION: "Moral Enactment"
+Adaptable Purpose: Show $\`\${kidName}\` actively implementing moral choice through interest-related action
+Universal Emotional Beat: Courage/Compassion/Wisdom in Decisive Action
+Flexible Framework:
+Action Implementation System:
+
+Physical Interests: Moral choice enacted through physical skill/activity
+Creative Interests: Moral choice expressed through creative act
+Social Interests: Moral choice demonstrated through relationship interaction
+Learning Interests: Moral choice applied through knowledge sharing or problem-solving
+
+Universal Transformation Markers:
+
+Confident Decision-Making: No hesitation once moral clarity achieved
+Skillful Application: Interest expertise applied with moral wisdom
+Character Growth Evidence: Approach different from Scene 1's more naive engagement
+Relationship Deepening: \`\${character1}\` connection strengthened through shared moral moment
+
+
+Act III: Resolution & Wisdom (Scenes 7-9) - "The New Understanding"
+Scene 7 (Wide Shot): The World Transformed - UNIVERSAL FUNCTION: "Ripple Effect Visualization"
+Adaptable Purpose: Show positive consequences of moral choice extending beyond immediate situation
+Universal Emotional Beat: Joyful Recognition of Positive Impact
+Flexible Framework:
+Consequence Manifestation System:
+
+Environmental Response: World becomes more beautiful, harmonious, or functional
+Community Benefit: Other characters/creatures show happiness or relief
+Interest Domain Enhancement: Kid interest ( \`\${kidInterest}\`) world becomes more accessible, vibrant, or meaningful
+Natural Progression: Changes feel earned and logical, not magical or arbitrary
+
+Universal Impact Categories:
+
+Problem Resolution: Original challenge solved in way that benefits everyone
+Community Enhancement: Wider group benefits from individual moral choice
+Interest Celebration: Kid interest( $\`\${kidInterest}\` ) domain enriched or made more inclusive
+Relationship Strengthening: Bonds between characters and community deepened
+
+
+Scene 8 (Medium Shot): Shared Celebration - UNIVERSAL FUNCTION: "Relationship Confirmation"
+Adaptable Purpose: Deepen $\`\${kidName}\` and \`\${character1}\` bond while processing growth experience
+Universal Emotional Beat: Gratitude and Strengthened Connection
+Flexible Framework:
+Relationship Dynamic Celebration:
+
+Family Relations: Quiet pride, affection, planning future activities together
+Mentor Relations: Recognition of growth, expanded trust, new learning opportunities
+Peer Relations: Shared joy, mutual respect, collaborative future planning
+Companion Relations: Deep emotional connection, playful interaction, intuitive understanding
+
+Universal Processing Elements:
+
+Growth Recognition: Both characters acknowledge $\`\${kidName}\`'s development
+Interest Integration: Success celebrated within interest domain
+Future Planning: Hints at ongoing adventures with new moral foundation
+Emotional Resolution: Warm connection before final scene
+
+
+Scene 9 (Close-up): The Wisdom Carried Forward - UNIVERSAL FUNCTION: "Integrated Growth Portrait"
+Adaptable Purpose: Final demonstration of moral integration within interest engagement
+Universal Emotional Beat: Quiet Confidence and Continuing Wonder
+Flexible Framework:
+Growth Integration System:
+
+Same Activity, New Approach: Return to Scene 1 type activity but with moral wisdom integrated
+Enhanced Engagement: Interest interaction shows greater care, inclusion, or thoughtfulness
+Natural Application: Moral understanding applied unconsciously, showing true integration
+Future Readiness: Subtle indication of readiness for next moral challenge
+
+Universal Growth Indicators:
+Expanded Perspective: Activity approached with consideration for others
+Confident Competence: Interest skills combined with moral wisdom
+Generous Spirit: Natural inclination to include or help others
+Peaceful Resolution: Content with growth, curious about future
+
+Input Combination Stress Tests
+This framework successfully accommodates challenging combinations like:
+Abstract Interest + Internal Theme + Personal Moral:
+Music + Overcoming Fear + Courage: Musical world where\`\${kidName}\` must perform publicly
+Physical Interest + Social Theme + Interpersonal Moral:
+Sports + Making Friends + Inclusion: Team environment where \`\${kidName}\` includes excluded peer
+Creative Interest + Problem-Solving Theme + Integrity Moral:
+Art + Fixing Community Problem + Honesty: Art project where \`\${kidName}\` must tell truth about mistake
+Learning Interest + Relationship Theme + Community Moral:
+Reading + Helping Family + Cooperation: Using reading skills to help solve family challenge together
+
+### **Moral Representation:**
+* **Environmental Morality:** Instead of relying on symbolic objects, weave the moral of the story( **"\`\${moral}\`"** ) into the story through environmental storytelling, atmospheric changes, and the child's evolving interaction with their surroundings.
+* **Relationship Dynamics:** The moral manifests through how \`\${kidName}\` interacts with \`\${character1}\` and their environment
+* **Behavioral Demonstration:** Show the moral through \`\${kidName}\`'s actions, body language, and how they treat elements in their environment (plants, animals, objects, weather patterns).
+* **Progressive Revelation:** The moral emerges naturally through the story progression—from scenes 3-6 as a growing understanding, culminating in clear demonstration by scene 9.
+* **Atmospheric Reinforcement:** Use lighting, weather, color temperature, and environmental details to reinforce the moral themes (e.g., warm, inclusive lighting for kindness; collaborative natural elements for teamwork)
+* **Cumulative Understanding: Each scene builds moral awareness through experiential learning, not symbolic objects
+
+Three-Act Moral Development:
+Act I (Scenes 1-3): Moral challenge is introduced through situation, not symbol
+Act II (Scenes 4-6): Moral tested through adversity and choice-making
+Act III (Scenes 7-9): Moral demonstrated through transformed behavior and understanding
+
+* **Emotional Journey:**
     *   The hero, \`\${kidName}\`, **must** display at least four distinct, age-appropriate emotions throughout the 9 scenes (e.g., curiosity, frustration, courage, joy).
 
 5.  **Art Direction & Technical Excellence:**
@@ -531,7 +728,6 @@ The \`scene_description\` is a granular, multi-layered directive for an image ge
     *   **Safety & Content Filters:** The world is **safe**. No sharp objects, dangerous situations, menacing creatures, readable text, or brand logos are allowed in the image.
 
 6. **Dramatic Pacing and Character Presence:** For narrative and visual variety, **at least one** of the nine scenes **must be a character-free shot**. This scene should be used for dramatic effect—to build suspense, establish a beautiful or imposing environment, or focus entirely on a key storytelling prop. All character-related fields in the JSON for this scene will be empty or null. This should be a scene in the middle of the story, not at the beginning or the end. 
-
 
 
 ---

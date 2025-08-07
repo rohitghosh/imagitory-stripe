@@ -56,25 +56,25 @@ export const StickyHeader: React.FC<StickyHeaderProps> = ({
             <div className="relative">
               {/* Welcome message */}
               {showWelcomeMessage && (
-                <div className="absolute bottom-full right-0 mb-3 px-4 py-3 bg-red-600 text-white text-sm rounded-lg shadow-xl max-w-xs animate-slideUp z-50">
+                <div className="absolute top-full right-0 mt-3 px-4 py-3 bg-imaginory-yellow text-imaginory-black text-sm rounded-lg shadow-xl max-w-xs animate-slideUp z-50">
                   <div className="flex items-start space-x-2">
                     <HelpCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
                     <div>
-                      <p className="font-medium">Need help with StoryPal?</p>
+                      <p className="font-medium">Need help with imagitory?</p>
                       <p className="text-xs opacity-90 mt-1">
                         Click here to get assistance!
                       </p>
                     </div>
                   </div>
-                  <div className="absolute top-full right-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-red-600" />
+                  <div className="absolute bottom-full right-4 w-0 h-0 border-l-4 border-r-4 border-b-4 border-transparent border-b-imaginory-yellow" />
                 </div>
               )}
 
               {/* Tooltip for desktop */}
               {isHovered && !showWelcomeMessage && (
-                <div className="hidden md:block absolute bottom-full right-0 mb-2 px-3 py-1 bg-gray-800 text-white text-sm rounded-lg whitespace-nowrap z-50">
+                <div className="hidden md:block absolute top-full right-0 mt-2 px-3 py-1 bg-gray-800 text-white text-sm rounded-lg whitespace-nowrap z-50">
                   StoryPal Assistant
-                  <div className="absolute top-full right-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-800" />
+                  <div className="absolute bottom-full right-4 w-0 h-0 border-l-4 border-r-4 border-b-4 border-transparent border-b-gray-800" />
                 </div>
               )}
 
@@ -84,7 +84,7 @@ export const StickyHeader: React.FC<StickyHeaderProps> = ({
                 onMouseLeave={() => setIsHovered(false)}
                 className={`relative p-2 md:p-3 rounded-lg transition-all duration-200 hover:scale-110 ${
                   isAssistantOpen
-                    ? "bg-red-50 text-red-600 shadow-md"
+                    ? "bg-imaginory-yellow/20 text-imaginory-black shadow-md"
                     : "hover:bg-gray-100 text-gray-600"
                 }`}
                 aria-label="Toggle StoryPal Assistant"
@@ -94,8 +94,8 @@ export const StickyHeader: React.FC<StickyHeaderProps> = ({
                 {/* Enhanced pulse animation */}
                 {!isAssistantOpen && (
                   <>
-                    <span className="absolute inset-0 rounded-lg bg-red-600 opacity-30 animate-ping" />
-                    <span className="absolute inset-0 rounded-lg bg-red-600 opacity-20 animate-pulse" />
+                    <span className="absolute inset-0 rounded-lg bg-imaginory-yellow opacity-30 animate-ping" />
+                    <span className="absolute inset-0 rounded-lg bg-imaginory-yellow opacity-20 animate-pulse" />
                   </>
                 )}
               </button>
@@ -104,13 +104,13 @@ export const StickyHeader: React.FC<StickyHeaderProps> = ({
             {/* Primary CTA: Edit PDF - Made Bigger */}
             <Button
               onClick={onEditPDF}
-              className="bg-red-600 hover:bg-red-700 text-white font-semibold shadow-md transition-all duration-200 hover:shadow-lg hover:scale-105"
+              className="bg-imaginory-yellow hover:bg-imaginory-yellow/90 text-imaginory-black font-semibold shadow-md transition-all duration-200 hover:shadow-lg hover:scale-105"
               size="default" // Changed from "sm" to "default" for bigger size
             >
               <span className="hidden sm:inline text-base">Edit PDF</span>
               <span className="sm:hidden">Edit</span>
               {isDirty && (
-                <span className="ml-2 w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></span>
+                <span className="ml-2 w-2 h-2 bg-imaginory-blue rounded-full animate-pulse"></span>
               )}
             </Button>
           </div>

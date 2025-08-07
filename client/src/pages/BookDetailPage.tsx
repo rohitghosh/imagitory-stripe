@@ -1246,7 +1246,7 @@ export default function BookDetailPage() {
         >
           {/* Avatar section - only show if not finalized */}
           {avatarUrl && !avatarFinalized && (
-            <div className="w-full bg-gradient-to-r from-red-50 to-pink-50 border-b border-gray-200 px-4 py-3">
+            <div className="w-full bg-gradient-to-r from-imaginory-yellow/20 to-imaginory-yellow/10 border-b border-gray-200 px-4 py-3">
               <div className="flex items-center justify-center space-x-4 max-w-4xl mx-auto">
                 <div className="relative">
                   <img
@@ -1267,7 +1267,7 @@ export default function BookDetailPage() {
                       size="sm"
                       onClick={() => warnAndRegenAvatar("cartoon")}
                       disabled={avatarRegenerating}
-                      className="text-xs px-3 py-1 bg-white border border-red-200 text-red-700 hover:bg-red-50"
+                      className="text-xs px-3 py-1 bg-white border border-imaginory-yellow text-imaginory-black hover:bg-imaginory-yellow/20"
                       variant="outline"
                     >
                       More Cartoonish
@@ -1276,7 +1276,7 @@ export default function BookDetailPage() {
                       size="sm"
                       onClick={() => warnAndRegenAvatar("hyper")}
                       disabled={avatarRegenerating}
-                      className="text-xs px-3 py-1 bg-white border border-red-200 text-red-700 hover:bg-red-50"
+                      className="text-xs px-3 py-1 bg-white border border-imaginory-yellow text-imaginory-black hover:bg-imaginory-yellow/20"
                       variant="outline"
                     >
                       More Realistic
@@ -1286,7 +1286,7 @@ export default function BookDetailPage() {
                     size="sm"
                     disabled={avatarRegenerating}
                     onClick={finalizeAvatar}
-                    className="text-xs bg-red-600 hover:bg-red-700 text-white"
+                    className="text-xs bg-imaginory-yellow hover:bg-imaginory-yellow/90 text-imaginory-black"
                   >
                     Looks good → Continue
                   </Button>
