@@ -54,10 +54,10 @@ export function Footer() {
               Contact
             </h3>
             <ul className="space-y-3 font-body text-muted-foreground">
-              <li className="flex items-center">
+              {/* <li className="flex items-center">
                 <span className="mr-2">📧</span>
                 support@imaginory.com
-              </li>
+              </li> */}
               <li className="flex items-center">
                 <span className="mr-2">💌</span>
                 We'd love to hear from you!
