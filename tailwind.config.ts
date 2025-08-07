@@ -27,8 +27,8 @@ export default {
           foreground: "#2C3E50",
         },
         secondary: {
-          DEFAULT: "#FF6B6B", // Coral red (minimal use)
-          foreground: "#FFFFFF",
+          DEFAULT: "#F1F3F4", // Light gray for progress backgrounds
+          foreground: "#2C3E50",
         },
         accent: {
           DEFAULT: "#4ECDC4", // Teal blue (minimal use)

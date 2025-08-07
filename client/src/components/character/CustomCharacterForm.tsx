@@ -207,7 +207,7 @@ export function CustomCharacterForm({
         const idx = prev.findIndex((i) => i.finalUrl === firstUrl);
         const before = prev.slice(0, idx + 1);
         const after = prev.slice(idx + 1);
-        
+
         return [
           ...before,
           { localUrl: toonUrl, finalUrl: toonUrl, uploading: false },
@@ -295,10 +295,10 @@ export function CustomCharacterForm({
         {step === "upload" && (
           <>
             <>
-              <p className="font-semibold mb-2 text-center">
-                Upload Photos (up to 10)
+              <p className="font-semibold mb-2 text-center text-imaginory-black">
+                Upload Photo
               </p>
-              <ul className="text-xs text-muted-foreground mt-2 space-y-1">
+              <ul className="text-xs text-imaginory-black mt-2 space-y-1">
                 <li>✓ Well-lit, front-facing photo</li>
                 <li>✓ Only the child in frame</li>
                 <li>✗ No filters or heavy shadows</li>
@@ -307,7 +307,7 @@ export function CustomCharacterForm({
               <div className="border-2 border-dashed rounded-lg p-4 sm:p-6 text-center mb-4">
                 <button
                   type="button"
-                  className="text-primary cursor-pointer"
+                  className="text-imaginory-black cursor-pointer"
                   onClick={() => fileInputRef.current?.click()}
                 >
                   Select Photo
@@ -325,7 +325,7 @@ export function CustomCharacterForm({
             {isUploading && (
               <div className="mb-4">
                 <Progress value={progressPct} />
-                <p className="text-center text-xs text-muted-foreground mt-1">
+                <p className="text-center text-xs text-imaginory-black mt-1">
                   Uploading… {Math.round(progressPct)}%
                 </p>
               </div>
@@ -342,7 +342,10 @@ export function CustomCharacterForm({
               </h4>
               <div className="relative">
                 <img
-                  src={uploadedImages.find((i) => i.finalUrl && !i.uploading)!.localUrl}
+                  src={
+                    uploadedImages.find((i) => i.finalUrl && !i.uploading)!
+                      .localUrl
+                  }
                   alt="Original"
                   className="h-20 w-20 sm:h-24 sm:w-24 object-cover rounded-md border"
                 />

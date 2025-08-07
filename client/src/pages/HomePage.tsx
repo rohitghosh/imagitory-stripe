@@ -93,7 +93,7 @@ export default function HomePage() {
               {PROCESS_STEPS.map((step, index) => (
                 <div
                   key={index}
-                  className="flex flex-col items-center text-center flex-1"
+                  className="flex flex-col items-center justify-center text-center flex-1 w-full"
                 >
                   <div className="mb-8">
                     <img
