@@ -28,7 +28,7 @@ export function Chip({
         flex-shrink-0 px-3 py-1 rounded-full text-sm font-medium transition
         ${
           selected
-            ? "bg-primary text-white ring-2 ring-primary/60"
+            ? "bg-imaginory-yellow text-imaginory-black ring-2 ring-imaginory-yellow/60"
             : "bg-gray-100 text-slate-700 hover:bg-gray-200"
         }
       `}

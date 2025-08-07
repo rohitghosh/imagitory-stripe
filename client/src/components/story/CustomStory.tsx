@@ -57,13 +57,13 @@ type Section = { title: string; body: string };
 
 const takeHeading = (buf: string) => {
   const open = buf.indexOf("**");
-  if (open === -1) return null;                       // no opener yet
+  if (open === -1) return null; // no opener yet
   const close = buf.indexOf("**", open + 2);
-  if (close === -1) return null;                      // no closer yet
+  if (close === -1) return null; // no closer yet
   return {
-    before : buf.slice(0, open),                      // text before **
-    title  : buf.slice(open + 2, close).trim(),       // heading text
-    rest   : buf.slice(close + 2),                    // tail after **
+    before: buf.slice(0, open), // text before **
+    title: buf.slice(open + 2, close).trim(), // heading text
+    rest: buf.slice(close + 2), // tail after **
   };
 };
 
@@ -319,7 +319,7 @@ export function CustomStory({
       rhyming,
     };
   };
-  
+
   /* -----------------------------------------------------------------
      Card builder that waits for "**Heading**X" (where X = any char
      that is *not* an asterisk) before it finalises the heading.
@@ -330,7 +330,7 @@ export function CustomStory({
     (raw: string) => {
       /* 1 ─ blank payload  →  real paragraph break ---------------- */
       if (raw === "" || raw === " " || raw === "\n") {
-        setSection(s => (s ? { ...s, body: s.body + "\n\n" } : s));
+        setSection((s) => (s ? { ...s, body: s.body + "\n\n" } : s));
         return;
       }
 
@@ -344,7 +344,7 @@ export function CustomStory({
       /* 4 ─ while we have a *complete* “…**Heading**‹any-char›” ---- */
       // eslint-disable-next-line
       while (true) {
-        const open  = pending.current.indexOf("**");
+        const open = pending.current.indexOf("**");
         if (open === -1) break;
 
         const close = pending.current.indexOf("**", open + 2);
@@ -355,23 +355,23 @@ export function CustomStory({
         if (pending.current[close + 2] === "*") break;
 
         /* ─── we’ve got a whole heading + something after it ────── */
-        const chunk = pending.current.slice(0, close + 2);           // …**Heading**
-        const tail  = pending.current.slice(close + 2);              // what follows
-        pending.current = tail;                                      // keep tail
+        const chunk = pending.current.slice(0, close + 2); // …**Heading**
+        const tail = pending.current.slice(close + 2); // what follows
+        pending.current = tail; // keep tail
 
         /* split the processed part on every **Heading** ------------ */
         const parts = chunk.split(/\*\*([^*]+)\*\*/g);
         //                [before, heading, after, heading, after …]
 
-        setSection(prev => {
+        setSection((prev) => {
           let cur = prev ?? { title: "Thinking…", body: "" };
 
-          cur.body += parts[0];                  // text before 1st heading
+          cur.body += parts[0]; // text before 1st heading
 
           for (let i = 1; i < parts.length; i += 2) {
             const title = parts[i].trim();
-            const body  = parts[i + 1] ?? "";
-            cur = { title, body };               // replace card
+            const body = parts[i + 1] ?? "";
+            cur = { title, body }; // replace card
           }
           return cur;
         });
@@ -379,15 +379,13 @@ export function CustomStory({
 
       /* 5 ─ whatever is left and has NO '**' is plain body text ---- */
       if (pending.current && !pending.current.includes("**")) {
-        setSection(s => (s ? { ...s, body: s.body + pending.current } : s));
+        setSection((s) => (s ? { ...s, body: s.body + pending.current } : s));
         pending.current = "";
       }
     },
-    [section]
+    [section],
   );
 
-  
-  
   const validateThenSubmit = async () => {
     setValidationErrors([]);
     setReasoningLog("");
@@ -508,7 +506,7 @@ export function CustomStory({
           /* ---------- STREAMING TOKENS ------------------------------------ */
           if (dataLines.length) {
             if (thinking) setThinking(false);
-            dataLines.forEach(tok => appendToken(tok)); 
+            dataLines.forEach((tok) => appendToken(tok));
           }
         }
       }
@@ -676,7 +674,7 @@ export function CustomStory({
                   (idx < step
                     ? "bg-green-50 text-green-600 border-green-200"
                     : idx === step
-                      ? "bg-primary text-white border-transparent"
+                      ? "bg-imaginory-yellow text-imaginory-black border-transparent"
                       : "bg-gray-50 text-gray-400 border-gray-200")
                 }
               >
@@ -686,7 +684,7 @@ export function CustomStory({
                 className={
                   "ml-2 text-sm transition " +
                   (idx === step
-                    ? "text-primary font-semibold"
+                    ? "text-imaginory-black font-semibold"
                     : "text-gray-500")
                 }
               >
@@ -701,8 +699,8 @@ export function CustomStory({
       <div className="space-y-6">
         {/* Character */}
         {step === 0 && (
-          <Card>
-            <CardContent>
+          <Card className="bg-transparent border-0 shadow-none">
+            <CardContent  className="bg-transparent">
               <h3 className="text-lg font-semibold mb-2">Choose a character</h3>
               <p className="text-sm text-gray-600 mb-4">
                 Select or add a custom sidekick for your hero.
@@ -919,8 +917,8 @@ export function CustomStory({
 
         {/* Moral */}
         {step === 1 && (
-          <Card>
-            <CardContent>
+          <Card className="relative bg-transparent border-0 shadow-none">
+            <CardContent className="bg-transparent">
               <h3 className="text-lg font-semibold mb-2">Select a moral</h3>
               <p className="text-sm text-gray-600 mb-4">
                 Pick a moral that resonates with your story.
@@ -963,8 +961,8 @@ export function CustomStory({
 
         {/* Theme & Rhyming OR 140‑char story */}
         {step === 2 && (
-          <Card className="relative">
-            <CardContent>
+          <Card className="relative bg-transparent border-0 shadow-none">
+            <CardContent className="bg-transparent">
               {/* Overlay while validating */}
               {/* -------------- validation console -------------- */}
 
@@ -980,7 +978,7 @@ export function CustomStory({
                   className={cn(
                     "flex-1 md:flex-none px-4 py-2 rounded-md text-sm transition",
                     storyMode === "theme"
-                      ? "bg-white shadow text-primary"
+                      ? "bg-imaginory-yellow shadow text-imaginory-black"
                       : "text-gray-500",
                   )}
                   onClick={() => setStoryMode("theme")}
@@ -992,7 +990,7 @@ export function CustomStory({
                   className={cn(
                     "flex-1 md:flex-none px-4 py-2 rounded-md text-sm transition",
                     storyMode === "text"
-                      ? "bg-white shadow text-primary"
+                      ? "bg-imaginory-yellow shadow text-imaginory-black"
                       : "text-gray-500",
                   )}
                   onClick={() => setStoryMode("text")}
@@ -1071,7 +1069,6 @@ export function CustomStory({
                         <div className="mt-4">
                           <p className="font-semibold mb-1 flex items-center shimmer">
                             {section.title}
-                            
                           </p>
 
                           {/* <div

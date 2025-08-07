@@ -265,7 +265,7 @@ export function CustomCharacter({ onSubmit }: CustomCharactersProps) {
                       <h4 className="font-semibold text-lg">{char.name}</h4>
                     </CardContent>
                     {isSelected && (
-                      <div className="absolute top-2 right-2 bg-primary text-white rounded-full p-1">
+                      <div className="absolute top-2 right-2 bg-imaginory-yellow text-imaginory-black rounded-full p-1">
                         <i className="fas fa-check"></i>
                       </div>
                     )}
@@ -341,7 +341,7 @@ export function CustomCharacter({ onSubmit }: CustomCharactersProps) {
       <div className="flex justify-center mt-8">
         <Button
           variant="default"
-          className="bg-primary text-white px-6 py-3 rounded-full"
+          className="imaginory-button"
           onClick={handleNextClick}
           disabled={showForm || !selectedCharacterId}
         >

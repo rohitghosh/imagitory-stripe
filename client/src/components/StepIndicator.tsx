@@ -1,48 +1,58 @@
+import React from "react";
 import { cn } from "@/lib/utils";
 
-interface StepIndicatorProps {
-  currentStep: number;
-  steps: { id: number; name: string }[];
+interface Step {
+  id: number;
+  name: string;
 }
 
-export function StepIndicator({ currentStep, steps }: StepIndicatorProps) {
+interface StepIndicatorProps {
+  steps: Step[];
+  currentStep: number;
+}
+
+export function StepIndicator({ steps, currentStep }: StepIndicatorProps) {
   return (
-    <div className="mb-12">
-      <div className="flex items-center justify-center">
-        <ol className="flex items-center w-full max-w-3xl">
-          {steps.map((step, index) => (
-            <li key={step.id} className="flex items-center">
-              <div className="flex flex-col items-center">
-                <div
-                  className={cn(
-                    "rounded-md font-medium h-12 w-12 flex items-center justify-center transition-all",
-                    step.id < currentStep
-                      ? "bg-green-50 text-green-600 border border-green-200"
-                      : step.id === currentStep
-                      ? "bg-primary text-white shadow-sm"
-                      : "bg-gray-50 text-gray-400 border border-gray-200"
-                  )}
-                >
-                  {step.id}
-                </div>
-                <span className={cn(
-                  "text-sm mt-2 font-medium",
-                  step.id === currentStep ? "text-primary" : "text-gray-500"
-                )}>
-                  {step.name}
-                </span>
+    <div className="mb-8">
+      <div className="flex items-center justify-center space-x-4">
+        {steps.map((step, index) => (
+          <React.Fragment key={step.id}>
+            <div className="flex items-center">
+              <div
+                className={cn(
+                  "w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold transition-colors",
+                  index < currentStep - 1
+                    ? "bg-green-500 text-white"
+                    : index === currentStep - 1
+                      ? "bg-imaginory-yellow text-imaginory-black shadow-sm"
+                      : "bg-gray-200 text-gray-500"
+                )}
+              >
+                {step.id}
               </div>
-              {index < steps.length - 1 && (
-                <div className={cn(
-                  "h-[2px] w-16 md:w-28 mx-2",
-                  step.id < currentStep 
-                    ? "bg-primary" 
+              <span
+                className={cn(
+                  "ml-2 text-sm font-medium transition-colors",
+                  index === currentStep - 1
+                    ? "text-imaginory-black"
+                    : "text-gray-500"
+                )}
+              >
+                {step.name}
+              </span>
+            </div>
+            {index < steps.length - 1 && (
+              <div
+                className={cn(
+                  "w-12 h-0.5 transition-colors",
+                  index < currentStep - 1
+                    ? "bg-green-500"
                     : "bg-gray-200"
-                )}></div>
-              )}
-            </li>
-          ))}
-        </ol>
+                )}
+              />
+            )}
+          </React.Fragment>
+        ))}
       </div>
     </div>
   );

@@ -8,19 +8,19 @@ import StoryBookIllustration from "@/components/StoryBookIllustration";
 
 const PROCESS_STEPS = [
   {
-    icon: "👶",
-    title: "Choose a Character",
-    description: "Pick from our collection or create your own custom character with your child's photo!"
+    icon: "👤",
+    title: "Upload photo of your character",
+    description: ""
   },
   {
-    icon: "📚",
-    title: "Select a Story",
-    description: "Browse our magical story library or create a custom adventure just for your child."
+    icon: "📝",
+    title: "Write a general blurb",
+    description: "(add characters or themes)"
   },
   {
     icon: "✨",
-    title: "Preview & Download",
-    description: "Review your personalized story, make edits, and get your beautiful book!"
+    title: "Let us work our magic!",
+    description: ""
   }
 ];
 
@@ -83,35 +83,29 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* How It Works Section */}
+        {/* How It Works Section - Simplified */}
         <section className="relative py-16 bg-white/50">
           <div className="imaginory-container">
-            <div className="text-center mb-16">
-              <h2 className="font-heading font-bold text-4xl md:text-5xl text-foreground mb-6">
+            <div className="text-center mb-12">
+              <h2 className="font-heading font-bold text-3xl md:text-4xl text-foreground mb-8">
                 How It Works
               </h2>
-              <div className="w-24 h-1 bg-gradient-to-r from-imaginory-yellow to-imaginory-orange mx-auto rounded-full"></div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto">
               {PROCESS_STEPS.map((step, index) => (
-                <div key={index} className="relative group">
-                  <div className="imaginory-card text-center transform group-hover:scale-105 transition-all duration-300">
-                    <div className="text-6xl mb-6 animate-bounce-gentle">
-                      {step.icon}
-                    </div>
-                    <h3 className="text-2xl font-heading font-bold mb-4 text-foreground">
-                      {step.title}
-                    </h3>
-                    <p className="text-muted-foreground font-body leading-relaxed">
+                <div key={index} className="text-center">
+                  <div className="text-5xl mb-6">
+                    {step.icon}
+                  </div>
+                  <h3 className="text-xl font-heading font-bold mb-3 text-foreground">
+                    {step.title}
+                  </h3>
+                  {step.description && (
+                    <p className="text-lg font-body text-muted-foreground">
                       {step.description}
                     </p>
-
-                    {/* Step number */}
-                    <div className="absolute -top-4 -left-4 w-8 h-8 bg-imaginory-yellow rounded-full flex items-center justify-center text-foreground font-bold text-sm border-2 border-imaginory-orange">
-                      {index + 1}
-                    </div>
-                  </div>
+                  )}
                 </div>
               ))}
             </div>

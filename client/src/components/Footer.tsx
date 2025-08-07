@@ -11,26 +11,38 @@ export function Footer() {
               <span className="text-imaginory-yellow ml-1">✨</span>
             </h3>
             <p className="text-muted-foreground font-body leading-relaxed">
-              Creating personalized children's stories with your child as the main character. 
-              Every story is a magical adventure waiting to happen! 🌟
+              Creating personalized children's stories with your child as the
+              main character. Every story is a magical adventure waiting to
+              happen! 🌟
             </p>
           </div>
 
           <div>
-            <h3 className="text-xl font-heading font-bold mb-4 text-imaginory-black">Quick Links</h3>
+            <h3 className="text-xl font-heading font-bold mb-4 text-imaginory-black">
+              Quick Links
+            </h3>
             <ul className="space-y-3 font-body">
               <li>
-                <Link href="/" className="text-muted-foreground hover:text-imaginory-black transition-colors">
+                <Link
+                  href="/"
+                  className="text-muted-foreground hover:text-imaginory-black transition-colors"
+                >
                   🏠 Home
                 </Link>
               </li>
               <li>
-                <Link href="/create" className="text-muted-foreground hover:text-imaginory-black transition-colors">
+                <Link
+                  href="/create"
+                  className="text-muted-foreground hover:text-imaginory-black transition-colors"
+                >
                   ✨ Create a Story
                 </Link>
               </li>
               <li>
-                <Link href="/profile" className="text-muted-foreground hover:text-imaginory-black transition-colors">
+                <Link
+                  href="/profile"
+                  className="text-muted-foreground hover:text-imaginory-black transition-colors"
+                >
                   👤 My Profile
                 </Link>
               </li>
@@ -38,15 +50,13 @@ export function Footer() {
           </div>
 
           <div>
-            <h3 className="text-xl font-heading font-bold mb-4 text-imaginory-black">Contact</h3>
+            <h3 className="text-xl font-heading font-bold mb-4 text-imaginory-black">
+              Contact
+            </h3>
             <ul className="space-y-3 font-body text-muted-foreground">
               <li className="flex items-center">
                 <span className="mr-2">📧</span>
                 support@imaginory.com
-              </li>
-              <li className="flex items-center">
-                <span className="mr-2">📞</span>
-                (123) 456-7890
               </li>
               <li className="flex items-center">
                 <span className="mr-2">💌</span>
@@ -58,7 +68,7 @@ export function Footer() {
 
         <div className="mt-12 pt-8 border-t border-gray-200 text-center">
           <p className="text-muted-foreground font-body">
-            © {new Date().getFullYear()} Imaginory. All rights reserved. 
+            © {new Date().getFullYear()} Imaginory. All rights reserved.
             <span className="ml-2">Made with ❤️ for families everywhere</span>
           </p>
         </div>
