@@ -265,7 +265,7 @@ export async function generateCompleteStory(
   /* ── 2. Scene images (40 → 90 %) ──────────────────────────────────── */
   const total = story.scenes.length;
   const sides: ("left" | "right")[] = Array.from({ length: total }, () =>
-    Math.random() < 0.6 ? "left" : "right",
+    Math.random() < 0.5 ? "left" : "right",
   );
   const share = 50 / total;
 
@@ -334,6 +334,7 @@ export async function generateCompleteStory(
 
   const scenes: SceneOutput[] = story.scenes.map((scene, i) => ({
     scene_number: i + 1,
+    imageUrl: generatedScenes[i].firebaseUrl,
     imageUrls: [generatedScenes[i].firebaseUrl], // CHANGED: Array with single element
     sceneResponseIds: [generatedScenes[i].responseId], // CHANGED: Array with single element
     current_scene_index: 0, // NEW: Start at index 0
@@ -369,7 +370,9 @@ export async function generateCompleteStory(
   return {
     scenes,
     cover: {
+      base_cover_url: baseCoverUrl,
       base_cover_urls: [baseCoverUrl], // CHANGED: Array with single element
+      base_cover_response_id: baseCoverResponseId,
       base_cover_response_ids: [baseCoverResponseId], // CHANGED: Array with single element
       current_base_cover_index: 0, // NEW: Start at index 0
       story_title: story.story_title,
@@ -378,6 +381,7 @@ export async function generateCompleteStory(
         characterImageMap,
         seed,
       },
+      final_cover_url: finalCoverUrl,
       final_cover_urls: [finalCoverUrl], // CHANGED: Array with single element
       current_final_cover_index: 0, // NEW: Start at index 0
       final_cover_inputs: {

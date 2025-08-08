@@ -89,8 +89,8 @@ const MemoryStore = createMemoryStore(session);
 
 const DEBUG_LOGGING = process.env.DEBUG_LOGGING === "true";
 
-const DEFAULT_FONT_SIZE = 24;
-const DEFAULT_FONT_FAMILY = "Nunito SemiBold Italic";
+const DEFAULT_FONT_SIZE = 22;
+const DEFAULT_FONT_FAMILY = "";
 const DEFAULT_COLOR = "#ffffff";
 const FULL_W = 2048;
 const FULL_H = 1024;
@@ -1699,11 +1699,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       (async () => {
         try {
           // 1) Expand back cover if needed
+
           jobTracker.set(jobId, {
             phase: "expandingCover",
             pct: 5,
             message: "Creating back cover…",
           });
+
+          console.log(`url: ${book.cover.base_cover_url}`);
 
           if (!book.cover?.back_cover_url) {
             const backUrl = await expandImageToLeft(book.cover.base_cover_url);

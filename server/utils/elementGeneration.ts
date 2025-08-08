@@ -8,6 +8,15 @@ import { createCanvas, loadImage, Canvas, Image } from "canvas";
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const CHAT_API_URL = "https://api.openai.com/v1/chat/completions";
+
+async function urlToDataUri(url: string): Promise<string> {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`fetch(${url}) -> ${r.status}`);
+  const buf = Buffer.from(await r.arrayBuffer());
+  const mime = r.headers.get("content-type") || "image/png";
+  return `data:${mime};base64,${buf.toString("base64")}`;
+}
+
 /**
  * Generates three image prompts via GPT-4-turbo (chat API).
  * Each line should be a visual description:
@@ -222,7 +231,13 @@ export async function preparePageWithImages(page: any) {
 
 export async function expandImageToLeft(imageUrl) {
   // Load the original image to get its dimensions
-  const img = await loadImage(imageUrl);
+  // const img = await loadImage(imageUrl);
+  console.log(`[expandImageLeft] Image URL: ${imageUrl}`);
+  const resolved = imageUrl.startsWith("data:")
+    ? imageUrl
+    : await urlToDataUri(imageUrl);
+  const img = await loadImage(resolved);
+
   const originalWidth = img.width;
   const originalHeight = img.height;
 
@@ -266,7 +281,12 @@ export async function expandImageToLeft(imageUrl) {
 
 export async function expandImageToRight(imageUrl) {
   // Load the original image to get its dimensions
-  const img = await loadImage(imageUrl);
+  console.log(`[expandImageRight] Image URL: ${imageUrl}`);
+  const resolved = imageUrl.startsWith("data:")
+    ? imageUrl
+    : await urlToDataUri(imageUrl);
+  const img = await loadImage(resolved);
+  // const img = await loadImage(imageUrl);
   const originalWidth = img.width;
   const originalHeight = img.height;
 

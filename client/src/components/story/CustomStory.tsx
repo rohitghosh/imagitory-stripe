@@ -41,17 +41,43 @@ const NO_ONE: CharacterDetails = {
   description: "",
 };
 
-// Preset options
-const MORAL_OPTIONS = [
-  "Sharing is caring",
-  "Be brave",
-  "Friends help friends",
-  "Kindness wins",
-  "Never give up",
-  "Honesty matters",
-  "Courage over fear",
-  "Dream big",
+// Preset options (labels shown on chips)
+export const MORAL_OPTIONS = [
+  "Patience grows good things",
+  "Practice makes progress",
+  "Be gentle with living things",
+  "Take care of your world",
+  "Tell the truth and fix it",
+  "Think first, then act",
+  "Curiosity leads to discovery",
+  "Keep going, adjust the plan",
+  "Calm body, clear choices",
+  "Courage with care",
 ] as const;
+
+// Parent-facing one-liners (shown on hover)
+export const MORAL_BLURBS: Record<(typeof MORAL_OPTIONS)[number], string> = {
+  "Patience grows good things":
+    "Real growth takes time; caring and waiting beat rushing.",
+  "Practice makes progress":
+    "Small, steady effort improves skills more than instant perfection.",
+  "Be gentle with living things":
+    "Handle plants and animals with care, respect, and soft hands.",
+  "Take care of your world":
+    "Clean up, fix small messes, and leave places better than you found them.",
+  "Tell the truth and fix it":
+    "Own mistakes kindly, make amends, and set things right.",
+  "Think first, then act":
+    "Pause, notice details, and choose the safe, wise next step.",
+  "Curiosity leads to discovery":
+    "Looking closely and asking questions reveals new ideas and paths.",
+  "Keep going, adjust the plan":
+    "Try, tweak, and try again when things don’t work at first.",
+  "Calm body, clear choices":
+    "Breathe, settle feelings, then decide what to do.",
+  "Courage with care":
+    "Be brave, move thoughtfully, and avoid risky or rough choices.",
+};
 
 type Section = { title: string; body: string };
 
@@ -67,15 +93,59 @@ const takeHeading = (buf: string) => {
   };
 };
 
+// const THEME_OPTIONS = [
+//   { value: "adventure-quest", label: "Adventure Quest" },
+//   { value: "magical-discovery", label: "Magical Discovery" },
+//   { value: "friendship-tale", label: "Friendship Tale" },
+//   { value: "bedtime-comfort", label: "Bedtime Comfort" },
+//   { value: "mystery-solving", label: "Mystery Solving" },
+//   { value: "big-day-story", label: "Big Day Story" },
+//   { value: "imagination-play", label: "Imagination Play" },
+//   { value: "none", label: "No Special Theme" },
+// ];
+
 const THEME_OPTIONS = [
-  { value: "adventure-quest", label: "Adventure Quest" },
-  { value: "magical-discovery", label: "Magical Discovery" },
-  { value: "friendship-tale", label: "Friendship Tale" },
-  { value: "bedtime-comfort", label: "Bedtime Comfort" },
-  { value: "mystery-solving", label: "Mystery Solving" },
-  { value: "big-day-story", label: "Big Day Story" },
-  { value: "imagination-play", label: "Imagination Play" },
-  { value: "none", label: "No Special Theme" },
+  {
+    value: "discovering-hidden-worlds-through-curiosity-and-courage",
+    label: "Adventure Quest",
+  },
+  {
+    value: "finding-extraordinary-magic-in-everyday-moments-and-places",
+    label: "Magical Discovery",
+  },
+  {
+    value:
+      "building-meaningful-connections-through-shared-experiences-and-understanding",
+    label: "Friendship Tale",
+  },
+  {
+    value: "creating-peaceful-resolutions-to-gentle-challenges-before-sleep",
+    label: "Bedtime Comfort",
+  },
+  {
+    value: "solving-intriguing-puzzles-through-observation-and-clever-thinking",
+    label: "Mystery Solving",
+  },
+  {
+    value: "navigating-important-milestone-moments-with-confidence-and-joy",
+    label: "Big Day Story",
+  },
+  {
+    value: "transforming-creative-ideas-into-wonderful-reality-through-play",
+    label: "Imagination Play",
+  },
+  {
+    value: "overcoming-personal-fears-and-doubts-through-inner-strength",
+    label: "Courage Journey",
+  },
+  {
+    value: "exploring-natural-wonders-and-environmental-connections-outdoors",
+    label: "Nature Adventure",
+  },
+  {
+    value: "building-something-amazing-through-teamwork-and-perseverance",
+    label: "Creation Quest",
+  },
 ];
 
 // util to concat classNames
@@ -113,6 +183,39 @@ const TypingDots = () => (
         style={{ animationDelay: `${i * 0.15}s` }}
       />
     ))}
+  </span>
+);
+
+// Simple hover/focus tooltip (no extra deps)
+const HoverHint: React.FC<{ content: string; children: React.ReactNode }> = ({
+  content,
+  children,
+}) => (
+  <span className="relative inline-block group">
+    {/* Trigger */}
+    <span className="inline-block" aria-describedby="hint">
+      {children}
+    </span>
+
+    {/* Tooltip bubble */}
+    <span
+      role="tooltip"
+      className="
+        pointer-events-none absolute left-1/2 top-full z-20 w-56 -translate-x-1/2
+        translate-y-2 rounded-md bg-gray-900 px-2 py-1.5 text-[11px] leading-snug
+        text-white opacity-0 shadow-lg transition
+        group-hover:opacity-100 group-hover:translate-y-1
+        group-focus-within:opacity-100 group-focus-within:translate-y-1
+      "
+    >
+      {content}
+      <span
+        className="
+          absolute -top-1 left-1/2 h-2 w-2 -translate-x-1/2 rotate-45
+          bg-gray-900
+        "
+      />
+    </span>
   </span>
 );
 
@@ -700,7 +803,7 @@ export function CustomStory({
         {/* Character */}
         {step === 0 && (
           <Card className="bg-transparent border-0 shadow-none">
-            <CardContent  className="bg-transparent">
+            <CardContent className="bg-transparent">
               <h3 className="text-lg font-semibold mb-2">Choose a character</h3>
               <p className="text-sm text-gray-600 mb-4">
                 Select or add a custom sidekick for your hero.
@@ -916,7 +1019,7 @@ export function CustomStory({
         )}
 
         {/* Moral */}
-        {step === 1 && (
+        {/* {step === 1 && (
           <Card className="relative bg-transparent border-0 shadow-none">
             <CardContent className="bg-transparent">
               <h3 className="text-lg font-semibold mb-2">Select a moral</h3>
@@ -952,6 +1055,64 @@ export function CustomStory({
                   onChange={(e) => setCustomMoral(e.target.value)}
                   rows={3}
                   className="w-full mt-3 border rounded p-2 focus:ring-primary/60 focus:outline-none"
+                  placeholder="Type your moral here..."
+                />
+              )}
+            </CardContent>
+          </Card>
+        )} */}
+
+        {/* Moral */}
+        {step === 1 && (
+          <Card className="relative bg-transparent border-0 shadow-none">
+            <CardContent className="bg-transparent">
+              <h3 className="text-lg font-semibold mb-2">Select a moral</h3>
+              <p className="text-sm text-gray-600 mb-4">
+                Hover to see what each moral means.
+              </p>
+
+              <div className="flex flex-wrap gap-2 items-start">
+                <Chip
+                  selected={moralOption === "none"}
+                  onClick={() => setMoralOption("none")}
+                  className="px-2 py-1 text-xs"
+                  title="Skip the moral (you can add it later)"
+                >
+                  No moral
+                </Chip>
+
+                {MORAL_OPTIONS.map((opt) => (
+                  <HoverHint key={opt} content={MORAL_BLURBS[opt]}>
+                    <Chip
+                      selected={moralOption === opt}
+                      onClick={() => setMoralOption(opt)}
+                      className={cn(
+                        "px-2 py-1 text-xs rounded-full",
+                        moralOption === opt ? "ring-2 ring-primary" : "",
+                      )}
+                      title={MORAL_BLURBS[opt]} // fallback native tooltip
+                    >
+                      {opt}
+                    </Chip>
+                  </HoverHint>
+                ))}
+
+                <Chip
+                  selected={moralOption === "other"}
+                  onClick={() => setMoralOption("other")}
+                  className="px-2 py-1 text-xs"
+                  title="Write your own moral"
+                >
+                  Other ✎
+                </Chip>
+              </div>
+
+              {moralOption === "other" && (
+                <textarea
+                  value={customMoral}
+                  onChange={(e) => setCustomMoral(e.target.value)}
+                  rows={3}
+                  className="w-full mt-3 border rounded p-2 text-sm focus:ring-primary/60 focus:outline-none"
                   placeholder="Type your moral here..."
                 />
               )}

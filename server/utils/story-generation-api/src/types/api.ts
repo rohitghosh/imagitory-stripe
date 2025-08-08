@@ -101,11 +101,14 @@ export interface StoryGenerationResponse {
 export interface StoryPackage {
   scenes: SceneOutput[];
   cover: {
+    base_cover_url: string;
     base_cover_urls: string[]; // CHANGED from base_cover_url
     story_title: string;
+    base_cover_response_id: string;
     base_cover_response_ids: string[]; // CHANGED from base_cover_response_id
     current_base_cover_index: number; // NEW
     base_cover_inputs: BaseCoverRegenerationInput;
+    final_cover_url: string;
     final_cover_urls: string[]; // CHANGED from final_cover_url
     current_final_cover_index: number; // NEW
     final_cover_inputs: FinalCoverRegenerationInput;

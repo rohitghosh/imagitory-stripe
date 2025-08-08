@@ -36,6 +36,14 @@ async function urlToReadableStream(url: string) {
   return fs.createReadStream(path);
 }
 
+async function toDataUrl(url: string) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`fetch failed: ${r.status}`);
+  const ct = r.headers.get("content-type") || "image/jpeg";
+  const b64 = Buffer.from(await r.arrayBuffer()).toString("base64");
+  return `data:${ct};base64,${b64}`;
+}
+
 /**
  * Removes *adjacent* duplicate words (e.g. "looking looking" → "looking"),
  * but will *not* collapse across punctuation (e.g. "looking. looking" stays).
@@ -606,12 +614,21 @@ export async function generateImageForScene(
   const inputs = [
     {
       role: "user",
+      // content: [
+      //   { type: "input_text", text: safePrompt },
+      //   ...imageUrls.map((url) => ({
+      //     type: "input_image",
+      //     image_url: url,
+      //   })),
+      // ],
       content: [
         { type: "input_text", text: safePrompt },
-        ...imageUrls.map((url) => ({
-          type: "input_image",
-          image_url: url,
-        })),
+        ...(await Promise.all(
+          imageUrls.map(async (u) => ({
+            type: "input_image",
+            image_url: await toDataUrl(u),
+          })),
+        )),
       ],
     },
   ];
@@ -621,14 +638,14 @@ export async function generateImageForScene(
   /* ---------- Call OpenAI Responses API ---------- */
   onProgress?.("generating", 25, "Contacting OpenAI…");
 
-  const resp = await openai.responses.create({
-    model: "gpt-4o-mini",
-    input: inputs,
-    tools: [tool], // ← single, well-formed tool object
-  });
-  // const resp = await openai.responses.retrieve(
-  //   "resp_6880d4746124819f85bac69f0055c03700d1ab5d60bfc8c6",
-  // );
+  // const resp = await openai.responses.create({
+  //   model: "gpt-4o-mini",
+  //   input: inputs,
+  //   tools: [tool], // ← single, well-formed tool object
+  // });
+  const resp = await openai.responses.retrieve(
+    "resp_6880d4746124819f85bac69f0055c03700d1ab5d60bfc8c6",
+  );
 
   const responseId = resp.id;
   const imageBase64 = resp.output.find(
@@ -718,9 +735,18 @@ export async function generateImageForFrontCover(
   const inputs = [
     {
       role: "user",
+      // content: [
+      //   { type: "input_text", text: safePrompt },
+      //   ...imageUrls.map((url) => ({ type: "input_image", image_url: url })),
+      // ],
       content: [
         { type: "input_text", text: safePrompt },
-        ...imageUrls.map((url) => ({ type: "input_image", image_url: url })),
+        ...(await Promise.all(
+          imageUrls.map(async (u) => ({
+            type: "input_image",
+            image_url: await toDataUrl(u),
+          })),
+        )),
       ],
     },
   ];
@@ -732,15 +758,15 @@ export async function generateImageForFrontCover(
   /* ────────────── 5. Call OpenAI Responses API ────────────────────── */
   onProgress?.("generating_cover", 25, "Contacting OpenAI…");
 
-  const resp = await openai.responses.create({
-    model: "gpt-4o-mini", // chat wrapper; tool invokes GPT-Image-1
-    input: inputs,
-    tools: [tool],
-  });
+  // const resp = await openai.responses.create({
+  //   model: "gpt-4o-mini", // chat wrapper; tool invokes GPT-Image-1
+  //   input: inputs,
+  //   tools: [tool],
+  // });
 
-  // const resp = await openai.responses.retrieve(
-  //   "resp_6880d4746124819f85bac69f0055c03700d1ab5d60bfc8c6",
-  // );
+  const resp = await openai.responses.retrieve(
+    "resp_6880d4746124819f85bac69f0055c03700d1ab5d60bfc8c6",
+  );
 
   /* ────────────── 6. Extract image & persist to Firebase ───────────── */
   const responseId = resp.id;
