@@ -2705,7 +2705,8 @@ const HALF_W = FULL_W / 2;
 const LOGICAL_W = 600;
 const LOGICAL_H = Math.round((FULL_H * LOGICAL_W) / HALF_W);
 const DEFAULT_FONT_SIZE = 22;
-const DEFAULT_FONT_FAMILY = "Kalam";
+const DEFAULT_FONT_FAMILY = "Cormorant Garamond";
+const DEFAULT_FONT_WEIGHT = 700;
 
 // Configuration for the pages:
 const MOBILE_BREAKPOINT = 768;
@@ -2907,6 +2908,7 @@ const ResizableTextBox = ({
   fontSize,
   color,
   fontFamily,
+  fontWeight,
   lines,
   scale,
   onUpdate,
@@ -3083,6 +3085,7 @@ const ResizableTextBox = ({
           fontSize,
           color,
           fontFamily,
+          fontWeight,
           padding: "10px",
           outline: "none",
           whiteSpace: "pre",
@@ -3394,6 +3397,8 @@ export default function EditPDFPage() {
         y: 50,
         fontSize: DEFAULT_FONT_SIZE,
         color: "#ffffff",
+        fontFamily: DEFAULT_FONT_FAMILY,
+        fontWeight: DEFAULT_FONT_WEIGHT,
       });
     }
     book.pages.forEach((p) => {
@@ -3410,6 +3415,7 @@ export default function EditPDFPage() {
           fontSize: p.fontSize ?? DEFAULT_FONT_SIZE,
           color: p.leftTextColor ?? "#000000",
           fontFamily: p.leftFontFamily ?? DEFAULT_FONT_FAMILY,
+          fontWeight: p.leftFontWeight ?? DEFAULT_FONT_WEIGHT,
         });
         result.push({
           id: p.current_scene_index * 1000 + 1,
@@ -3423,6 +3429,7 @@ export default function EditPDFPage() {
           fontSize: p.fontSize ?? DEFAULT_FONT_SIZE,
           color: p.rightTextColor ?? "#000000",
           fontFamily: p.rightFontFamily ?? DEFAULT_FONT_FAMILY,
+          fontWeight: p.rightFontWeight ?? DEFAULT_FONT_WEIGHT,
         });
       }
     });
@@ -3435,6 +3442,10 @@ export default function EditPDFPage() {
         side: "left",
         x: 50,
         y: 50,
+        fontSize: DEFAULT_FONT_SIZE,
+        color: "#000000",
+        fontFamily: DEFAULT_FONT_FAMILY,
+        fontWeight: DEFAULT_FONT_WEIGHT,
       });
     }
 
@@ -4046,6 +4057,7 @@ export default function EditPDFPage() {
                               fontSize={fp.fontSize ?? DEFAULT_FONT_SIZE}
                               color={resolvedColor}
                               fontFamily={fp.fontFamily ?? DEFAULT_FONT_FAMILY}
+                              fontWeight={fp.fontWeight ?? DEFAULT_FONT_WEIGHT}
                               lines={fp.content}
                               scale={currentScale}
                               initialSide={

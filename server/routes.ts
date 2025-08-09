@@ -90,7 +90,7 @@ const MemoryStore = createMemoryStore(session);
 const DEBUG_LOGGING = process.env.DEBUG_LOGGING === "true";
 
 const DEFAULT_FONT_SIZE = 22;
-const DEFAULT_FONT_FAMILY = "";
+const DEFAULT_FONT_FAMILY = "Cormorant Garamond Bold";
 const DEFAULT_COLOR = "#ffffff";
 const FULL_W = 2048;
 const FULL_H = 1024;
@@ -580,7 +580,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // app.post("/api/runValidation", validateStoryInputs);
+  app.post("/api/runValidation", validateStoryInputs);
   // app.post("/api/regenerateScene", regenerateScene);
   // app.post("/api/regenerateBaseCover", regenerateBaseCover);
   // app.post("/api/regenerateFinalCover", regenerateFinalCover);

@@ -179,7 +179,7 @@ const TypingDots = () => (
     {[0, 1, 2].map((i) => (
       <span
         key={i}
-        className="w-1.5 h-1.5 rounded-full bg-red-500 animate-bounce"
+        className="w-1.5 h-1.5 rounded-full bg-imaginory-yellow animate-bounce"
         style={{ animationDelay: `${i * 0.15}s` }}
       />
     ))}
@@ -409,7 +409,7 @@ export function CustomStory({
   const buildSubmitPayload = (storyTheme: string) => {
     const finalMoral =
       moralOption === "none"
-        ? ""
+        ? "no moral"
         : moralOption === "other"
           ? customMoral.trim()
           : moralOption;
@@ -1219,7 +1219,7 @@ export function CustomStory({
                     <div className="mt-4">
                       {/* Header line */}
                       <p className="text-xs mb-1 flex items-center">
-                        <span className="font-semibold text-red-600">
+                        <span className="font-semibold text-imaginory-yellow">
                           {thinking ? "Thinking" : "Listening"}
                         </span>
                         {thinking && <TypingDots />} {/* animated dots */}

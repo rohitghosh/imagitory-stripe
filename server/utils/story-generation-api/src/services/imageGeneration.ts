@@ -28,6 +28,22 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY!,
 });
 
+const endpoint = process.env.AZURE_OPENAI_ENDPOINT; // ends with /openai/v1/
+const apiKey = process.env.AZURE_OPENAI_API_KEY;
+const apiVersion = process.env.AZURE_OPENAI_API_VERSION || "2025-04-01-preview";
+const imageDeployment = process.env.AZURE_IMAGE_DEPLOYMENT; // your gpt-image-1 deployment name
+
+// Create OpenAI client for Azure endpoint with API key
+const azureopenai = new OpenAI({
+  baseURL: endpoint,
+  apiKey,
+  defaultHeaders: {
+    // CRITICAL: Route the image tool to your gpt-image-1 deployment
+    "x-ms-oai-image-generation-deployment": imageDeployment,
+  },
+  defaultQuery: { "api-version": "preview" }, // <-- correct key & value
+});
+
 async function urlToReadableStream(url: string) {
   const res = await fetch(url);
   const { path } = await tmp.file({ postfix: ".png" });
@@ -505,7 +521,7 @@ function buildImageGenTool(
   const tool: Record<string, any> = {
     type: "image_generation",
     /* mandatory knobs */
-    model: "gpt-image-1",
+    // model: "gpt-image-1",
     size: "1024x1024",
     quality: quality,
     output_format: "png",
@@ -638,14 +654,14 @@ export async function generateImageForScene(
   /* ---------- Call OpenAI Responses API ---------- */
   onProgress?.("generating", 25, "Contacting OpenAI…");
 
-  // const resp = await openai.responses.create({
-  //   model: "gpt-4o-mini",
-  //   input: inputs,
-  //   tools: [tool], // ← single, well-formed tool object
-  // });
-  const resp = await openai.responses.retrieve(
-    "resp_6880d4746124819f85bac69f0055c03700d1ab5d60bfc8c6",
-  );
+  const resp = await azureopenai.responses.create({
+    model: "gpt-4o-mini",
+    input: inputs,
+    tools: [tool], // ← single, well-formed tool object
+  });
+  // const resp = await openai.responses.retrieve(
+  //   "resp_6880d4746124819f85bac69f0055c03700d1ab5d60bfc8c6",
+  // );
 
   const responseId = resp.id;
   const imageBase64 = resp.output.find(
@@ -758,15 +774,15 @@ export async function generateImageForFrontCover(
   /* ────────────── 5. Call OpenAI Responses API ────────────────────── */
   onProgress?.("generating_cover", 25, "Contacting OpenAI…");
 
-  // const resp = await openai.responses.create({
-  //   model: "gpt-4o-mini", // chat wrapper; tool invokes GPT-Image-1
-  //   input: inputs,
-  //   tools: [tool],
-  // });
+  const resp = await azureopenai.responses.create({
+    model: "gpt-4o-mini", // chat wrapper; tool invokes GPT-Image-1
+    input: inputs,
+    tools: [tool],
+  });
 
-  const resp = await openai.responses.retrieve(
-    "resp_6880d4746124819f85bac69f0055c03700d1ab5d60bfc8c6",
-  );
+  // const resp = await openai.responses.retrieve(
+  //   "resp_6880d4746124819f85bac69f0055c03700d1ab5d60bfc8c6",
+  // );
 
   /* ────────────── 6. Extract image & persist to Firebase ───────────── */
   const responseId = resp.id;
@@ -1030,7 +1046,7 @@ export async function regenerateBaseCoverImage(
 
   const safePrompt = applyCharacterAliases(revisedPrompt, aliasMap);
 
-  const resp = await openai.responses.create({
+  const resp = await azureopenai.responses.create({
     model: "gpt-4o-mini",
     previous_response_id: coverResponseId,
     input: safePrompt,
@@ -1073,7 +1089,7 @@ export async function regenerateSceneImage(
 
   const safePrompt = applyCharacterAliases(revisedPrompt, aliasMap);
 
-  const resp = await openai.responses.create({
+  const resp = await azureopenai.responses.create({
     model: "gpt-4o-mini",
     previous_response_id: sceneResponseId,
     input: safePrompt,

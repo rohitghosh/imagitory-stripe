@@ -1,6 +1,9 @@
 import { Request, Response } from "express";
 import { ValidationRequest, ValidationResponse } from "../types";
-import { runStoryValidation, runStoryValidationStream } from "../services/validation";
+import {
+  runStoryValidation,
+  runStoryValidationStream,
+} from "../services/validation";
 
 /**
  * Validates story inputs for feasibility
@@ -97,7 +100,7 @@ import { runStoryValidation, runStoryValidationStream } from "../services/valida
 //       });
 //       return;
 //     }
-    
+
 //     // Run validation
 //     const failures = await runStoryValidation({
 //       kidName,
@@ -128,7 +131,6 @@ import { runStoryValidation, runStoryValidationStream } from "../services/valida
 //   }
 // }
 
-
 export async function validateStoryInputs(
   req: Request,
   res: Response,
@@ -146,18 +148,11 @@ export async function validateStoryInputs(
     }: ValidationRequest = req.body;
 
     // Validate required fields
-    if (
-      !kidName ||
-      !pronoun ||
-      !age ||
-      !moral ||
-      !kidInterests ||
-      !storyThemes
-    ) {
+    if (!kidName || !pronoun || !age || !kidInterests || !storyThemes) {
       res.status(400).json({
         success: false,
         error:
-          "Missing required fields: kidName, pronoun, age, moral, kidInterests, storyThemes",
+          "Missing required fields: kidName, pronoun, age, kidInterests, storyThemes",
       });
       return;
     }
@@ -208,8 +203,7 @@ export async function validateStoryInputs(
       return;
     }
 
-     await runStoryValidationStream(req.body, res);
-
+    await runStoryValidationStream(req.body, res);
   } catch (error) {
     console.error("Validation error:", error);
     res.status(500).json({

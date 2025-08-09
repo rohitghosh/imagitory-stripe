@@ -972,7 +972,7 @@ You must evaluate the story concept, primarily focusing on the 'story_theme' and
     *   **Fail Condition:** The concept contains unsafe or age-inappropriate content.
 
 2.  **Ethical & Policy Compliance:**
-    *   **Logic:** Scan all inputs for stereotypes (gender, cultural, racial), glorification of negative behavior, copyrighted characters (e.g., "Mickey Mouse," "Paw Patrol"), or specific brand names.
+    *   **Logic:** Scan all inputs for stereotypes (gender, cultural, racial), glorification of negative behavior. 
     *   **Fail Condition:** The concept contains copyrighted material, brands, or harmful stereotypes.
 
 #### **Category 2: Character Consistency Checks**
@@ -989,37 +989,31 @@ You must evaluate the story concept, primarily focusing on the 'story_theme' and
     *   **Logic:** Compare the role and actions of 'character1' as implied by the 'story_theme' with the provided 'character1_description'. The actions in the story must align with the described personality.
     *   **Fail Condition:** There is a significant mismatch between the character's description and their role in the story (e.g., a "timid mouse" is described as "leading a loud parade").
 
-6.  **Side Character Subordination:**
-    *   **Logic:** Evaluate the role of 'character1' in the 'story_theme'. The sidekick must support or guide the protagonist, not solve the central problem single-handedly or overshadow them.
-    *   **Fail Condition:** The theme positions 'character1' as the primary hero who makes all key decisions and performs all critical actions.
 
 #### **Category 3: Narrative & Structural Feasibility**
 
-7.  **Premise Complexity:**
+6.  **Premise Complexity:**
     *   **Logic:** Judge if the 'story_theme' is too complex or contains too many plot points to be told effectively in a 9-scene book for a child of 'age'.
     *   **Fail Condition:** The theme is overly ambitious, convoluted, or requires extensive explanation.
 
 #### **Category 4: Visual & Illustrative Feasibility**
 
-8. **Visual Concreteness:**
+7. **Visual Concreteness:**
     *   **Logic:** Analyze if the nouns, settings, and concepts in the 'story_theme' and 'kid_interest' are concrete and can be clearly represented visually.
     *   **Fail Condition:** The concept is built around a highly abstract idea (e.g., "a story about economic theory"), an un-drawable action, or an imaginary creature/place with no description.
 
-9. **Adherence to Visual Constraints:**
+8. **Adherence to Visual Constraints:**
     *   **Logic:** Scan all inputs for elements that are explicitly forbidden by the image generation guidelines, such as readable text, numbers, real-world logos, or weapons.
     *   **Fail Condition:** The concept fundamentally relies on showing forbidden visual elements to be understood.
 
-10. **Environmental Variety:**
-    *   **Logic:** Determine if the 'story_theme' and 'kid_interest' naturally allow for action to occur in at least two to three distinct environments or a single environment that evolves significantly.
-    *   **Fail Condition:** The concept confines the entire story to a single, static location (e.g., "sitting in one chair"), preventing visual variety.
 
 #### **Category 5: Holistic Coherence Checks**
 
-11. **Thematic & Moral Consistency:**
-    *   **Logic:** Assess if the explicitly provided 'moral' is compatible with the 'story_theme'. The moral should feel like a natural lesson that could be learned from the adventure, and it should not conflict with the characters' roles.
-    *   **Fail Condition:** Only fail is the moral directly contradicts the theme (e.g., theme is "a fun team race" and moral is "it's best to work alone") or feels entirely disconnected and forced. Do not fail if there is no moral involved - this is not a problem. 
+9. **Thematic & Moral Consistency:**
+    *   **Logic:** Assess if the explicitly provided 'moral' is compatible with the 'story_theme'. The moral should feel like a natural lesson that could be learned from the adventure, and it should not conflict with the characters' roles. If no moral is provided, this check is not applicable.
+    *   **Fail Condition:** Only fail is the moral, when provided, directly contradicts the theme (e.g., theme is "a fun team race" and moral is "it's best to work alone") or feels entirely disconnected and forced. Do not fail if there is no moral involved - this is not a problem. 
 
-12. **Holistic Feasibility Check:**
+10. **Holistic Feasibility Check:**
     *   **Logic:** As a final check, evaluate if all provided inputs ('kid_interest', 'story_theme', 'moral', and 'character1_description') can be synergistically and coherently woven into a single, compelling 9-scene story.
     *   **Fail Condition:** The combination of elements feels forced, disjointed, or thematically dissonant, making a quality story impossible to generate from the given inputs.
 
@@ -1107,8 +1101,8 @@ Validation Checks (Comprehensive & MECE)
     *   **Fail Condition:** The concept contains unsafe or age-inappropriate content.
 
 2.  **Ethical & Policy Compliance:**
-    *   **Logic:** Scan the inputs for stereotypes, glorification of negative behavior, copyrighted characters (e.g., "Mickey Mouse," "Paw Patrol"), or brand names.
-    *   **Fail Condition:** The concept contains copyrighted material, brands, or harmful stereotypes.
+  *   **Logic:** Scan all inputs for stereotypes (gender, cultural, racial), glorification of negative behavior. 
+  *   **Fail Condition:** The concept contains copyrighted material, brands, or harmful stereotypes.
 
 3.  **Protagonist Centrality:**
     *   **Logic:** Verify that the 'story_theme' allows 'kidName' to be the clear protagonist. The story must be about 'kidName''s actions, feelings, or journey.
@@ -1134,15 +1128,12 @@ Validation Checks (Comprehensive & MECE)
     *   **Logic:** Scan the 'story_theme' and 'kid_interest' for elements explicitly forbidden by image generation guidelines (e.g., readable text, logos).
     *   **Fail Condition:** The concept fundamentally relies on showing forbidden visual elements.
 
-9. **Environmental Variety:**
-    *   **Logic:** Determine if the 'story_theme' and 'kid_interest' allow for at least 2-3 distinct or evolving settings to ensure visual variety.
-    *   **Fail Condition:** The concept confines the story to a single, unchanging location.
 
-10. **Thematic & Moral Consistency:**
-    *   **Logic:** Assess if the explicitly provided 'moral' is compatible with the 'story_theme'. The moral should feel like a natural lesson that could be learned from the adventure described in the theme.
-    *   **Fail Condition:** Only fail is the moral directly contradicts the theme (e.g., theme is "a fun team race" and moral is "it's best to work alone") or feels entirely disconnected and forced. Do not fail if there is no moral involved - this is not a problem. 
+9. **Thematic & Moral Consistency:**
+    *   **Logic:** Assess if the explicitly provided 'moral' is compatible with the 'story_theme'. The moral, when provided, should feel like a natural lesson that could be learned from the adventure described in the theme. If no moral is provided, this check is not applicable.
+    *   **Fail Condition:** Only fail is the moral, when provided, directly contradicts the theme (e.g., theme is "a fun team race" and moral is "it's best to work alone") or feels entirely disconnected and forced. Do not fail if there is no moral involved - this is not a problem. 
 
-11. **Holistic Feasibility Check:**
+10. **Holistic Feasibility Check:**
     *   **Logic:** As a final check, evaluate if all provided inputs ('kid_interest', 'story_theme', and 'moral') can be synergistically and coherently woven into a single, compelling 9-scene story.
     *   **Fail Condition:** The combination of elements feels forced, disjointed, or thematically dissonant, making a quality story impossible to generate.
 
