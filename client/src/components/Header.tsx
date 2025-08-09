@@ -42,17 +42,17 @@ export function Header() {
           </Link>
         </div>
 
-        <div className="flex items-center space-x-4">
-          <Link href="/">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-4">
+          {/* <Link href="/">
             <Button 
               variant="ghost" 
               className="font-sans text-imaginory-black hover:bg-gray-100 rounded-2xl px-4 py-2 transition-all"
             >
               Home
             </Button>
-          </Link>
+          </Link> */}
           <Link href="/create">
-            <Button className="imaginory-button">
+            <Button className="imaginory-button px-4 py-2 text-sm hover:scale-100 sm:px-8 sm:py-4 sm:text-lg sm:hover:scale-105">
               Create Story
             </Button>
           </Link>
@@ -115,7 +115,7 @@ export function Header() {
             <Link href="/login">
               <Button 
                 variant="outline" 
-                className="font-body border-2 border-gray-300 text-imaginory-black hover:bg-gray-100 rounded-2xl px-6 py-2 transition-all"
+                className="font-body border-2 border-gray-300 text-imaginory-black hover:bg-gray-100 rounded-2xl px-4 py-2 text-sm hover:scale-100 sm:px-6 sm:text-base sm:hover:scale-105 transition-all"
               >
                 Sign In
               </Button>
