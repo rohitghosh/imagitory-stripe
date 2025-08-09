@@ -58,7 +58,7 @@ export const AssistantFAB: React.FC<AssistantFABProps> = ({
           WebkitTapHighlightColor: "transparent",
           touchAction: "manipulation",
         }}
-        aria-label="Open StoryPal Assistant"
+        aria-label="Open Imaginory Assistant"
       >
         <HelpCircle className="w-6 h-6" />
 

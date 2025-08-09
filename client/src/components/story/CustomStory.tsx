@@ -504,8 +504,14 @@ export function CustomStory({
       "GET",
       `/api/characters/${primaryCharacterId}`,
     );
-    const pronoun =
-      hero.gender === "male" ? "he" : hero.gender === "female" ? "she" : "they";
+
+    const pronoun = ["boy", "male", "man"].includes(
+      hero.gender?.toLowerCase() || "",
+    )
+      ? "he"
+      : ["girl", "female", "woman"].includes(hero.gender?.toLowerCase() || "")
+        ? "she"
+        : "they";
 
     const payload: any = {
       kidName: hero.name, // e.g. "Aarav"
@@ -696,12 +702,13 @@ export function CustomStory({
     }
 
     /* normalise gender for the API */
-    const genderPayload =
-      detailGender === "male"
-        ? "boy"
-        : detailGender === "female"
-          ? "girl"
-          : "other";
+    const genderPayload = ["male", "man", "boy"].includes(
+      detailGender?.toLowerCase() || "",
+    )
+      ? "boy"
+      : ["female", "woman", "girl"].includes(detailGender?.toLowerCase() || "")
+        ? "girl"
+        : "other";
 
     /* merge original + toon so both stay in the DB */
     const allImages = Array.from(
@@ -980,20 +987,20 @@ export function CustomStory({
                       />
                     </div>
                     <div>
-                      <Label className="block mb-1">Gender</Label>
+                      <Label className="block mb-1">Pronoun</Label>
                       <RadioGroup
                         value={detailGender}
                         onValueChange={setDetailGender}
                         className="flex space-x-4"
                       >
                         <div className="flex items-center space-x-1">
-                          <RadioGroupItem value="male" /> Male
+                          <RadioGroupItem value="male" /> He/Him
                         </div>
                         <div className="flex items-center space-x-1">
-                          <RadioGroupItem value="female" /> Female
+                          <RadioGroupItem value="female" /> She/Her
                         </div>
                         <div className="flex items-center space-x-1">
-                          <RadioGroupItem value="other" /> Other
+                          <RadioGroupItem value="other" /> They/Them
                         </div>
                       </RadioGroup>
                     </div>

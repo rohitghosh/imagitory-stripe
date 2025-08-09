@@ -412,7 +412,7 @@ export function CustomCharacterForm({
                   name="gender"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Gender</FormLabel>
+                      <FormLabel>Pronoun</FormLabel>
                       <FormControl>
                         <RadioGroup
                           onValueChange={field.onChange}
@@ -423,19 +423,19 @@ export function CustomCharacterForm({
                             <FormControl>
                               <RadioGroupItem value="boy" />
                             </FormControl>
-                            <FormLabel>Boy</FormLabel>
+                            <FormLabel>He/Him</FormLabel>
                           </FormItem>
                           <FormItem className="flex items-center space-x-2">
                             <FormControl>
                               <RadioGroupItem value="girl" />
                             </FormControl>
-                            <FormLabel>Girl</FormLabel>
+                            <FormLabel>She/Her</FormLabel>
                           </FormItem>
                           <FormItem className="flex items-center space-x-2">
                             <FormControl>
                               <RadioGroupItem value="other" />
                             </FormControl>
-                            <FormLabel>Other</FormLabel>
+                            <FormLabel>They/Them</FormLabel>
                           </FormItem>
                         </RadioGroup>
                       </FormControl>

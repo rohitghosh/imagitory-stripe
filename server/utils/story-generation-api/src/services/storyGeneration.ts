@@ -101,7 +101,7 @@ Do not write any other text, explanation, or introduction. Your entire output mu
       { role: "user", content: userPrompt },
     ],
     text: { format: zodTextFormat(schema, "story_response") },
-    reasoning: { effort: "low", summary: "detailed" },
+    reasoning: { effort: "high", summary: "detailed" },
   });
 
   let jsonBuf = "";

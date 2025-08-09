@@ -73,42 +73,40 @@ export const StickyHeader: React.FC<StickyHeaderProps> = ({
               {/* Tooltip for desktop */}
               {isHovered && !showWelcomeMessage && (
                 <div className="hidden md:block absolute top-full right-0 mt-2 px-3 py-1 bg-gray-800 text-white text-sm rounded-lg whitespace-nowrap z-50">
-                  StoryPal Assistant
+                  Imaginory Assistant
                   <div className="absolute bottom-full right-4 w-0 h-0 border-l-4 border-r-4 border-b-4 border-transparent border-b-gray-800" />
                 </div>
               )}
 
-              <button
+              <Button
                 onClick={onToggleAssistant}
                 onMouseEnter={() => setIsHovered(true)}
                 onMouseLeave={() => setIsHovered(false)}
-                className={`relative p-2 md:p-3 rounded-lg transition-all duration-200 hover:scale-110 ${
-                  isAssistantOpen
-                    ? "bg-imaginory-yellow/20 text-imaginory-black shadow-md"
-                    : "hover:bg-gray-100 text-gray-600"
-                }`}
-                aria-label="Toggle StoryPal Assistant"
+                className="relative bg-gray-100 hover:bg-gray-50 text-gray-700 font-semibold shadow-inner border-2 border-black transition-all duration-200 hover:shadow-inner-lg"
+                style={{
+                  boxShadow:
+                    "inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.8)",
+                }}
+                size="default"
+                aria-label="Chat & Edit"
               >
-                <HelpCircle className="w-5 h-5 md:w-6 md:h-6" />
-
-                {/* Enhanced pulse animation */}
-                {!isAssistantOpen && (
-                  <>
-                    <span className="absolute inset-0 rounded-lg bg-imaginory-yellow opacity-30 animate-ping" />
-                    <span className="absolute inset-0 rounded-lg bg-imaginory-yellow opacity-20 animate-pulse" />
-                  </>
-                )}
-              </button>
+                <span className="hidden sm:inline text-base">Chat & Edit</span>
+                <span className="sm:hidden">Chat</span>
+              </Button>
             </div>
 
             {/* Primary CTA: Edit PDF - Made Bigger */}
             <Button
               onClick={onEditPDF}
-              className="bg-imaginory-yellow hover:bg-imaginory-yellow/90 text-imaginory-black font-semibold shadow-md transition-all duration-200 hover:shadow-lg hover:scale-105"
+              className="bg-imaginory-yellow hover:bg-imaginory-yellow/90 text-imaginory-black font-semibold transition-all duration-200 hover:scale-105"
+              style={{
+                boxShadow:
+                  "2px 2px 6px rgba(0,0,0,0.2), -1px -1px 3px rgba(255,255,255,0.6), inset -1px -1px 2px rgba(0,0,0,0.1)",
+              }}
               size="default" // Changed from "sm" to "default" for bigger size
             >
-              <span className="hidden sm:inline text-base">Edit PDF</span>
-              <span className="sm:hidden">Edit</span>
+              <span className="hidden sm:inline text-base">Preview PDF</span>
+              <span className="sm:hidden">Preview</span>
               {isDirty && (
                 <span className="ml-2 w-2 h-2 bg-imaginory-blue rounded-full animate-pulse"></span>
               )}

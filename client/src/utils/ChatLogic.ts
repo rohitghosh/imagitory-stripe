@@ -242,7 +242,7 @@ export class ChatLogic {
         { id: "start_over", label: "Start Over", value: "start_over" },
         {
           id: "proceed_to_pdf",
-          label: "Everything looks good. Proceed to Edit PDF",
+          label: "Everything looks good. Proceed to Generate PDF",
           value: "proceed_to_pdf",
         },
       ],
