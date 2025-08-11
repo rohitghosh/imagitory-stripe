@@ -973,11 +973,11 @@ export async function generateFinalCoverWithTitle(
 
   onProgress?.("generating_final_cover", 20, "Calling title overlay API...");
 
-  console.log("Adding title to cover using fal-ai/flux-pro/kontext");
+  console.log("Adding title to cover using fal-ai/flux-pro/kontext/max");
   console.log(`Base cover URL: ${baseCoverUrl}`);
   console.log(`Title prompt: ${titlePrompt}`);
 
-  const falRes = await fal.subscribe("fal-ai/flux-pro/kontext", {
+  const falRes = await fal.subscribe("fal-ai/flux-pro/kontext/max", {
     input: {
       prompt: titlePrompt,
       image_url: baseCoverUrl,
