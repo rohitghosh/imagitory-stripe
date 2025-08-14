@@ -1,9 +1,9 @@
-import { Request, Response } from "express";
-import { ValidationRequest, ValidationResponse } from "../types";
-import {
-  runStoryValidation,
-  runStoryValidationStream,
-} from "../services/validation";
+// import { Request, Response } from "express";
+// import { ValidationRequest, ValidationResponse } from "../types";
+// import {
+//   runStoryValidation,
+//   runStoryValidationStream,
+// } from "../services/validation";
 
 /**
  * Validates story inputs for feasibility
@@ -131,6 +131,18 @@ import {
 //   }
 // }
 
+import { Request, Response } from "express";
+import { ValidationRequest, ValidationResponse } from "../types";
+import { StoryValidationInput } from "../types/story";
+import {
+  runStoryValidation,
+  runStoryValidationStream,
+} from "../services/validation";
+
+/**
+ * Validates story inputs for feasibility
+ * POST /api/runValidation
+ */
 export async function validateStoryInputs(
   req: Request,
   res: Response,
@@ -141,18 +153,26 @@ export async function validateStoryInputs(
       pronoun,
       age,
       moral,
+      storyRhyming,
       kidInterests,
       storyThemes,
       characters,
       character_descriptions,
-    }: ValidationRequest = req.body;
+    }: ValidationRequest & { storyRhyming?: boolean } = req.body;
 
     // Validate required fields
-    if (!kidName || !pronoun || !age || !kidInterests || !storyThemes) {
+    if (
+      !kidName ||
+      !pronoun ||
+      !age ||
+      !moral ||
+      !kidInterests ||
+      !storyThemes
+    ) {
       res.status(400).json({
         success: false,
         error:
-          "Missing required fields: kidName, pronoun, age, kidInterests, storyThemes",
+          "Missing required fields: kidName, pronoun, age, moral, kidInterests, storyThemes",
       });
       return;
     }
@@ -203,7 +223,20 @@ export async function validateStoryInputs(
       return;
     }
 
-    await runStoryValidationStream(req.body, res);
+    // Create the validation input with storyRhyming (default to false if not provided)
+    const validationInput: StoryValidationInput = {
+      kidName,
+      pronoun,
+      age,
+      moral,
+      storyRhyming: storyRhyming ?? false,
+      kidInterests,
+      storyThemes,
+      characters,
+      character_descriptions,
+    };
+
+    await runStoryValidationStream(validationInput, res);
   } catch (error) {
     console.error("Validation error:", error);
     res.status(500).json({
