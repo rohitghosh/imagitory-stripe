@@ -722,20 +722,12 @@ export function SideCharacterSelection({
                 </div>
               ) : (
                 <FileUploadTile
+                  onUpload={handleUpload}
                   onStart={() => {
                     setUploading(true);
                     setUploadPct(0);
                   }}
                   onProgress={setUploadPct}
-                  onComplete={handleUpload}
-                  onError={(error) => {
-                    setUploading(false);
-                    toast({
-                      title: "Upload failed",
-                      description: error,
-                      variant: "destructive",
-                    });
-                  }}
                 />
               )}
             </div>
