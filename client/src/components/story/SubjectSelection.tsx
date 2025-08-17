@@ -724,12 +724,12 @@ export function SubjectSelection({
   }, [customSubject, isCustomTheme]);
 
   const canValidate = isCustomTheme
-    ? customSubject.trim().length > 0 && customSubject.trim().length <= 140
+    ? customSubject.trim().length > 0 && customSubject.trim().length <= 1000
     : selectedSubject !== "";
 
   const canProceed = isCustomTheme
     ? customSubject.trim().length > 0 &&
-      customSubject.trim().length <= 140 &&
+      customSubject.trim().length <= 1000 &&
       isValidated
     : selectedSubject !== "";
 
@@ -788,21 +788,34 @@ export function SubjectSelection({
           {/* Custom Subject Input for Custom Themes */}
           {isCustomTheme && (
             <div className="bg-gray-50 rounded-lg p-3 md:p-4 space-y-3 md:space-y-4">
-              <div>
+              <div className="relative">
                 <Label htmlFor="custom-subject">Your Story Subject</Label>
-                <Textarea
-                  id="custom-subject"
-                  value={customSubject}
-                  onChange={(e) => setCustomSubject(e.target.value)}
-                  placeholder="Describe the specific subject or focus of your story (e.g., 'Finding a lost treasure in the deep ocean', 'Making friends with a shy robot')"
-                  className="mt-1 text-sm md:text-base p-3 md:p-4"
-                  rows={5}
-                  style={{ minHeight: "120px", width: "100%" }}
-                  maxLength={140}
-                  disabled={isValidating}
-                />
+                <div className="relative">
+                  <Textarea
+                    id="custom-subject"
+                    value={customSubject}
+                    onChange={(e) => setCustomSubject(e.target.value)}
+                    placeholder="Describe the specific subject or focus of your story (e.g., 'Finding a lost treasure in the deep ocean', 'Making friends with a shy robot')"
+                    className="mt-1 text-sm md:text-base p-3 md:p-4"
+                    rows={5}
+                    style={{ minHeight: "120px", width: "100%" }}
+                    maxLength={1000}
+                    disabled={isValidating}
+                  />
+                  {/* Validation Overlay */}
+                  {isValidating && (
+                    <div className="absolute inset-0 bg-white/80 flex items-center justify-center rounded-md mt-1">
+                      <div className="text-center">
+                        <div className="text-yellow-600 font-semibold text-sm mb-2">
+                          Validating Story
+                        </div>
+                        <TypingDots />
+                      </div>
+                    </div>
+                  )}
+                </div>
                 <p className="text-xs text-gray-500 mt-1">
-                  {customSubject.length}/140 characters
+                  {customSubject.length}/1000 characters
                 </p>
               </div>
 
@@ -811,7 +824,7 @@ export function SubjectSelection({
                 <Button
                   onClick={validateStory}
                   disabled={!canValidate || isValidating}
-                  className="bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 w-full md:w-auto"
+                  className="bg-imaginory-yellow hover:bg-imaginory-yellow-600 disabled:bg-gray-300 w-full md:w-auto"
                 >
                   {isValidating ? (
                     <>
@@ -895,15 +908,23 @@ export function SubjectSelection({
           )}
 
           {/* Navigation */}
-          <div className="flex justify-center md:justify-between">
+          <div className="flex flex-col md:flex-row gap-3 md:justify-between">
             <Button
               variant="outline"
               onClick={onBack}
-              className="w-full md:w-auto"
+              className="w-full md:w-auto order-2 md:order-1"
             >
               ← Back to Theme
             </Button>
-            {/* Continue button removed */}
+
+            {/* Continue button - always visible but only enabled when canProceed is true */}
+            <Button
+              onClick={handleNext}
+              disabled={!canProceed}
+              className="bg-yellow-500 hover:bg-yellow-600 disabled:bg-gray-300 disabled:text-gray-500 w-full md:w-auto order-1 md:order-2"
+            >
+              Continue to Settings →
+            </Button>
           </div>
         </div>
       </CardContent>
