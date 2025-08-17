@@ -13,7 +13,6 @@
 // import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 // import { apiRequest } from "@/lib/queryClient";
 // import { Progress } from "@/components/ui/progress";
-// import { useValidationStream } from "@/hooks/useValidationStream";
 
 // // Persisted wizard state key
 // const STORAGE_KEY = "customStoryWizardState";
@@ -34,7 +33,7 @@
 // const NO_ONE: CharacterDetails = {
 //   id: "none",
 //   avatar: "",
-//   toonUrl: "", // or a placeholder data-URI
+//   toonUrl: "",
 //   name: "No one",
 //   relation: "",
 //   gender: "other",
@@ -72,7 +71,7 @@
 //   "Curiosity leads to discovery":
 //     "Looking closely and asking questions reveals new ideas and paths.",
 //   "Keep going, adjust the plan":
-//     "Try, tweak, and try again when things don’t work at first.",
+//     "Try, tweak, and try again when things don't work at first.",
 //   "Calm body, clear choices":
 //     "Breathe, settle feelings, then decide what to do.",
 //   "Courage with care":
@@ -80,29 +79,6 @@
 // };
 
 // type Section = { title: string; body: string };
-
-// const takeHeading = (buf: string) => {
-//   const open = buf.indexOf("**");
-//   if (open === -1) return null; // no opener yet
-//   const close = buf.indexOf("**", open + 2);
-//   if (close === -1) return null; // no closer yet
-//   return {
-//     before: buf.slice(0, open), // text before **
-//     title: buf.slice(open + 2, close).trim(), // heading text
-//     rest: buf.slice(close + 2), // tail after **
-//   };
-// };
-
-// // const THEME_OPTIONS = [
-// //   { value: "adventure-quest", label: "Adventure Quest" },
-// //   { value: "magical-discovery", label: "Magical Discovery" },
-// //   { value: "friendship-tale", label: "Friendship Tale" },
-// //   { value: "bedtime-comfort", label: "Bedtime Comfort" },
-// //   { value: "mystery-solving", label: "Mystery Solving" },
-// //   { value: "big-day-story", label: "Big Day Story" },
-// //   { value: "imagination-play", label: "Imagination Play" },
-// //   { value: "none", label: "No Special Theme" },
-// // ];
 
 // const THEME_OPTIONS = [
 //   {
@@ -168,14 +144,13 @@
 //     storyType: "custom";
 //     characters: CharacterDetails[];
 //     moral: string;
-//     theme: string; // holds either theme value or custom story text
+//     theme: string;
 //     rhyming: boolean;
 //   }) => void;
 // }
 
 // const TypingDots = () => (
 //   <span className="inline-flex gap-0.5 ml-1">
-//     {/* 3 animated dots */}
 //     {[0, 1, 2].map((i) => (
 //       <span
 //         key={i}
@@ -186,18 +161,15 @@
 //   </span>
 // );
 
-// // Simple hover/focus tooltip (no extra deps)
+// // Simple hover/focus tooltip
 // const HoverHint: React.FC<{ content: string; children: React.ReactNode }> = ({
 //   content,
 //   children,
 // }) => (
 //   <span className="relative inline-block group">
-//     {/* Trigger */}
 //     <span className="inline-block" aria-describedby="hint">
 //       {children}
 //     </span>
-
-//     {/* Tooltip bubble */}
 //     <span
 //       role="tooltip"
 //       className="
@@ -231,8 +203,8 @@
 //   const [predefs, setPredefs] = useState<any[]>([]);
 //   const [loading, setLoading] = useState<boolean>(true);
 
-//   // Character states
-//   const [selectedChar, setSelectedChar] = useState<CharacterDetails>(NO_ONE);
+//   // Character states - UPDATED FOR MULTI-CHARACTER SUPPORT
+//   const [selectedChars, setSelectedChars] = useState<CharacterDetails[]>([]);
 //   const [tempAvatar, setTempAvatar] = useState<string | null>(null);
 //   const [showDetailForm, setShowDetailForm] = useState<boolean>(false);
 //   const [detailName, setDetailName] = useState<string>("");
@@ -257,7 +229,7 @@
 //   const [reasoningLog, setReasoningLog] = useState("");
 //   const [thinking, setThinking] = useState(false);
 
-//   // NEW: theme or 140‑char story mode
+//   // Theme or 140‑char story mode
 //   const [storyMode, setStoryMode] = useState<"theme" | "text">("theme");
 //   const [customStory, setCustomStory] = useState<string>("");
 //   const [validationErrors, setValidationErrors] = useState<ValidationError[]>(
@@ -265,17 +237,10 @@
 //   );
 //   const [section, setSection] = useState<Section | null>(null);
 
-//   // const { reasoning, result, done } = useValidationStream(
-//   //   streaming,
-//   //   validationPayload,
-//   // );
-
 //   const logRef = useRef<HTMLPreElement>(null);
 //   useEffect(() => {
 //     logRef.current?.scrollTo({ top: logRef.current.scrollHeight });
 //   }, [reasoningLog]);
-
-//   // useEffect(() => setReasoningLog(reasoning), [reasoning]);
 
 //   // Load persisted
 //   useEffect(() => {
@@ -283,50 +248,23 @@
 //     if (saved) {
 //       try {
 //         const st = JSON.parse(saved);
-//         setSelectedChar(st.selectedChar);
+//         setSelectedChars(st.selectedChars || []);
 //         setMoralOption(st.moralOption);
 //         setCustomMoral(st.customMoral);
 //         setTheme(st.theme);
 //         setRhyming(st.rhyming);
-//         // new
 //         setStoryMode(st.storyMode ?? "theme");
 //         setCustomStory(st.customStory ?? "");
 //       } catch {}
 //     }
 //   }, []);
 
-//   // useEffect(() => {
-//   //   if (!done) return; // wait until SSE closes
-
-//   //   // setStreaming(false);
-//   //   // setValidatingStory(false);
-
-//   //   if (result?.success) {
-//   //     onSubmit(buildSubmitPayload(customStory.trim()));
-//   //   } else if (result?.failures) {
-//   //     const mapped = result.failures.map((f: any) => ({
-//   //       check:     f.check,
-//   //       problem:   f.problem,
-//   //       solutions: Array.isArray(f.solution) ? f.solution : [],
-//   //     }));
-//   //     setValidationErrors(mapped);
-//   //   } else {
-//   //     setValidationErrors([
-//   //       {
-//   //         check: "Validation",
-//   //         problem: result?.error ?? "Unknown error",
-//   //         solutions: [],
-//   //       },
-//   //     ]);
-//   //   }
-//   // }, [done, result]);
-
 //   // Persist
 //   useEffect(() => {
 //     localStorage.setItem(
 //       STORAGE_KEY,
 //       JSON.stringify({
-//         selectedChar,
+//         selectedChars,
 //         moralOption,
 //         customMoral,
 //         theme,
@@ -336,7 +274,7 @@
 //       }),
 //     );
 //   }, [
-//     selectedChar,
+//     selectedChars,
 //     moralOption,
 //     customMoral,
 //     theme,
@@ -376,9 +314,8 @@
 //       .finally(() => setLoading(false));
 //   }, [primaryCharacterId]);
 
-//   const isCustom =
-//     selectedChar.id !== NO_ONE.id &&
-//     !predefs.find((c) => c.id === selectedChar.id);
+//   const isCustom = (char: CharacterDetails) =>
+//     char.id !== NO_ONE.id && !predefs.find((c) => c.id === char.id);
 
 //   const canSaveDetail = () =>
 //     detailName.trim() !== "" && detailRelation.trim() !== "";
@@ -387,25 +324,22 @@
 //     if (showDetailForm) return false;
 //     if (step === 0) return true;
 //     if (step === 1) return moralOption !== "other" || customMoral.trim() !== "";
-//     // step === 2
 //     if (storyMode === "theme") {
-//       return theme !== "none"; // must pick a theme
+//       return theme !== "none";
 //     }
 //     return customStory.trim().length > 0 && customStory.trim().length <= 140;
 //   };
 
 //   const cancelSideCharacter = () => {
-//     uploadToken.current += 1; // invalidates in-flight cartoonify
+//     uploadToken.current += 1;
 //     setTempAvatar(null);
 //     setCartoonUrl(null);
 //     setCartoonPending(false);
 //     setUploading(false);
 //     setUploadPct(0);
 //     setShowDetailForm(false);
-//     setSelectedChar(NO_ONE);
 //   };
 
-//   /** helper to assemble payload shared by both submit paths */
 //   const buildSubmitPayload = (storyTheme: string) => {
 //     const finalMoral =
 //       moralOption === "none"
@@ -413,39 +347,29 @@
 //         : moralOption === "other"
 //           ? customMoral.trim()
 //           : moralOption;
-//     const chars = selectedChar.id === NO_ONE.id ? [] : [selectedChar];
 //     return {
 //       storyType: "custom" as const,
-//       characters: chars,
+//       characters: selectedChars,
 //       moral: finalMoral,
 //       theme: storyTheme,
 //       rhyming,
 //     };
 //   };
 
-//   /* -----------------------------------------------------------------
-//      Card builder that waits for "**Heading**X" (where X = any char
-//      that is *not* an asterisk) before it finalises the heading.
-//   ----------------------------------------------------------------- */
 //   const pending = React.useRef("");
 
 //   const appendToken = React.useCallback(
 //     (raw: string) => {
-//       /* 1 ─ blank payload  →  real paragraph break ---------------- */
 //       if (raw === "" || raw === " " || raw === "\n") {
 //         setSection((s) => (s ? { ...s, body: s.body + "\n\n" } : s));
 //         return;
 //       }
 
-//       /* 2 ─ drop the single SSE artefact-space when it splits words */
 //       if (raw.startsWith(" ") && /[A-Za-z0-9*]$/.test(section?.body ?? ""))
 //         raw = raw.slice(1);
 
-//       /* 3 ─ accumulate the chunk                                     */
 //       pending.current += raw;
 
-//       /* 4 ─ while we have a *complete* “…**Heading**‹any-char›” ---- */
-//       // eslint-disable-next-line
 //       while (true) {
 //         const open = pending.current.indexOf("**");
 //         if (open === -1) break;
@@ -453,34 +377,29 @@
 //         const close = pending.current.indexOf("**", open + 2);
 //         if (close === -1) break;
 
-//         // there must be at least ONE non-* char after the closer
 //         if (pending.current.length === close + 2) break;
 //         if (pending.current[close + 2] === "*") break;
 
-//         /* ─── we’ve got a whole heading + something after it ────── */
-//         const chunk = pending.current.slice(0, close + 2); // …**Heading**
-//         const tail = pending.current.slice(close + 2); // what follows
-//         pending.current = tail; // keep tail
+//         const chunk = pending.current.slice(0, close + 2);
+//         const tail = pending.current.slice(close + 2);
+//         pending.current = tail;
 
-//         /* split the processed part on every **Heading** ------------ */
 //         const parts = chunk.split(/\*\*([^*]+)\*\*/g);
-//         //                [before, heading, after, heading, after …]
 
 //         setSection((prev) => {
 //           let cur = prev ?? { title: "Thinking…", body: "" };
 
-//           cur.body += parts[0]; // text before 1st heading
+//           cur.body += parts[0];
 
 //           for (let i = 1; i < parts.length; i += 2) {
 //             const title = parts[i].trim();
 //             const body = parts[i + 1] ?? "";
-//             cur = { title, body }; // replace card
+//             cur = { title, body };
 //           }
 //           return cur;
 //         });
 //       }
 
-//       /* 5 ─ whatever is left and has NO '**' is plain body text ---- */
 //       if (pending.current && !pending.current.includes("**")) {
 //         setSection((s) => (s ? { ...s, body: s.body + pending.current } : s));
 //         pending.current = "";
@@ -489,10 +408,32 @@
 //     [section],
 //   );
 
+//   const removeCharacter = (characterId: string) => {
+//     setSelectedChars((prev) => prev.filter((char) => char.id !== characterId));
+//   };
+
+//   const selectCharacter = (character: CharacterDetails) => {
+//     if (character.id === NO_ONE.id) {
+//       setSelectedChars([]);
+//       return;
+//     }
+
+//     const isAlreadySelected = selectedChars.find(
+//       (char) => char.id === character.id,
+//     );
+//     if (isAlreadySelected) {
+//       removeCharacter(character.id);
+//       return;
+//     }
+
+//     if (selectedChars.length < 3) {
+//       setSelectedChars((prev) => [...prev, character]);
+//     }
+//   };
+
 //   const validateThenSubmit = async () => {
 //     setValidationErrors([]);
 //     setReasoningLog("");
-//     // setValidatingStory(false);
 
 //     const finalMoral =
 //       moralOption === "none"
@@ -514,28 +455,30 @@
 //         : "they";
 
 //     const payload: any = {
-//       kidName: hero.name, // e.g. "Aarav"
-//       pronoun, // "he" | "she" | "they"
-//       age: hero.age ?? 0, // fallback to 0 if missing
-//       moral: finalMoral, // already normalised earlier
-//       kidInterests: hero.interests ?? [], // [] if none saved
+//       kidName: hero.name,
+//       pronoun,
+//       age: hero.age ?? 0,
+//       moral: finalMoral,
+//       kidInterests: hero.interests ?? [],
 //       storyThemes:
 //         storyMode === "theme"
 //           ? theme !== "none"
-//             ? [theme] // e.g. ["magical-discovery"]
+//             ? [theme]
 //             : []
 //           : [customStory.trim()],
+//       storyRhyming: rhyming,
 //     };
 
-//     if (selectedChar.id !== NO_ONE.id) {
-//       payload.characters = [selectedChar.name];
-//       payload.character_descriptions = [
-//         selectedChar?.description ||
-//           selectedChar?.relations?.find(
+//     if (selectedChars.length > 0) {
+//       payload.characters = selectedChars.map((char) => char.name);
+//       payload.character_descriptions = selectedChars.map(
+//         (char) =>
+//           char?.description ||
+//           char?.relations?.find(
 //             (r) => r.primaryCharacterId === primaryCharacterId,
 //           )?.relation ||
 //           "",
-//       ];
+//       );
 //     }
 
 //     try {
@@ -546,7 +489,6 @@
 //         method: "POST",
 //         headers: {
 //           "Content-Type": "application/json",
-//           // make it explicit so some CDNs/browsers don’t buffer
 //           Accept: "text/event-stream",
 //           "Cache-Control": "no-cache",
 //         },
@@ -582,13 +524,12 @@
 
 //           console.log("🔬 5. SSE block:", block);
 
-//           /* Grab lines & classify */
 //           const lines = block.split("\n");
 //           const typeLine = lines.find((l) => l.startsWith("event:"));
 //           const isResult = typeLine?.startsWith("event: result");
 //           const dataLines = lines
 //             .filter((l) => l.startsWith("data:"))
-//             .map((l) => l.slice(5)); // strip “data: ”
+//             .map((l) => l.slice(5));
 
 //           if (isResult) {
 //             setThinking(false);
@@ -608,11 +549,10 @@
 //             } catch (err) {
 //               console.error("⚠️  6b. JSON parse error:", err, dataLines);
 //             }
-//             setReasoningLog(""); // hide overlay
-//             return; // stop reading
+//             setReasoningLog("");
+//             return;
 //           }
 
-//           /* ---------- STREAMING TOKENS ------------------------------------ */
 //           if (dataLines.length) {
 //             if (thinking) setThinking(false);
 //             dataLines.forEach((tok) => appendToken(tok));
@@ -624,8 +564,6 @@
 //       setValidationErrors(["Validation failed – please try again."]);
 //       setReasoningLog("");
 //     }
-//     // setValidationPayload(payload);
-//     // setStreaming(true);
 //   };
 
 //   const handleNext = () => {
@@ -636,7 +574,6 @@
 //       return;
 //     }
 
-//     // final step
 //     if (storyMode === "text") {
 //       validateThenSubmit();
 //     } else {
@@ -646,7 +583,6 @@
 
 //   const handleUpload = async (url: string) => {
 //     const thisToken = ++uploadToken.current;
-//     // UI reset
 //     setTempAvatar(url);
 //     setCartoonPending(true);
 //     setCartoonUrl(null);
@@ -656,7 +592,6 @@
 //     setDetailGender("other");
 
 //     try {
-//       /* ─────────────── 1️⃣  make / reuse a draft side-character ─────────────── */
 //       let id = draftChar?.id;
 
 //       if (!id) {
@@ -664,15 +599,14 @@
 //           imageUrls: [url],
 //           type: "custom",
 //           userId: user!.uid,
-//           name: "__SIDE_DRAFT__", // temporary
+//           name: "__SIDE_DRAFT__",
 //         });
 //         id = draft.id;
 //         setDraftChar({ id: draft.id, imageUrls: draft.imageUrls });
 //       }
 
-//       /* ─────────────── 2️⃣  cartoonify the very first image ────────────────── */
 //       const { toonUrl } = await apiRequest("POST", "/api/cartoonify", {
-//         characterId: id, // <- backend insists on this
+//         characterId: id,
 //         imageUrl: url,
 //       });
 //       if (uploadToken.current !== thisToken) return;
@@ -684,7 +618,7 @@
 //         description: "Could not cartoonify image",
 //         variant: "destructive",
 //       });
-//       setCartoonUrl(url); // graceful fallback: show the original
+//       setCartoonUrl(url);
 //     } finally {
 //       if (uploadToken.current === thisToken) setCartoonPending(false);
 //     }
@@ -701,7 +635,6 @@
 //       });
 //     }
 
-//     /* normalise gender for the API */
 //     const genderPayload = ["male", "man", "boy"].includes(
 //       detailGender?.toLowerCase() || "",
 //     )
@@ -710,10 +643,7 @@
 //         ? "girl"
 //         : "other";
 
-//     /* merge original + toon so both stay in the DB */
-//     const allImages = Array.from(
-//       new Set([tempAvatar, cartoonUrl]), // de-dup just in case
-//     );
+//     const allImages = Array.from(new Set([tempAvatar, cartoonUrl]));
 
 //     const payload = {
 //       name: detailName.trim(),
@@ -743,10 +673,12 @@
 //         name: saved.name,
 //         relation: saved.relation,
 //         gender: saved.gender,
-//         description: saved.description ?? saved.relations?.[0]?.relation ?? "", // fallback chain
+//         description: saved.description ?? saved.relations?.[0]?.relation ?? "",
 //       };
 
-//       setSelectedChar(detail);
+//       if (selectedChars.length < 3) {
+//         setSelectedChars((prev) => [...prev, detail]);
+//       }
 //       setShowDetailForm(false);
 //       toast({ title: "Character saved" });
 //     } catch (err) {
@@ -811,10 +743,41 @@
 //         {step === 0 && (
 //           <Card className="bg-transparent border-0 shadow-none">
 //             <CardContent className="bg-transparent">
-//               <h3 className="text-lg font-semibold mb-2">Choose a character</h3>
+//               <h3 className="text-lg font-semibold mb-2">Choose characters</h3>
 //               <p className="text-sm text-gray-600 mb-4">
-//                 Select or add a custom sidekick for your hero.
+//                 Select up to 3 additional characters for your story.
 //               </p>
+
+//               {/* Selected Characters Display */}
+//               {selectedChars.length > 0 && (
+//                 <div className="mb-4">
+//                   <p className="text-sm text-gray-600 mb-2">
+//                     Selected Characters ({selectedChars.length}/3):
+//                   </p>
+//                   <div className="flex flex-wrap gap-2">
+//                     {selectedChars.map((char) => (
+//                       <div
+//                         key={char.id}
+//                         className="flex items-center gap-2 bg-gray-100 rounded-full px-3 py-1"
+//                       >
+//                         <img
+//                           src={char.avatar}
+//                           alt={char.name}
+//                           className="w-6 h-6 rounded-full object-cover"
+//                         />
+//                         <span className="text-sm">{char.name}</span>
+//                         <button
+//                           onClick={() => removeCharacter(char.id)}
+//                           className="text-gray-500 hover:text-red-500"
+//                         >
+//                           ×
+//                         </button>
+//                       </div>
+//                     ))}
+//                   </div>
+//                 </div>
+//               )}
+
 //               {!showDetailForm && (
 //                 <div className="grid grid-cols-3 gap-4">
 //                   {loading ? (
@@ -832,13 +795,10 @@
 //                     <>
 //                       <div
 //                         role="button"
-//                         onClick={() => {
-//                           setSelectedChar(NO_ONE);
-//                           setShowDetailForm(false);
-//                         }}
+//                         onClick={() => selectCharacter(NO_ONE)}
 //                         className={
 //                           "flex flex-col items-center p-1 cursor-pointer rounded transition " +
-//                           (selectedChar.id === NO_ONE.id
+//                           (selectedChars.length === 0
 //                             ? "ring-2 ring-primary"
 //                             : "hover:ring-1 hover:ring-gray-300")
 //                         }
@@ -851,60 +811,70 @@
 //                         </span>
 //                       </div>
 //                       {/* Predefs */}
-//                       {predefs.slice(0, 4).map((c) => (
-//                         <div
-//                           key={c.id}
-//                           role="button"
-//                           onClick={() => {
-//                             setSelectedChar({
-//                               id: c.id,
-//                               avatar: c.imageUrls[0],
-//                               name: c.name,
-//                               relation: "",
-//                               gender: "",
-//                               description: c.description ?? "",
-//                               toonUrl: c.toonUrl,
-//                             });
-//                             setShowDetailForm(false);
-//                           }}
-//                           className={
-//                             "flex flex-col items-center p-1 cursor-pointer rounded transition " +
-//                             (selectedChar?.id === c.id
-//                               ? "ring-2 ring-primary"
-//                               : "hover:ring-1 hover:ring-gray-300")
-//                           }
-//                         >
-//                           <img
-//                             src={c.imageUrls[0]}
-//                             alt={c.name}
-//                             className="w-12 h-12 rounded-full object-cover"
-//                           />
-//                           <span className="text-xs mt-1 text-slate-700">
-//                             {c.name}
-//                           </span>
-//                         </div>
-//                       ))}
-//                       {/* Custom slot or tile */}
-//                       <div className="flex justify-center items-center">
-//                         {isCustom && selectedChar ? (
-//                           <div className="flex flex-col items-center p-1 cursor-pointer rounded transition ring-2 ring-primary relative group">
+//                       {predefs.slice(0, 4).map((c) => {
+//                         const isSelected = selectedChars.find(
+//                           (char) => char.id === c.id,
+//                         );
+//                         return (
+//                           <div
+//                             key={c.id}
+//                             role="button"
+//                             onClick={() =>
+//                               selectCharacter({
+//                                 id: c.id,
+//                                 avatar: c.imageUrls[0],
+//                                 name: c.name,
+//                                 relation: "",
+//                                 gender: "",
+//                                 description: c.description ?? "",
+//                                 toonUrl: c.toonUrl,
+//                               })
+//                             }
+//                             className={
+//                               "flex flex-col items-center p-1 cursor-pointer rounded transition " +
+//                               (isSelected
+//                                 ? "ring-2 ring-primary"
+//                                 : "hover:ring-1 hover:ring-gray-300")
+//                             }
+//                           >
 //                             <img
-//                               src={selectedChar.avatar}
-//                               alt={selectedChar.name}
+//                               src={c.imageUrls[0]}
+//                               alt={c.name}
 //                               className="w-12 h-12 rounded-full object-cover"
 //                             />
-//                             <span className="text-xs mt-1 text-slate-700 truncate">
-//                               {selectedChar.name}
+//                             <span className="text-xs mt-1 text-slate-700">
+//                               {c.name}
 //                             </span>
-//                             <button
-//                               onClick={() => {
-//                                 setSelectedChar(NO_ONE);
-//                                 setShowDetailForm(false);
-//                               }}
-//                               className="absolute -top-1 -right-1 bg-white rounded-full p-1 shadow hidden group-hover:block"
-//                             >
-//                               ×
-//                             </button>
+//                           </div>
+//                         );
+//                       })}
+//                       {/* Custom slot or tile */}
+//                       <div className="flex justify-center items-center">
+//                         {selectedChars.some((char) => isCustom(char)) ? (
+//                           <div className="flex flex-col items-center">
+//                             {selectedChars
+//                               .filter((char) => isCustom(char))
+//                               .map((char) => (
+//                                 <div
+//                                   key={char.id}
+//                                   className="flex flex-col items-center p-1 cursor-pointer rounded transition ring-2 ring-primary relative group mb-2"
+//                                 >
+//                                   <img
+//                                     src={char.avatar}
+//                                     alt={char.name}
+//                                     className="w-12 h-12 rounded-full object-cover"
+//                                   />
+//                                   <span className="text-xs mt-1 text-slate-700 truncate">
+//                                     {char.name}
+//                                   </span>
+//                                   <button
+//                                     onClick={() => removeCharacter(char.id)}
+//                                     className="absolute -top-1 -right-1 bg-white rounded-full p-1 shadow hidden group-hover:block"
+//                                   >
+//                                     ×
+//                                   </button>
+//                                 </div>
+//                               ))}
 //                           </div>
 //                         ) : (
 //                           <div
@@ -1009,7 +979,7 @@
 //                         <Button
 //                           type="button"
 //                           variant="outline"
-//                           onClick={cancelSideCharacter} // ← NEW
+//                           onClick={cancelSideCharacter}
 //                         >
 //                           Cancel
 //                         </Button>
@@ -1024,50 +994,6 @@
 //             </CardContent>
 //           </Card>
 //         )}
-
-//         {/* Moral */}
-//         {/* {step === 1 && (
-//           <Card className="relative bg-transparent border-0 shadow-none">
-//             <CardContent className="bg-transparent">
-//               <h3 className="text-lg font-semibold mb-2">Select a moral</h3>
-//               <p className="text-sm text-gray-600 mb-4">
-//                 Pick a moral that resonates with your story.
-//               </p>
-//               <div className="flex flex-wrap gap-2">
-//                 <Chip
-//                   selected={moralOption === "none"}
-//                   onClick={() => setMoralOption("none")}
-//                 >
-//                   No moral
-//                 </Chip>
-//                 {MORAL_OPTIONS.map((opt) => (
-//                   <Chip
-//                     key={opt}
-//                     selected={moralOption === opt}
-//                     onClick={() => setMoralOption(opt)}
-//                   >
-//                     {opt}
-//                   </Chip>
-//                 ))}
-//                 <Chip
-//                   selected={moralOption === "other"}
-//                   onClick={() => setMoralOption("other")}
-//                 >
-//                   Other ✎
-//                 </Chip>
-//               </div>
-//               {moralOption === "other" && (
-//                 <textarea
-//                   value={customMoral}
-//                   onChange={(e) => setCustomMoral(e.target.value)}
-//                   rows={3}
-//                   className="w-full mt-3 border rounded p-2 focus:ring-primary/60 focus:outline-none"
-//                   placeholder="Type your moral here..."
-//                 />
-//               )}
-//             </CardContent>
-//           </Card>
-//         )} */}
 
 //         {/* Moral */}
 //         {step === 1 && (
@@ -1097,7 +1023,7 @@
 //                         "px-2 py-1 text-xs rounded-full",
 //                         moralOption === opt ? "ring-2 ring-primary" : "",
 //                       )}
-//                       title={MORAL_BLURBS[opt]} // fallback native tooltip
+//                       title={MORAL_BLURBS[opt]}
 //                     >
 //                       {opt}
 //                     </Chip>
@@ -1131,9 +1057,6 @@
 //         {step === 2 && (
 //           <Card className="relative bg-transparent border-0 shadow-none">
 //             <CardContent className="bg-transparent">
-//               {/* Overlay while validating */}
-//               {/* -------------- validation console -------------- */}
-
 //               <h3 className="text-lg font-semibold mb-2">Theme & Rhyming</h3>
 //               <p className="text-sm text-gray-600 mb-4">
 //                 Choose a theme or supply your own 140‑character story prompt.
@@ -1224,28 +1147,26 @@
 
 //                   {(thinking || reasoningLog) && (
 //                     <div className="mt-4">
-//                       {/* Header line */}
 //                       <p className="text-xs mb-1 flex items-center">
 //                         <span className="font-semibold text-imaginory-yellow">
 //                           {thinking ? "Thinking" : "Listening"}
 //                         </span>
-//                         {thinking && <TypingDots />} {/* animated dots */}
+//                         {thinking && <TypingDots />}
 //                       </p>
 
-//                       {/* White sheet with red border */}
 //                       {section && (
 //                         <div className="mt-4">
 //                           <p className="font-semibold mb-1 flex items-center shimmer">
 //                             {section.title}
 //                           </p>
 
-//                           {/* <div
+//                           <div
 //                             className="bg-white border border-red-300 rounded-md p-3
 //                                        text-xs text-gray-800 whitespace-pre-wrap
 //                                        max-h-56 overflow-y-auto"
 //                           >
 //                             <ReactMarkdown>{section.body}</ReactMarkdown>
-//                           </div> */}
+//                           </div>
 //                         </div>
 //                       )}
 //                     </div>
@@ -1255,7 +1176,7 @@
 //                       <div className="flex items-start p-4 rounded-lg bg-red-100 border border-red-300 text-red-700">
 //                         <i className="fas fa-exclamation-circle mt-0.5 mr-2" />
 //                         <p className="text-sm">
-//                           We couldn’t approve your story yet. Please review the
+//                           We couldn't approve your story yet. Please review the
 //                           suggestions below and try again.
 //                         </p>
 //                       </div>
@@ -1264,17 +1185,14 @@
 //                           key={i}
 //                           className="border border-red-300 rounded-lg p-4 bg-red-50/60"
 //                         >
-//                           {/* Check title */}
 //                           <p className="font-semibold text-red-700">
 //                             {err.check}
 //                           </p>
 
-//                           {/* Problem description */}
 //                           <p className="text-sm text-red-600 mt-1">
 //                             {err.problem}
 //                           </p>
 
-//                           {/* Solutions list */}
 //                           {Array.isArray(err.solutions) &&
 //                             err.solutions.length > 0 && (
 //                               <ul className="list-disc pl-5 mt-2 space-y-1 text-sm text-red-600">
@@ -1307,7 +1225,6 @@
 //     </div>
 //   );
 // }
-// src/components/story/CustomStory.tsx
 // src/components/story/CustomStory.tsx
 import React, { useState, useEffect, useRef } from "react";
 import ReactMarkdown from "react-markdown";
@@ -2010,19 +1927,19 @@ export function CustomStory({
   }
 
   return (
-    <div className="md:grid md:grid-cols-[auto_1fr] gap-6">
-      {/* Left: Stepper */}
-      <div className="border rounded-lg p-4">
-        <nav className="flex md:flex-col items-start space-x-4 md:space-x-0 md:space-y-4">
+    <div className="flex flex-col md:grid md:grid-cols-[auto_1fr] gap-4 md:gap-6">
+      {/* Stepper */}
+      <div className="border rounded-lg p-3 md:p-4">
+        <nav className="flex flex-row md:flex-col items-start space-x-2 md:space-x-0 md:space-y-4 overflow-x-auto md:overflow-x-visible">
           {SECTION_STEPS.map((s, idx) => (
             <button
               key={s.id}
               onClick={() => setStep(idx)}
-              className="flex items-center focus:outline-none"
+              className="flex flex-col md:flex-row items-center focus:outline-none min-w-[80px] md:min-w-0"
             >
               <div
                 className={
-                  "h-8 w-8 flex items-center justify-center rounded-full border text-sm font-medium transition " +
+                  "h-6 w-6 md:h-8 md:w-8 flex items-center justify-center rounded-full border text-xs md:text-sm font-medium transition " +
                   (idx < step
                     ? "bg-green-50 text-green-600 border-green-200"
                     : idx === step
@@ -2034,7 +1951,7 @@ export function CustomStory({
               </div>
               <span
                 className={
-                  "ml-2 text-sm transition " +
+                  "mt-1 md:mt-0 md:ml-2 text-xs md:text-sm transition text-center " +
                   (idx === step
                     ? "text-imaginory-black font-semibold"
                     : "text-gray-500")
@@ -2089,7 +2006,7 @@ export function CustomStory({
               )}
 
               {!showDetailForm && (
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
                   {loading ? (
                     <div>Loading…</div>
                   ) : uploading || cartoonPending ? (
@@ -2113,10 +2030,10 @@ export function CustomStory({
                             : "hover:ring-1 hover:ring-gray-300")
                         }
                       >
-                        <div className="w-12 h-12 rounded-full border border-gray-300 flex items-center justify-center">
+                        <div className="w-10 h-10 md:w-12 md:h-12 rounded-full border border-gray-300 flex items-center justify-center">
                           <span className="text-gray-400">—</span>
                         </div>
-                        <span className="text-xs mt-1 text-slate-700">
+                        <span className="text-xs mt-1 text-slate-700 text-center">
                           No one
                         </span>
                       </div>
@@ -2150,9 +2067,9 @@ export function CustomStory({
                             <img
                               src={c.imageUrls[0]}
                               alt={c.name}
-                              className="w-12 h-12 rounded-full object-cover"
+                              className="w-10 h-10 md:w-12 md:h-12 rounded-full object-cover"
                             />
-                            <span className="text-xs mt-1 text-slate-700">
+                            <span className="text-xs mt-1 text-slate-700 text-center">
                               {c.name}
                             </span>
                           </div>
@@ -2172,9 +2089,9 @@ export function CustomStory({
                                   <img
                                     src={char.avatar}
                                     alt={char.name}
-                                    className="w-12 h-12 rounded-full object-cover"
+                                    className="w-10 h-10 md:w-12 md:h-12 rounded-full object-cover"
                                   />
-                                  <span className="text-xs mt-1 text-slate-700 truncate">
+                                  <span className="text-xs mt-1 text-slate-700 truncate text-center">
                                     {char.name}
                                   </span>
                                   <button
@@ -2213,11 +2130,11 @@ export function CustomStory({
               {/* Custom detail form */}
               {showDetailForm && (
                 <>
-                  <div className="flex gap-4 items-center my-4">
+                  <div className="flex gap-3 md:gap-4 items-center my-4 justify-center md:justify-start">
                     <div className="relative">
                       <img
                         src={tempAvatar!}
-                        className="h-24 w-24 object-cover rounded border"
+                        className="h-20 w-20 md:h-24 md:w-24 object-cover rounded border"
                       />
                       <button
                         type="button"
@@ -2229,14 +2146,14 @@ export function CustomStory({
                       </button>
                     </div>
                     {cartoonPending ? (
-                      <div className="h-24 w-24 flex items-center justify-center border rounded">
-                        <i className="fas fa-spinner fa-spin text-gray-500 text-xl" />
+                      <div className="h-20 w-20 md:h-24 md:w-24 flex items-center justify-center border rounded">
+                        <i className="fas fa-spinner fa-spin text-gray-500 text-lg md:text-xl" />
                       </div>
                     ) : (
                       cartoonUrl && (
                         <img
                           src={cartoonUrl}
-                          className="h-24 w-24 object-cover rounded border"
+                          className="h-20 w-20 md:h-24 md:w-24 object-cover rounded border"
                         />
                       )
                     )}
@@ -2285,15 +2202,20 @@ export function CustomStory({
                       </RadioGroup>
                     </div>
                     <div className="text-right">
-                      <div className="flex justify-end gap-3">
+                      <div className="flex flex-col md:flex-row justify-end gap-3">
                         <Button
                           type="button"
                           variant="outline"
                           onClick={cancelSideCharacter}
+                          className="w-full md:w-auto"
                         >
                           Cancel
                         </Button>
-                        <Button type="submit" disabled={!canSaveDetail()}>
+                        <Button
+                          type="submit"
+                          disabled={!canSaveDetail()}
+                          className="w-full md:w-auto"
+                        >
                           Save Character
                         </Button>
                       </div>
@@ -2430,9 +2352,9 @@ export function CustomStory({
                       onChange={(e) =>
                         setCustomStory(e.target.value.slice(0, 140))
                       }
-                      rows={4}
+                      rows={3}
                       maxLength={140}
-                      className="w-full border rounded p-3 focus:ring-primary focus:outline-none"
+                      className="w-full border rounded p-2 md:p-3 text-sm md:text-base focus:ring-primary focus:outline-none"
                       placeholder="Your story idea in 140 characters…"
                       disabled={thinking}
                     />
@@ -2471,9 +2393,9 @@ export function CustomStory({
                           </p>
 
                           <div
-                            className="bg-white border border-red-300 rounded-md p-3
+                            className="bg-white border border-red-300 rounded-md p-2 md:p-3
                                        text-xs text-gray-800 whitespace-pre-wrap
-                                       max-h-56 overflow-y-auto"
+                                       max-h-40 md:max-h-56 overflow-y-auto"
                           >
                             <ReactMarkdown>{section.body}</ReactMarkdown>
                           </div>
@@ -2522,8 +2444,12 @@ export function CustomStory({
         )}
 
         {/* Next/Finish */}
-        <div className="text-right sticky bottom-0 bg-white py-3 md:static md:bg-transparent">
-          <Button onClick={handleNext} disabled={!canNext() || thinking}>
+        <div className="text-center md:text-right sticky bottom-0 bg-white py-3 md:static md:bg-transparent">
+          <Button
+            onClick={handleNext}
+            disabled={!canNext() || thinking}
+            className="w-full md:w-auto"
+          >
             {step < SECTION_STEPS.length - 1
               ? "Next"
               : storyMode === "text"
@@ -2535,3 +2461,6 @@ export function CustomStory({
     </div>
   );
 }
+
+// Add named export for compatibility
+export { CustomStory };

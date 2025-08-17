@@ -30,9 +30,8 @@ export interface ValidationRequest {
   kidName: string;
   pronoun: string;
   age: number;
-  moral: string;
-  kidInterests: string[];
-  storyThemes: string[];
+  theme: string;
+  subject: string;
   characters?: string[];
   character_descriptions?: string[];
 }

@@ -1,4 +1,3 @@
-// // src/pages/CreateStoryPage.tsx
 // import React, { useEffect, useRef, useState, useCallback } from "react";
 // import ReactMarkdown from "react-markdown";
 // import { useLocation, useParams } from "wouter";
@@ -9,18 +8,31 @@
 // import { Footer } from "@/components/Footer";
 // import { StepIndicator } from "@/components/StepIndicator";
 // import { CustomCharacter } from "@/components/character/CustomCharacter";
-// import { StoryToggle } from "@/components/story/StoryToggle";
-// import { PredefinedStories } from "@/components/story/PredefinedStories";
-// import { CustomStory } from "@/components/story/CustomStory";
+// import { SideCharacterSelection } from "@/components/story/SideCharacterSelection";
+// import { ThemeSelection } from "@/components/story/ThemeSelection";
+// import { SubjectSelection } from "@/components/story/SubjectSelection";
+// import { StorySettings } from "@/components/story/StorySettings";
 // import { ProgressDisplay } from "@/components/ui/progress-display";
 // import { useToast } from "@/hooks/use-toast";
 // import { apiRequest } from "@/lib/queryClient";
 // import { useAuth } from "@/contexts/AuthContext";
 // import { useJobProgress } from "@/hooks/use-job-progress";
+// import {
+//   createThemeSubjectSchema,
+//   requiresValidation,
+//   type ThemeSubjectSchema,
+// } from "@/types";
 // const STEPS = [
 //   { id: 1, name: "Choose Character" },
 //   { id: 2, name: "Select Story" },
 //   { id: 3, name: "Preview & Download" },
+// ];
+
+// const STORY_SUB_STEPS = [
+//   { id: "characters", name: "Choose a Side Character" },
+//   { id: "theme", name: "Choose Theme" },
+//   { id: "subject", name: "Choose Subject", disabled: true }, // will override below
+//   { id: "settings", name: "Story Settings" },
 // ];
 
 // const TypingDots = () => (
@@ -41,14 +53,13 @@
 // const log = (...args: any[]) =>
 //   DEBUG && console.log("[CreateStoryPage]", ...args);
 
-// type Relation = { primaryCharacterId: string; relation: string };
-// type SecondaryChar = {
+// interface SelectedCharacter {
 //   id: string;
 //   name: string;
+//   avatar: string;
 //   toonUrl?: string;
 //   description?: string;
-//   relations?: Relation[];
-// };
+// }
 
 // export default function CreateStoryPage() {
 //   /* ─────────────────────────── plumbing ────────────────────────── */
@@ -62,10 +73,22 @@
 //   /* ─────────────────────────── state ───────────────────────────── */
 //   const [bookId, setBookId] = useState<string | null>(null);
 //   const [currentStep, setCurrentStep] = useState(1);
+//   const [currentSubStep, setCurrentSubStep] = useState<string>("characters");
 //   const [activeChar, setActiveChar] = useState<any>(null);
 //   const [kidName, setKidName] = useState("");
 //   const [bookStyle, setBookStyle] = useState("default");
 //   const [bookTitle, setBookTitle] = useState("Untitled");
+
+//   // Story workflow state
+//   const [selectedSideChars, setSelectedSideChars] = useState<
+//     SelectedCharacter[]
+//   >([]);
+//   const [selectedTheme, setSelectedTheme] = useState<string>("");
+//   const [isCustomTheme, setIsCustomTheme] = useState<boolean>(false);
+//   const [selectedSubject, setSelectedSubject] = useState<string>("");
+//   const [rhyming, setRhyming] = useState<boolean>(false);
+//   const [themeSubjectSchema, setThemeSubjectSchema] =
+//     useState<ThemeSubjectSchema | null>(null);
 
 //   /* progress job ids */
 //   const [imagesJobId, setImagesJobId] = useState<string>();
@@ -121,7 +144,7 @@
 //     if (id && !bookId) setBookId(id);
 //   }, [id]);
 
-//   /* ─────────────────────────── character pick ──────────────────── */
+//   /* ─────────────────────────── character pick (main character) ──────────────────── */
 //   async function handleSelectCharacter(character: any) {
 //     setActiveChar(character);
 //     setKidName(character.name);
@@ -144,57 +167,84 @@
 //     setCurrentStep(2);
 //   }
 
-//   /* ─────────────────────────── story submit ────────────────────── */
-//   function handleCustomStorySubmit(data: {
-//     storyType: "custom";
-//     characters: SecondaryChar[];
-//     moral: string;
-//     theme: string;
-//     rhyming: boolean;
-//   }) {
-//     const side = data.characters[0];
-//     const sideDescription =
-//       side?.description ||
-//       side?.relations?.find((r) => r.primaryCharacterId === activeChar.id)
-//         ?.relation ||
-//       "";
+//   /* ─────────────────────────── side character selection ──────────────────── */
+//   function handleSideCharacterSelection(characters: SelectedCharacter[]) {
+//     setSelectedSideChars(characters);
+//     setCurrentSubStep("theme");
+//   }
 
-//     localStorage.removeItem("customStoryWizardState");
+//   /* ─────────────────────────── theme selection ──────────────────── */
+//   function handleThemeSelection(theme: string, isCustom: boolean) {
+//     setSelectedTheme(theme);
+//     setIsCustomTheme(isCustom);
+//     setCurrentSubStep("subject");
+//   }
 
-//     const pronoun =
-//       activeChar.gender === "male"
-//         ? "he"
-//         : activeChar.gender === "female"
-//           ? "she"
-//           : "they";
+//   /* ─────────────────────────── subject selection ──────────────────── */
+//   function handleSubjectSelection(subject: string) {
+//     setSelectedSubject(subject);
 
-//     const charDescriptions = side ? [sideDescription] : [];
+//     // Create the theme-subject schema for downstream use
+//     const schema = createThemeSubjectSchema(
+//       selectedTheme,
+//       isCustomTheme,
+//       subject,
+//       isCustomTheme, // Custom themes always have custom subjects
+//     );
+//     setThemeSubjectSchema(schema);
+
+//     // For custom themes, subject selection includes validation, so we can proceed directly to settings
+//     // For predefined themes, proceed to settings without validation
+//     setCurrentSubStep("settings");
+//   }
+
+//   /* ─────────────────────────── story settings and generation ──────────────────── */
+//   function handleStorySettings(rhymingEnabled: boolean) {
+//     setRhyming(rhymingEnabled);
+
+//     // Prepare character data for story generation
+//     const characters = selectedSideChars.map((char) => char.name);
+//     const characterDescriptions = selectedSideChars.map(
+//       (char) => char.description || "",
+//     );
+//     const characterImageMap = {
+//       [kidName]: {
+//         image_url: activeChar.toonUrl || activeChar.imageUrls?.[0] || "",
+//         description: `a ${activeChar.age} year old human kid`,
+//       },
+//       ...Object.fromEntries(
+//         selectedSideChars.map((char) => [
+//           char.name,
+//           {
+//             image_url: char.toonUrl || char.avatar,
+//             description: char.description || "",
+//           },
+//         ]),
+//       ),
+//     };
+
+//     // Use the schema to provide structured theme/subject data
+//     const finalTheme = themeSubjectSchema?.theme.label || selectedTheme;
+//     const finalSubject = themeSubjectSchema?.subject.value || selectedSubject;
 
 //     const payload = {
 //       bookId,
 //       kidName,
-//       pronoun,
+//       pronoun:
+//         activeChar.gender === "male"
+//           ? "he"
+//           : activeChar.gender === "female"
+//             ? "she"
+//             : "they",
 //       age: activeChar.age,
-//       moral: data.moral,
-//       storyRhyming: data.rhyming,
-//       kidInterests: activeChar.interests ?? [],
-//       storyThemes: [data.theme],
-//       characters: side ? [side.name] : [],
-//       characterDescriptions: charDescriptions,
-//       characterImageMap: {
-//         [kidName]: {
-//           image_url: activeChar.toonUrl,
-//           description: `a ${activeChar.age} year old human kid`,
-//         },
-//         ...(side
-//           ? {
-//               [side.name]: {
-//                 image_url: side.toonUrl,
-//                 description: charDescriptions[0],
-//               },
-//             }
-//           : {}),
-//       },
+//       theme: finalTheme,
+//       subject: finalSubject,
+//       storyRhyming: rhymingEnabled,
+//       characters,
+//       characterDescriptions,
+//       characterImageMap,
+//       // Include schema metadata for potential conditional logic in backend
+//       themeSubjectSchema: themeSubjectSchema,
 //     };
 
 //     log("POST /api/generateFullStory", payload);
@@ -323,6 +373,9 @@
 //     );
 //   }
 
+//   // Add a derived variable for disabling subject tab
+//   const isSubjectTabDisabled = selectedTheme === "";
+
 //   return (
 //     <div className="min-h-screen flex flex-col">
 //       <Header />
@@ -347,16 +400,125 @@
 //         {currentStep === 2 && (
 //           <section>
 //             <h2 className="text-2xl font-bold mb-4">Step 2: Select Story</h2>
-//             <StoryToggle
-//               type="custom"
-//               onToggle={() => {
-//                 /* keep only custom for now*/
-//               }}
-//             />
-//             <CustomStory
-//               primaryCharacterId={activeChar?.id!}
-//               onSubmit={handleCustomStorySubmit}
-//             />
+
+//             {/* Vertical Tab Navigation */}
+//             <div className="flex gap-6">
+//               {/* Left: Tab Navigation */}
+//               <div className="w-64 flex-shrink-0">
+//                 <nav className="flex flex-col space-y-1">
+//                   {STORY_SUB_STEPS.map((subStep) => {
+//                     const isActive = currentSubStep === subStep.id;
+//                     const isCompleted =
+//                       (subStep.id === "characters" &&
+//                         selectedSideChars.length >= 0) ||
+//                       (subStep.id === "theme" && selectedTheme !== "") ||
+//                       (subStep.id === "subject" && selectedSubject !== "") ||
+//                       (subStep.id === "settings" && false); // Will be completed when story generates
+//                     // Disable subject tab if no theme selected
+//                     const isDisabled =
+//                       subStep.id === "subject" && isSubjectTabDisabled;
+//                     return (
+//                       <button
+//                         key={subStep.id}
+//                         onClick={() =>
+//                           !isDisabled && setCurrentSubStep(subStep.id)
+//                         }
+//                         className={`flex items-center px-4 py-3 text-left rounded-lg transition-colors ${
+//                           isActive
+//                             ? "bg-yellow-100 text-yellow-800 border-l-4 border-yellow-500"
+//                             : isCompleted
+//                               ? "bg-green-50 text-green-700 hover:bg-green-100"
+//                               : isDisabled
+//                                 ? "text-gray-400 bg-gray-50 cursor-not-allowed"
+//                                 : "text-gray-600 hover:bg-gray-100"
+//                         }`}
+//                         disabled={isDisabled}
+//                       >
+//                         <div
+//                           className={`w-6 h-6 rounded-full mr-3 flex items-center justify-center text-sm font-medium ${
+//                             isActive
+//                               ? "bg-yellow-500 text-white"
+//                               : isCompleted
+//                                 ? "bg-green-500 text-white"
+//                                 : isDisabled
+//                                   ? "bg-gray-200 text-gray-400"
+//                                   : "bg-gray-300 text-gray-600"
+//                           }`}
+//                         >
+//                           {isCompleted
+//                             ? "✓"
+//                             : subStep.id === "characters"
+//                               ? "1"
+//                               : subStep.id === "theme"
+//                                 ? "2"
+//                                 : subStep.id === "subject"
+//                                   ? "3"
+//                                   : "4"}
+//                         </div>
+//                         <span className="font-medium">{subStep.name}</span>
+//                       </button>
+//                     );
+//                   })}
+//                 </nav>
+//               </div>
+
+//               {/* Right: Content Area */}
+//               <div className="flex-1">
+//                 {currentSubStep === "characters" && (
+//                   <SideCharacterSelection
+//                     onSubmit={handleSideCharacterSelection}
+//                     maxCharacters={3}
+//                     initialSelected={selectedSideChars} // NEW
+//                   />
+//                 )}
+
+//                 {currentSubStep === "theme" && (
+//                   <ThemeSelection
+//                     onSubmit={handleThemeSelection}
+//                     onBack={() => setCurrentSubStep("characters")}
+//                     initialTheme={selectedTheme} // NEW
+//                   />
+//                 )}
+
+//                 {currentSubStep === "subject" && (
+//                   <SubjectSelection
+//                     selectedTheme={selectedTheme}
+//                     isCustomTheme={isCustomTheme}
+//                     onSubmit={handleSubjectSelection}
+//                     onBack={() => setCurrentSubStep("theme")}
+//                     kidName={kidName}
+//                     pronoun={
+//                       activeChar?.gender === "male"
+//                         ? "he"
+//                         : activeChar?.gender === "female"
+//                           ? "she"
+//                           : "they"
+//                     }
+//                     age={activeChar?.age || 5}
+//                     characters={
+//                       selectedSideChars.length
+//                         ? selectedSideChars.map((char) => char.name)
+//                         : []
+//                     }
+//                     characterDescriptions={
+//                       selectedSideChars.length
+//                         ? selectedSideChars.map(
+//                             (char) => char.description || "",
+//                           )
+//                         : []
+//                     }
+//                     initialSubject={selectedSubject} // NEW
+//                   />
+//                 )}
+
+//                 {currentSubStep === "settings" && (
+//                   <StorySettings
+//                     onSubmit={handleStorySettings}
+//                     onBack={() => setCurrentSubStep("subject")}
+//                   />
+//                 )}
+//               </div>
+//             </div>
 //           </section>
 //         )}
 
@@ -413,6 +575,8 @@
 //   );
 // }
 // src/pages/CreateStoryPage.tsx
+// src/pages/CreateStoryPage.tsx
+// src/pages/CreateStoryPage.tsx
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import { useLocation, useParams } from "wouter";
@@ -423,18 +587,27 @@ import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { StepIndicator } from "@/components/StepIndicator";
 import { CustomCharacter } from "@/components/character/CustomCharacter";
-import { StoryToggle } from "@/components/story/StoryToggle";
-import { PredefinedStories } from "@/components/story/PredefinedStories";
-import { CustomStory } from "@/components/story/CustomStory";
+import { SideCharacterSelection } from "@/components/story/SideCharacterSelection";
+import { ThemeSelection } from "@/components/story/ThemeSelection";
+import { SubjectSelection } from "@/components/story/SubjectSelection";
+import { StorySettings } from "@/components/story/StorySettings";
 import { ProgressDisplay } from "@/components/ui/progress-display";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/contexts/AuthContext";
 import { useJobProgress } from "@/hooks/use-job-progress";
+import { createThemeSubjectSchema, requiresValidation, type ThemeSubjectSchema } from "@/types";
 const STEPS = [
   { id: 1, name: "Choose Character" },
   { id: 2, name: "Select Story" },
   { id: 3, name: "Preview & Download" },
+];
+
+const STORY_SUB_STEPS = [
+  { id: "characters", name: "Choose a Side Character" },
+  { id: "theme", name: "Choose Theme" },
+  { id: "subject", name: "Choose Subject", disabled: true }, // will override below
+  { id: "settings", name: "Story Settings" },
 ];
 
 const TypingDots = () => (
@@ -455,14 +628,13 @@ const DEBUG = true;
 const log = (...args: any[]) =>
   DEBUG && console.log("[CreateStoryPage]", ...args);
 
-type Relation = { primaryCharacterId: string; relation: string };
-type SecondaryChar = {
+interface SelectedCharacter {
   id: string;
   name: string;
+  avatar: string;
   toonUrl?: string;
   description?: string;
-  relations?: Relation[];
-};
+}
 
 export default function CreateStoryPage() {
   /* ─────────────────────────── plumbing ────────────────────────── */
@@ -476,10 +648,19 @@ export default function CreateStoryPage() {
   /* ─────────────────────────── state ───────────────────────────── */
   const [bookId, setBookId] = useState<string | null>(null);
   const [currentStep, setCurrentStep] = useState(1);
+  const [currentSubStep, setCurrentSubStep] = useState<string>("characters");
   const [activeChar, setActiveChar] = useState<any>(null);
   const [kidName, setKidName] = useState("");
   const [bookStyle, setBookStyle] = useState("default");
   const [bookTitle, setBookTitle] = useState("Untitled");
+
+  // Story workflow state
+  const [selectedSideChars, setSelectedSideChars] = useState<SelectedCharacter[]>([]);
+  const [selectedTheme, setSelectedTheme] = useState<string>("");
+  const [isCustomTheme, setIsCustomTheme] = useState<boolean>(false);
+  const [selectedSubject, setSelectedSubject] = useState<string>("");
+  const [rhyming, setRhyming] = useState<boolean>(false);
+  const [themeSubjectSchema, setThemeSubjectSchema] = useState<ThemeSubjectSchema | null>(null);
 
   /* progress job ids */
   const [imagesJobId, setImagesJobId] = useState<string>();
@@ -535,7 +716,7 @@ export default function CreateStoryPage() {
     if (id && !bookId) setBookId(id);
   }, [id]);
 
-  /* ─────────────────────────── character pick ──────────────────── */
+  /* ─────────────────────────── character pick (main character) ──────────────────── */
   async function handleSelectCharacter(character: any) {
     setActiveChar(character);
     setKidName(character.name);
@@ -558,64 +739,77 @@ export default function CreateStoryPage() {
     setCurrentStep(2);
   }
 
-  /* ─────────────────────────── story submit ────────────────────── */
-  function handleCustomStorySubmit(data: {
-    storyType: "custom";
-    characters: SecondaryChar[];
-    moral: string;
-    theme: string;
-    rhyming: boolean;
-  }) {
-    // Handle multiple characters properly
-    const additionalCharacters = data.characters;
-    const characterDescriptions = additionalCharacters.map(
-      (char) =>
-        char.description ||
-        char.relations?.find((r) => r.primaryCharacterId === activeChar.id)
-          ?.relation ||
-        "",
+  /* ─────────────────────────── side character selection ──────────────────── */
+  function handleSideCharacterSelection(characters: SelectedCharacter[]) {
+    setSelectedSideChars(characters);
+    setCurrentSubStep("theme");
+  }
+
+  /* ─────────────────────────── theme selection ──────────────────── */
+  function handleThemeSelection(theme: string, isCustom: boolean) {
+    setSelectedTheme(theme);
+    setIsCustomTheme(isCustom);
+    setCurrentSubStep("subject");
+  }
+
+  /* ─────────────────────────── subject selection ──────────────────── */
+  function handleSubjectSelection(subject: string) {
+    setSelectedSubject(subject);
+
+    // Create the theme-subject schema for downstream use
+    const schema = createThemeSubjectSchema(
+      selectedTheme,
+      isCustomTheme,
+      subject,
+      isCustomTheme // Custom themes always have custom subjects
     );
+    setThemeSubjectSchema(schema);
 
-    localStorage.removeItem("customStoryWizardState");
+    // For custom themes, subject selection includes validation, so we can proceed directly to settings
+    // For predefined themes, proceed to settings without validation
+    setCurrentSubStep("settings");
+  }
 
-    const pronoun =
-      activeChar.gender === "male"
-        ? "he"
-        : activeChar.gender === "female"
-          ? "she"
-          : "they";
+  /* ─────────────────────────── story settings and generation ──────────────────── */
+  function handleStorySettings(rhymingEnabled: boolean) {
+    setRhyming(rhymingEnabled);
+
+    // Prepare character data for story generation
+    const characters = selectedSideChars.map(char => char.name);
+    const characterDescriptions = selectedSideChars.map(char => char.description || "");
+    const characterImageMap = {
+      [kidName]: {
+        image_url: activeChar.toonUrl || activeChar.imageUrls?.[0] || "",
+        description: `a ${activeChar.age} year old human kid`,
+      },
+      ...Object.fromEntries(
+        selectedSideChars.map(char => [
+          char.name,
+          {
+            image_url: char.toonUrl || char.avatar,
+            description: char.description || "",
+          }
+        ])
+      ),
+    };
+
+    // Use the schema to provide structured theme/subject data
+    const finalTheme = themeSubjectSchema?.theme.label || selectedTheme;
+    const finalSubject = themeSubjectSchema?.subject.value || selectedSubject;
 
     const payload = {
       bookId,
       kidName,
-      pronoun,
+      pronoun: activeChar.gender === "male" ? "he" : activeChar.gender === "female" ? "she" : "they",
       age: activeChar.age,
-      moral: data.moral,
-      storyRhyming: data.rhyming,
-      kidInterests: activeChar.interests ?? [],
-      storyThemes: [data.theme],
-      characters: additionalCharacters.map((char) => char.name),
-      characterDescriptions: characterDescriptions,
-      characterImageMap: {
-        [kidName]: {
-          image_url: activeChar.toonUrl,
-          description: `a ${activeChar.age} year old human kid`,
-        },
-        ...Object.fromEntries(
-          additionalCharacters.map((char) => [
-            char.name,
-            {
-              image_url: char.toonUrl,
-              description:
-                char.description ||
-                char.relations?.find(
-                  (r) => r.primaryCharacterId === activeChar.id,
-                )?.relation ||
-                "",
-            },
-          ]),
-        ),
-      },
+      theme: finalTheme,
+      subject: finalSubject,
+      storyRhyming: rhymingEnabled,
+      characters,
+      characterDescriptions,
+      characterImageMap,
+      // Include schema metadata for potential conditional logic in backend
+      themeSubjectSchema: themeSubjectSchema,
     };
 
     log("POST /api/generateFullStory", payload);
@@ -627,6 +821,8 @@ export default function CreateStoryPage() {
       })
       .catch((err) => log("Full-story kickoff error", err));
   }
+
+
 
   /* ─────────────────────────── hydration logic ─────────────────── */
   useEffect(() => {
@@ -744,6 +940,9 @@ export default function CreateStoryPage() {
     );
   }
 
+  // Add a derived variable for disabling subject tab
+  const isSubjectTabDisabled = selectedTheme === "";
+
   return (
     <div className="min-h-screen flex flex-col">
       <Header />
@@ -768,16 +967,143 @@ export default function CreateStoryPage() {
         {currentStep === 2 && (
           <section>
             <h2 className="text-2xl font-bold mb-4">Step 2: Select Story</h2>
-            <StoryToggle
-              type="custom"
-              onToggle={() => {
-                /* keep only custom for now*/
-              }}
-            />
-            <CustomStory
-              primaryCharacterId={activeChar?.id!}
-              onSubmit={handleCustomStorySubmit}
-            />
+            {/* Responsive Substep Navigation */}
+            <div
+              className={
+                isMobile
+                  ? "flex flex-col gap-4"
+                  : "flex gap-6"
+              }
+            >
+              {/* Substep Navigation */}
+              <nav
+                className={
+                  isMobile
+                    ? "flex flex-row overflow-x-auto pb-2 -mx-4 px-4 sticky top-0 z-10 bg-white shadow-sm"
+                    : "w-64 flex-shrink-0"
+                }
+                style={isMobile ? { borderBottom: '1px solid #f3f4f6' } : {}}
+              >
+                <div
+                  className={
+                    isMobile
+                      ? "flex flex-row w-full"
+                      : "flex flex-col space-y-1"
+                  }
+                >
+                  {STORY_SUB_STEPS.map((subStep) => {
+                    const isActive = currentSubStep === subStep.id;
+                    const isCompleted =
+                      (subStep.id === "characters" && selectedSideChars.length >= 0) ||
+                      (subStep.id === "theme" && selectedTheme !== "") ||
+                      (subStep.id === "subject" && selectedSubject !== "") ||
+                      (subStep.id === "settings" && false); // Will be completed when story generates
+                    // Disable subject tab if no theme selected
+                    const isDisabled = subStep.id === "subject" && isSubjectTabDisabled;
+                    return (
+                      <button
+                        key={subStep.id}
+                        onClick={() => !isDisabled && setCurrentSubStep(subStep.id)}
+                        className={
+                          isMobile
+                            ? `flex flex-col items-center px-1 py-2 min-w-[75px] transition-colors text-xs font-medium ${
+                                isActive
+                                  ? "bg-yellow-100 text-yellow-800 border-b-4 border-yellow-500"
+                                  : isCompleted
+                                  ? "bg-green-50 text-green-700 hover:bg-green-100"
+                                  : isDisabled
+                                  ? "text-gray-400 bg-gray-50 cursor-not-allowed"
+                                  : "text-gray-600 hover:bg-gray-100"
+                              }`
+                            : `flex items-center px-4 py-3 text-left rounded-lg transition-colors ${
+                                isActive
+                                  ? "bg-yellow-100 text-yellow-800 border-l-4 border-yellow-500"
+                                  : isCompleted
+                                  ? "bg-green-50 text-green-700 hover:bg-green-100"
+                                  : isDisabled
+                                  ? "text-gray-400 bg-gray-50 cursor-not-allowed"
+                                  : "text-gray-600 hover:bg-gray-100"
+                              }`
+                        }
+                        disabled={isDisabled}
+                      >
+                        <div
+                          className={
+                            isMobile
+                              ? `w-6 h-6 rounded-full mb-1 flex items-center justify-center text-xs font-medium ${
+                                  isActive
+                                    ? "bg-yellow-500 text-white"
+                                    : isCompleted
+                                    ? "bg-green-500 text-white"
+                                    : isDisabled
+                                    ? "bg-gray-200 text-gray-400"
+                                    : "bg-gray-300 text-gray-600"
+                                }`
+                              : `w-6 h-6 rounded-full mr-3 flex items-center justify-center text-sm font-medium ${
+                                  isActive
+                                    ? "bg-yellow-500 text-white"
+                                    : isCompleted
+                                    ? "bg-green-500 text-white"
+                                    : isDisabled
+                                    ? "bg-gray-200 text-gray-400"
+                                    : "bg-gray-300 text-gray-600"
+                                }`
+                          }
+                        >
+                          {isCompleted
+                            ? "✓"
+                            : subStep.id === "characters"
+                            ? "1"
+                            : subStep.id === "theme"
+                            ? "2"
+                            : subStep.id === "subject"
+                            ? "3"
+                            : "4"}
+                        </div>
+                        <span className={isMobile ? "text-center leading-tight" : ""}>{subStep.name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </nav>
+              {/* Right: Content Area */}
+              <div className="flex-1">
+                {currentSubStep === "characters" && (
+                  <SideCharacterSelection
+                    onSubmit={handleSideCharacterSelection}
+                    maxCharacters={3}
+                    initialSelected={selectedSideChars} // NEW
+                  />
+                )}
+                {currentSubStep === "theme" && (
+                  <ThemeSelection
+                    onSubmit={handleThemeSelection}
+                    onBack={() => setCurrentSubStep("characters")}
+                    initialTheme={selectedTheme} // NEW
+                  />
+                )}
+                {currentSubStep === "subject" && (
+                  <SubjectSelection
+                    selectedTheme={selectedTheme}
+                    isCustomTheme={isCustomTheme}
+                    onSubmit={handleSubjectSelection}
+                    onBack={() => setCurrentSubStep("theme")}
+                    kidName={kidName}
+                    pronoun={activeChar?.gender === "male" ? "he" : activeChar?.gender === "female" ? "she" : "they"}
+                    age={activeChar?.age || 5}
+                    characters={selectedSideChars.length ? selectedSideChars.map(char => char.name) : []}
+                    characterDescriptions={selectedSideChars.length ? selectedSideChars.map(char => char.description || "") : []}
+                    initialSubject={selectedSubject} // NEW
+                  />
+                )}
+                {currentSubStep === "settings" && (
+                  <StorySettings
+                    onSubmit={handleStorySettings}
+                    onBack={() => setCurrentSubStep("subject")}
+                  />
+                )}
+              </div>
+            </div>
           </section>
         )}
 
