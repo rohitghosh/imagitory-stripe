@@ -918,6 +918,9 @@ export function generateUnifiedImagePrompt(
   out.push(
     "Illustration brief for a single storybook page. No UI, no borders, no captions, no embedded text of any kind.",
   );
+  out.push(
+    "ABSOLUTELY NO TEXT ON THE IMAGE: do not render any words, letters, numbers.",
+  );
   const style = styleLine(animationStyle);
   if (style) out.push(style);
 
@@ -1052,7 +1055,7 @@ export function generateUnifiedFrontCoverPrompt(
     "NO TITLE, NO LETTERING, NO SIGNAGE: keep the composition clean of all written characters.",
   );
   out.push(
-    "Leave visual space where a title could go if needed, but DO NOT draw any text or glyphs.",
+    "Leave visual space where a title would go, but DO NOT draw any text or glyphs. The top third of the frame is left visually open for title placement",
   );
 
   // 1) References

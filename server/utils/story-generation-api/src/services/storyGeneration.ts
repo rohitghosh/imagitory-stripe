@@ -612,52 +612,51 @@ export async function generateCompleteStory(
   /* ── 4. Final cover with title (96 → 100 %) ───────────────────────── */
   // onProgress?.("generating_cover", 96, "Adding title to cover…");
 
-  // const finalCoverUrl = await generateFinalCoverWithTitle(
-  //   finalBookId, // Use the consistent bookId
-  //   baseCoverUrl,
-  //   story.story_title,
-  //   seed,
-  //   (phase, pct, msg) =>
-  //     onProgress?.("generating_cover", 96 + (pct / 100) * 4, msg),
-  // );
-  const finalCoverUrl = baseCoverUrl;
+  const finalCoverUrl = await generateFinalCoverWithTitle(
+    finalBookId, // Use the consistent bookId
+    baseCoverUrl,
+    story.story_title,
+    seed,
+    (phase, pct, msg) =>
+      onProgress?.("generating_cover", 96 + (pct / 100) * 4, msg),
+  );
 
   onProgress?.("complete", 100, "Story generation complete");
 
-  // /* ── 5. Assemble output ───────────────────────────────────────────── */
-  // const scenes: SceneOutput[] = story.scenes.map((scene: any, i: number) => ({
-  //   scene_number: i + 1,
-  //   imageUrl: generatedScenes[i].firebaseUrl,
-  //   imageUrls: [generatedScenes[i].firebaseUrl], // Array with single element
-  //   sceneResponseIds: [generatedScenes[i].responseId], // Array with single element
-  //   current_scene_index: 0, // Start at index 0
-  //   content: scene.scene_text,
-  //   side: sides[i],
-  //   scene_inputs: {
-  //     scene_description: scene.scene_description,
-  //     characterImageMap,
-  //     previousImageUrl: i > 0 ? generatedScenes[i - 1].firebaseUrl : null,
-  //     seed,
-  //   },
-  // }));
+  /* ── 5. Assemble output ───────────────────────────────────────────── */
+  const scenes: SceneOutput[] = story.scenes.map((scene: any, i: number) => ({
+    scene_number: i + 1,
+    imageUrl: generatedScenes[i].firebaseUrl,
+    imageUrls: [generatedScenes[i].firebaseUrl], // Array with single element
+    sceneResponseIds: [generatedScenes[i].responseId], // Array with single element
+    current_scene_index: 0, // Start at index 0
+    content: scene.scene_text,
+    side: sides[i],
+    scene_inputs: {
+      scene_description: scene.scene_description,
+      characterImageMap,
+      previousImageUrl: i > 0 ? generatedScenes[i - 1].firebaseUrl : null,
+      seed,
+    },
+  }));
 
-  const scenes: SceneOutput[] = [story.scenes[0]].map(
-    (scene: any, i: number) => ({
-      scene_number: 1,
-      imageUrl: generatedScenes[i].firebaseUrl,
-      imageUrls: [generatedScenes[i].firebaseUrl], // Array with single element
-      sceneResponseIds: [generatedScenes[i].responseId], // Array with single element
-      current_scene_index: 0, // Start at index 0
-      content: scene.scene_text,
-      side: sides[i],
-      scene_inputs: {
-        scene_description: scene.scene_description,
-        characterImageMap,
-        previousImageUrl: null, // No previous image for the first scene
-        seed,
-      },
-    }),
-  );
+  // const scenes: SceneOutput[] = [story.scenes[0]].map(
+  //   (scene: any, i: number) => ({
+  //     scene_number: 1,
+  //     imageUrl: generatedScenes[i].firebaseUrl,
+  //     imageUrls: [generatedScenes[i].firebaseUrl], // Array with single element
+  //     sceneResponseIds: [generatedScenes[i].responseId], // Array with single element
+  //     current_scene_index: 0, // Start at index 0
+  //     content: scene.scene_text,
+  //     side: sides[i],
+  //     scene_inputs: {
+  //       scene_description: scene.scene_description,
+  //       characterImageMap,
+  //       previousImageUrl: null, // No previous image for the first scene
+  //       seed,
+  //     },
+  //   }),
+  // );
 
   return {
     scenes,
