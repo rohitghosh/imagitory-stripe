@@ -465,7 +465,7 @@ import { apiRequest } from "@/lib/queryClient";
 interface SubjectSelectionProps {
   selectedTheme: string;
   isCustomTheme: boolean;
-  onSubmit: (subject: string) => void;
+  onSubmit: (subject: string, isValidated?: boolean) => void;
   onBack: () => void;
   kidName: string;
   pronoun: string;
@@ -473,6 +473,8 @@ interface SubjectSelectionProps {
   characters?: string[];
   characterDescriptions?: string[];
   initialSubject?: string; // NEW: allow parent to pass last selected subject
+  onChange?: (subject: string) => void; // NEW: callback when subject text changes
+  onValidationChange?: (isValidated: boolean) => void; // NEW: callback when validation status changes
 }
 
 type ValidationError = {
@@ -506,13 +508,17 @@ export function SubjectSelection({
   characters = [],
   characterDescriptions = [],
   initialSubject = "", // NEW
+  onChange, // NEW
+  onValidationChange, // NEW
 }: SubjectSelectionProps) {
   const { toast } = useToast();
   const { user } = useAuth();
 
   const [selectedSubject, setSelectedSubject] =
     useState<string>(initialSubject);
-  const [customSubject, setCustomSubject] = useState<string>("");
+  const [customSubject, setCustomSubject] = useState<string>(
+    isCustomTheme ? initialSubject : "",
+  );
   const [isValidated, setIsValidated] = useState<boolean>(false);
   const [isValidating, setIsValidating] = useState<boolean>(false);
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>(
@@ -531,6 +537,20 @@ export function SubjectSelection({
   useEffect(() => {
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight });
   }, [section]);
+
+  // Update customSubject when initialSubject changes (for custom themes)
+  useEffect(() => {
+    if (isCustomTheme) {
+      setCustomSubject(initialSubject);
+    }
+  }, [initialSubject, isCustomTheme]);
+
+  // Notify parent when custom subject changes
+  useEffect(() => {
+    if (isCustomTheme && onChange) {
+      onChange(customSubject);
+    }
+  }, [customSubject, isCustomTheme, onChange]);
 
   const appendToken = React.useCallback(
     (raw: string) => {
@@ -584,8 +604,9 @@ export function SubjectSelection({
 
   const handleSubjectSelect = (subject: Subject) => {
     setSelectedSubject(subject.name);
-    setIsValidated(false); // Reset validation when subject changes
-    onSubmit(subject.name); // Immediately advance on click
+    setIsValidated(true); // Predefined subjects are automatically validated
+    if (onValidationChange) onValidationChange(true);
+    onSubmit(subject.name, true); // Immediately advance on click with validation true
   };
 
   const validateStory = async () => {
@@ -661,6 +682,7 @@ export function SubjectSelection({
               if (result.success) {
                 setIsValidated(true);
                 setValidationErrors([]);
+                if (onValidationChange) onValidationChange(true);
                 toast({
                   title: "Story Validated!",
                   description:
@@ -668,6 +690,7 @@ export function SubjectSelection({
                 });
               } else {
                 setIsValidated(false);
+                if (onValidationChange) onValidationChange(false);
                 const mapped = (result.failures ?? []).map((f: any) => ({
                   check: f.check,
                   problem: f.problem,
@@ -712,7 +735,7 @@ export function SubjectSelection({
     const finalSubject = isCustomTheme ? customSubject.trim() : selectedSubject;
 
     if (finalSubject) {
-      onSubmit(finalSubject);
+      onSubmit(finalSubject, isValidated);
     }
   };
 
@@ -720,8 +743,9 @@ export function SubjectSelection({
   useEffect(() => {
     if (isCustomTheme) {
       setIsValidated(false);
+      if (onValidationChange) onValidationChange(false);
     }
-  }, [customSubject, isCustomTheme]);
+  }, [customSubject, isCustomTheme, onValidationChange]);
 
   const canValidate = isCustomTheme
     ? customSubject.trim().length > 0 && customSubject.trim().length <= 1000

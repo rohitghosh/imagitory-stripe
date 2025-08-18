@@ -596,7 +596,11 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/contexts/AuthContext";
 import { useJobProgress } from "@/hooks/use-job-progress";
-import { createThemeSubjectSchema, requiresValidation, type ThemeSubjectSchema } from "@/types";
+import {
+  createThemeSubjectSchema,
+  requiresValidation,
+  type ThemeSubjectSchema,
+} from "@/types";
 const STEPS = [
   { id: 1, name: "Choose Character" },
   { id: 2, name: "Select Story" },
@@ -655,12 +659,16 @@ export default function CreateStoryPage() {
   const [bookTitle, setBookTitle] = useState("Untitled");
 
   // Story workflow state
-  const [selectedSideChars, setSelectedSideChars] = useState<SelectedCharacter[]>([]);
+  const [selectedSideChars, setSelectedSideChars] = useState<
+    SelectedCharacter[]
+  >([]);
   const [selectedTheme, setSelectedTheme] = useState<string>("");
   const [isCustomTheme, setIsCustomTheme] = useState<boolean>(false);
   const [selectedSubject, setSelectedSubject] = useState<string>("");
+  const [isSubjectValidated, setIsSubjectValidated] = useState<boolean>(false);
   const [rhyming, setRhyming] = useState<boolean>(false);
-  const [themeSubjectSchema, setThemeSubjectSchema] = useState<ThemeSubjectSchema | null>(null);
+  const [themeSubjectSchema, setThemeSubjectSchema] =
+    useState<ThemeSubjectSchema | null>(null);
 
   /* progress job ids */
   const [imagesJobId, setImagesJobId] = useState<string>();
@@ -713,8 +721,29 @@ export default function CreateStoryPage() {
 
   /* on mount via /create/:id */
   useEffect(() => {
-    if (id && !bookId) setBookId(id);
-  }, [id]);
+    if (id && !bookId) {
+      setBookId(id);
+    } else if (!id && bookId) {
+      // Reset state when navigating from /create/:id to /create
+      setBookId(null);
+      setCurrentStep(1);
+      setCurrentSubStep("characters");
+      setActiveChar(null);
+      setKidName("");
+      setBookStyle("default");
+      setBookTitle("Untitled");
+      setSelectedSideChars([]);
+      setSelectedTheme("");
+      setIsCustomTheme(false);
+      setSelectedSubject("");
+      setIsSubjectValidated(false);
+      setRhyming(false);
+      setThemeSubjectSchema(null);
+      setImagesJobId(undefined);
+      setReasoningLog("");
+      setSection(null);
+    }
+  }, [id, bookId]);
 
   /* ─────────────────────────── character pick (main character) ──────────────────── */
   async function handleSelectCharacter(character: any) {
@@ -749,25 +778,33 @@ export default function CreateStoryPage() {
   function handleThemeSelection(theme: string, isCustom: boolean) {
     setSelectedTheme(theme);
     setIsCustomTheme(isCustom);
+    // Reset subject validation when theme changes
+    setIsSubjectValidated(false);
     setCurrentSubStep("subject");
   }
 
   /* ─────────────────────────── subject selection ──────────────────── */
-  function handleSubjectSelection(subject: string) {
+  function handleSubjectSelection(
+    subject: string,
+    isValidated: boolean = false,
+  ) {
     setSelectedSubject(subject);
+    setIsSubjectValidated(isValidated);
 
     // Create the theme-subject schema for downstream use
     const schema = createThemeSubjectSchema(
       selectedTheme,
       isCustomTheme,
       subject,
-      isCustomTheme // Custom themes always have custom subjects
+      isCustomTheme, // Custom themes always have custom subjects
     );
     setThemeSubjectSchema(schema);
 
-    // For custom themes, subject selection includes validation, so we can proceed directly to settings
-    // For predefined themes, proceed to settings without validation
-    setCurrentSubStep("settings");
+    // For predefined themes, subject selection automatically validates and proceeds to settings
+    // For custom themes, only proceed to settings if validation is complete
+    if (!isCustomTheme || isValidated) {
+      setCurrentSubStep("settings");
+    }
   }
 
   /* ─────────────────────────── story settings and generation ──────────────────── */
@@ -775,21 +812,23 @@ export default function CreateStoryPage() {
     setRhyming(rhymingEnabled);
 
     // Prepare character data for story generation
-    const characters = selectedSideChars.map(char => char.name);
-    const characterDescriptions = selectedSideChars.map(char => char.description || "");
+    const characters = selectedSideChars.map((char) => char.name);
+    const characterDescriptions = selectedSideChars.map(
+      (char) => char.description || "",
+    );
     const characterImageMap = {
       [kidName]: {
         image_url: activeChar.toonUrl || activeChar.imageUrls?.[0] || "",
         description: `a ${activeChar.age} year old human kid`,
       },
       ...Object.fromEntries(
-        selectedSideChars.map(char => [
+        selectedSideChars.map((char) => [
           char.name,
           {
             image_url: char.toonUrl || char.avatar,
             description: char.description || "",
-          }
-        ])
+          },
+        ]),
       ),
     };
 
@@ -800,7 +839,12 @@ export default function CreateStoryPage() {
     const payload = {
       bookId,
       kidName,
-      pronoun: activeChar.gender === "male" ? "he" : activeChar.gender === "female" ? "she" : "they",
+      pronoun:
+        activeChar.gender === "male"
+          ? "he"
+          : activeChar.gender === "female"
+            ? "she"
+            : "they",
       age: activeChar.age,
       theme: finalTheme,
       subject: finalSubject,
@@ -821,8 +865,6 @@ export default function CreateStoryPage() {
       })
       .catch((err) => log("Full-story kickoff error", err));
   }
-
-
 
   /* ─────────────────────────── hydration logic ─────────────────── */
   useEffect(() => {
@@ -940,8 +982,11 @@ export default function CreateStoryPage() {
     );
   }
 
-  // Add a derived variable for disabling subject tab
+  // Add derived variables for disabling tabs
   const isSubjectTabDisabled = selectedTheme === "";
+  const isSettingsTabDisabled = isCustomTheme
+    ? selectedSubject === "" || !isSubjectValidated
+    : selectedSubject === "";
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -968,13 +1013,7 @@ export default function CreateStoryPage() {
           <section>
             <h2 className="text-2xl font-bold mb-4">Step 2: Select Story</h2>
             {/* Responsive Substep Navigation */}
-            <div
-              className={
-                isMobile
-                  ? "flex flex-col gap-4"
-                  : "flex gap-6"
-              }
-            >
+            <div className={isMobile ? "flex flex-col gap-4" : "flex gap-6"}>
               {/* Substep Navigation */}
               <nav
                 className={
@@ -982,7 +1021,7 @@ export default function CreateStoryPage() {
                     ? "flex flex-row overflow-x-auto pb-2 -mx-4 px-4 sticky top-0 z-10 bg-white shadow-sm"
                     : "w-64 flex-shrink-0"
                 }
-                style={isMobile ? { borderBottom: '1px solid #f3f4f6' } : {}}
+                style={isMobile ? { borderBottom: "1px solid #f3f4f6" } : {}}
               >
                 <div
                   className={
@@ -994,35 +1033,42 @@ export default function CreateStoryPage() {
                   {STORY_SUB_STEPS.map((subStep) => {
                     const isActive = currentSubStep === subStep.id;
                     const isCompleted =
-                      (subStep.id === "characters" && selectedSideChars.length >= 0) ||
+                      (subStep.id === "characters" &&
+                        selectedSideChars.length >= 0) ||
                       (subStep.id === "theme" && selectedTheme !== "") ||
-                      (subStep.id === "subject" && selectedSubject !== "") ||
+                      (subStep.id === "subject" &&
+                        selectedSubject !== "" &&
+                        (!isCustomTheme || isSubjectValidated)) ||
                       (subStep.id === "settings" && false); // Will be completed when story generates
-                    // Disable subject tab if no theme selected
-                    const isDisabled = subStep.id === "subject" && isSubjectTabDisabled;
+                    // Disable tabs based on dependencies
+                    const isDisabled =
+                      (subStep.id === "subject" && isSubjectTabDisabled) ||
+                      (subStep.id === "settings" && isSettingsTabDisabled);
                     return (
                       <button
                         key={subStep.id}
-                        onClick={() => !isDisabled && setCurrentSubStep(subStep.id)}
+                        onClick={() =>
+                          !isDisabled && setCurrentSubStep(subStep.id)
+                        }
                         className={
                           isMobile
                             ? `flex flex-col items-center px-1 py-2 min-w-[75px] transition-colors text-xs font-medium ${
                                 isActive
                                   ? "bg-yellow-100 text-yellow-800 border-b-4 border-yellow-500"
                                   : isCompleted
-                                  ? "bg-green-50 text-green-700 hover:bg-green-100"
-                                  : isDisabled
-                                  ? "text-gray-400 bg-gray-50 cursor-not-allowed"
-                                  : "text-gray-600 hover:bg-gray-100"
+                                    ? "bg-green-50 text-green-700 hover:bg-green-100"
+                                    : isDisabled
+                                      ? "text-gray-400 bg-gray-50 cursor-not-allowed"
+                                      : "text-gray-600 hover:bg-gray-100"
                               }`
                             : `flex items-center px-4 py-3 text-left rounded-lg transition-colors ${
                                 isActive
                                   ? "bg-yellow-100 text-yellow-800 border-l-4 border-yellow-500"
                                   : isCompleted
-                                  ? "bg-green-50 text-green-700 hover:bg-green-100"
-                                  : isDisabled
-                                  ? "text-gray-400 bg-gray-50 cursor-not-allowed"
-                                  : "text-gray-600 hover:bg-gray-100"
+                                    ? "bg-green-50 text-green-700 hover:bg-green-100"
+                                    : isDisabled
+                                      ? "text-gray-400 bg-gray-50 cursor-not-allowed"
+                                      : "text-gray-600 hover:bg-gray-100"
                               }`
                         }
                         disabled={isDisabled}
@@ -1034,33 +1080,39 @@ export default function CreateStoryPage() {
                                   isActive
                                     ? "bg-yellow-500 text-white"
                                     : isCompleted
-                                    ? "bg-green-500 text-white"
-                                    : isDisabled
-                                    ? "bg-gray-200 text-gray-400"
-                                    : "bg-gray-300 text-gray-600"
+                                      ? "bg-green-500 text-white"
+                                      : isDisabled
+                                        ? "bg-gray-200 text-gray-400"
+                                        : "bg-gray-300 text-gray-600"
                                 }`
                               : `w-6 h-6 rounded-full mr-3 flex items-center justify-center text-sm font-medium ${
                                   isActive
                                     ? "bg-yellow-500 text-white"
                                     : isCompleted
-                                    ? "bg-green-500 text-white"
-                                    : isDisabled
-                                    ? "bg-gray-200 text-gray-400"
-                                    : "bg-gray-300 text-gray-600"
+                                      ? "bg-green-500 text-white"
+                                      : isDisabled
+                                        ? "bg-gray-200 text-gray-400"
+                                        : "bg-gray-300 text-gray-600"
                                 }`
                           }
                         >
                           {isCompleted
                             ? "✓"
                             : subStep.id === "characters"
-                            ? "1"
-                            : subStep.id === "theme"
-                            ? "2"
-                            : subStep.id === "subject"
-                            ? "3"
-                            : "4"}
+                              ? "1"
+                              : subStep.id === "theme"
+                                ? "2"
+                                : subStep.id === "subject"
+                                  ? "3"
+                                  : "4"}
                         </div>
-                        <span className={isMobile ? "text-center leading-tight" : ""}>{subStep.name}</span>
+                        <span
+                          className={
+                            isMobile ? "text-center leading-tight" : ""
+                          }
+                        >
+                          {subStep.name}
+                        </span>
                       </button>
                     );
                   })}
@@ -1086,14 +1138,34 @@ export default function CreateStoryPage() {
                   <SubjectSelection
                     selectedTheme={selectedTheme}
                     isCustomTheme={isCustomTheme}
-                    onSubmit={handleSubjectSelection}
+                    onSubmit={(subject, isValidated) =>
+                      handleSubjectSelection(subject, isValidated)
+                    }
                     onBack={() => setCurrentSubStep("theme")}
                     kidName={kidName}
-                    pronoun={activeChar?.gender === "male" ? "he" : activeChar?.gender === "female" ? "she" : "they"}
+                    pronoun={
+                      activeChar?.gender === "male"
+                        ? "he"
+                        : activeChar?.gender === "female"
+                          ? "she"
+                          : "they"
+                    }
                     age={activeChar?.age || 5}
-                    characters={selectedSideChars.length ? selectedSideChars.map(char => char.name) : []}
-                    characterDescriptions={selectedSideChars.length ? selectedSideChars.map(char => char.description || "") : []}
+                    characters={
+                      selectedSideChars.length
+                        ? selectedSideChars.map((char) => char.name)
+                        : []
+                    }
+                    characterDescriptions={
+                      selectedSideChars.length
+                        ? selectedSideChars.map(
+                            (char) => char.description || "",
+                          )
+                        : []
+                    }
                     initialSubject={selectedSubject} // NEW
+                    onChange={setSelectedSubject} // NEW: Update selectedSubject when custom subject changes
+                    onValidationChange={setIsSubjectValidated} // NEW: Update validation state
                   />
                 )}
                 {currentSubStep === "settings" && (
