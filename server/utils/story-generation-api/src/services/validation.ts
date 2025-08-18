@@ -222,8 +222,8 @@ export function buildValidationPrompt(input: StoryValidationInput) {
 
   if (hasCharacters) {
     userPrompt += `
-    * **character1:** "${input.characters[0]}"
-    * **character1_description:** "${input.character_descriptions[0]}"
+    * **character1:** "${input.characters}"
+    * **character1_description:** "${input.character_descriptions}"
     `;
   }
 
