@@ -1138,14 +1138,14 @@ export default function CreateStoryPage() {
                     <p className="font-semibold mb-1 flex items-center shimmer">
                       {section.title}
                     </p>
-                    <div
+                    {/* <div
                       ref={cardRef}
                       className="bg-white border border-imaginory-yellow/30 rounded-md p-3
                                  text-xs text-gray-800 whitespace-pre-wrap
                                  max-h-56 overflow-y-auto"
                     >
                       <ReactMarkdown>{section.body}</ReactMarkdown>
-                    </div>
+                    </div> */}
                   </div>
                 )}
               </div>

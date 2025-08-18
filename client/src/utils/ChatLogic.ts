@@ -84,7 +84,7 @@ export class ChatLogic {
         }
         return {
           message:
-            "What would you like me to change about this image? Please describe what you'd like to see:",
+            "What would you like me to change about this image? Please note you can edit this image only once. Also, refer to only this image while submitting feedback - not the other images. Please describe what you'd like to see:",
           requiresTextInput: true,
           selectedPageIndex: pageIndex,
           actionType: "regenerate_scene",
@@ -116,7 +116,7 @@ export class ChatLogic {
           }
           return {
             message:
-              "What would you like me to change about the cover image? Please describe your vision:",
+              "What would you like me to change about the cover image? Please note you can edit this image only once. Also, refer to only the cover image while submitting feedback - not the other images. Please describe your vision:",
             requiresTextInput: true,
             actionType: "regenerate_cover",
             state: "feedback_input" as ChatState,

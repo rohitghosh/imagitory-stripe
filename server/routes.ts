@@ -2033,7 +2033,7 @@ const MemoryStore = createMemoryStore(session);
 
 const DEBUG_LOGGING = process.env.DEBUG_LOGGING === "true";
 
-const DEFAULT_FONT_SIZE = 22;
+const DEFAULT_FONT_ENLARGED_SIZE = 38;
 const DEFAULT_FONT_FAMILY = "Cormorant Garamond Bold";
 const DEFAULT_COLOR = "#ffffff";
 const FULL_W = 2048;
@@ -3199,11 +3199,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const { characterType } = req.params;
 
         if (!["main", "side"].includes(characterType)) {
-          return res
-            .status(400)
-            .json({
-              message: "Invalid character_type. Must be 'main' or 'side'",
-            });
+          return res.status(400).json({
+            message: "Invalid character_type. Must be 'main' or 'side'",
+          });
         }
 
         let characters;
@@ -3813,7 +3811,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                       page.side,
                       isRhyming,
                       {
-                        fontSize: DEFAULT_FONT_SIZE,
+                        fontSize: DEFAULT_FONT_ENLARGED_SIZE,
                         fontFamily: DEFAULT_FONT_FAMILY,
                         debugMode: false,
                       },
@@ -3836,7 +3834,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                           : [page.content],
                       imageWidth: FULL_W,
                       imageHeight: FULL_H,
-                      fontSize: DEFAULT_FONT_SIZE,
+                      fontSize: DEFAULT_FONT_ENLARGED_SIZE,
                       fontFamily: DEFAULT_FONT_FAMILY,
                     };
                   }
@@ -3849,7 +3847,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                     lines: [],
                     imageWidth: FULL_W,
                     imageHeight: FULL_H,
-                    fontSize: DEFAULT_FONT_SIZE,
+                    fontSize: DEFAULT_FONT_ENLARGED_SIZE,
                     fontFamily: DEFAULT_FONT_FAMILY,
                   };
                 }

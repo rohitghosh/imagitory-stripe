@@ -1190,16 +1190,19 @@ export async function generateImageForScene(
   }
 
   // Add previous image if visual overlap is needed
-  // if (scene.scene_description.Visual_Overlap_With_Previous && previousImageUrl) {
-  //   try {
-  //     characterImages.push({
-  //       type: "input_image" as const,
-  //       image_url: await toDataUrl(previousImageUrl),
-  //     });
-  //   } catch (error) {
-  //     console.warn(`Failed to load previous scene image:`, error);
-  //   }
-  // }
+  if (
+    scene.scene_description.Visual_Overlap_With_Previous &&
+    previousImageUrl
+  ) {
+    try {
+      characterImages.push({
+        type: "input_image" as const,
+        image_url: await toDataUrl(previousImageUrl),
+      });
+    } catch (error) {
+      console.warn(`Failed to load previous scene image:`, error);
+    }
+  }
 
   // Build the tool configuration
   const tools = [
@@ -1224,6 +1227,9 @@ export async function generateImageForScene(
     input: inputs,
     tools,
   });
+  // const response = await openai.responses.retrieve(
+  //   "resp_68a259cb613c8194b4af7906a7d7d93e076c7acadee13977",
+  // );
 
   onProgress?.("generating", 70, "Image generated, processing…");
 
@@ -1337,6 +1343,9 @@ export async function generateImageForFrontCover(
     input: inputs,
     tools,
   });
+  // const response = await openai.responses.retrieve(
+  //   "resp_68a259cb009081908be84383be9363f90385d78bb1c4df69",
+  // );
 
   onProgress?.("generating_cover", 70, "Image generated, processing…");
 
@@ -1382,18 +1391,18 @@ export async function generateFinalCoverWithTitle(
     input: {
       prompt: createTitleOverlayPrompt(storyTitle),
       image_url: baseCoverUrl,
-      sync_mode: true,
       enable_safety_checker: false,
     },
     pollInterval: 1000,
     onQueueUpdate,
   });
 
-  if (!result.images || result.images.length === 0) {
-    throw new Error("No image generated for final cover");
+  const finalImageUrl = result?.data?.images?.[0]?.url;
+
+  if (!finalImageUrl) {
+    throw new Error("No final cover URL returned from Fal AI title overlay");
   }
 
-  const finalImageUrl = result.images[0].url;
   const dataUrl = await toDataUrl(finalImageUrl);
   const firebaseUrl = await uploadBase64ToFirebase(
     dataUrl,
@@ -1423,6 +1432,10 @@ export async function regenerateBaseCoverImage(
 
   // Build the tool configuration
   const tools = [buildImageGenTool()];
+  const bookDoc = await storage.getBook(bookId);
+  const aliasMap = bookDoc?.characterAliases ?? {};
+
+  const safePrompt = applyCharacterAliases(revisedPrompt, aliasMap);
 
   // Build the input structure for responses API
   const inputs = [
@@ -1431,7 +1444,7 @@ export async function regenerateBaseCoverImage(
       content: [
         {
           type: "input_text" as const,
-          text: `Regenerate this cover image with the following changes: ${revisedPrompt}`,
+          text: `Regenerate this cover image with the following changes: ${safePrompt}`,
         },
       ],
     },
@@ -1443,6 +1456,7 @@ export async function regenerateBaseCoverImage(
   const response = await openai.responses.create({
     model: "gpt-4o-mini",
     input: inputs,
+    previous_response_id: coverResponseId,
     tools,
   });
 
@@ -1478,6 +1492,11 @@ export async function regenerateSceneImage(
   // Build the tool configuration
   const tools = [buildImageGenTool()];
 
+  const bookDoc = await storage.getBook(bookId);
+  const aliasMap = bookDoc?.characterAliases ?? {};
+
+  const safePrompt = applyCharacterAliases(revisedPrompt, aliasMap);
+
   // Build the input structure for responses API
   const inputs = [
     {
@@ -1485,7 +1504,7 @@ export async function regenerateSceneImage(
       content: [
         {
           type: "input_text" as const,
-          text: `Regenerate this scene image with the following changes: ${revisedPrompt}`,
+          text: `Regenerate this scene image with the following changes: ${safePrompt}`,
         },
       ],
     },
@@ -1497,6 +1516,7 @@ export async function regenerateSceneImage(
   const response = await openai.responses.create({
     model: "gpt-4o-mini",
     input: inputs,
+    previous_response_id: sceneResponseId,
     tools,
   });
 
