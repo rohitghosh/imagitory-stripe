@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useLocation } from "wouter";
+import { useLocation, useParams } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -10,8 +10,9 @@ interface OrderSuccessPageProps {
   orderId?: string;
 }
 
-export default function OrderSuccessPage(params: { orderId?: string }) {
-  const orderId = params?.orderId;
+export default function OrderSuccessPage() {
+  const params = useParams();
+  const orderId = params.orderId;
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [orderData, setOrderData] = useState<any>(null);

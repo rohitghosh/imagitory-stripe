@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useLocation } from "wouter";
+import { useLocation, useParams } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
@@ -17,9 +17,10 @@ declare global {
   }
 }
 
-export default function PaymentPage(params: { orderId?: string }) {
-  const orderId = params?.orderId;
-  console.log("💳 PaymentPage loaded with params:", params, "orderId:", orderId);
+export default function PaymentPage() {
+  const params = useParams();
+  const orderId = params.orderId;
+  console.log("💳 PaymentPage loaded with useParams:", params, "orderId:", orderId);
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const { user } = useAuth();
