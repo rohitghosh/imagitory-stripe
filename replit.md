@@ -66,7 +66,8 @@ The application uses a dual approach:
 3. **Story Selection**: User choice → Template/AI generation → Scene breakdown
 4. **Image Generation**: Scene prompts + Character model → AI generation → Storage
 5. **Book Assembly**: Pages + Images → PDF generation → Download/Order processing
-6. **Order Management**: Shipping details → Order record → Fulfillment tracking
+6. **Order Management**: Shipping details → Order record → Payment processing → Fulfillment tracking
+7. **Payment Processing**: Order creation → Razorpay payment gateway → Payment verification → Order confirmation
 
 ## External Dependencies
 
@@ -80,8 +81,11 @@ The application uses a dual approach:
 - **Storage**: File storage for images and generated content
 
 ### Payment & Shipping
+- **Razorpay**: Payment gateway integration for secure transactions
+- **Payment Processing**: Complete payment flow with signature verification
 - **Shipping Integration**: Form-based shipping address collection
-- **Order Processing**: Internal order management system
+- **Order Processing**: Complete order management with payment verification
+- **Order Tracking**: Order status tracking from payment to shipping
 
 ### Development Tools
 - **Logging**: Pino with Logtail integration for production logging

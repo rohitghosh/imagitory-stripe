@@ -181,7 +181,7 @@ export function ShippingForm({ onSubmit }: ShippingFormProps) {
               
               <div className="flex justify-center mt-4">
                 <Button type="submit" className="bg-primary hover:bg-primary/90 text-white font-bold py-3 px-8 rounded-full text-lg shadow-lg hover:shadow-xl transition-all">
-                  Confirm Order
+                  Pay & Confirm
                 </Button>
               </div>
             </form>

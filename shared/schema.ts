@@ -307,7 +307,14 @@ export const orderSchema = z.object({
   state: z.string(),
   zip: z.string(),
   country: z.string(),
-  status: z.enum(["pending", "shipped", "completed", "cancelled"]).optional(),
+  status: z.enum(["pending", "payment_pending", "paid", "shipped", "completed", "cancelled"]).optional(),
+  paymentId: z.string().optional(),
+  paymentStatus: z.enum(["pending", "success", "failed"]).optional(),
+  amount: z.number().optional(),
+  currency: z.string().optional(),
+  razorpayOrderId: z.string().optional(),
+  razorpayPaymentId: z.string().optional(),
+  razorpaySignature: z.string().optional(),
   createdAt: z.date(),
 });
 export type Order = z.infer<typeof orderSchema>;
@@ -337,7 +344,16 @@ export const insertBookSchema = bookSchema
 
 export const insertOrderSchema = orderSchema
   .omit({ id: true, createdAt: true })
-  .partial({ status: true });
+  .partial({ 
+    status: true, 
+    paymentId: true, 
+    paymentStatus: true, 
+    amount: true, 
+    currency: true, 
+    razorpayOrderId: true, 
+    razorpayPaymentId: true, 
+    razorpaySignature: true 
+  });
 
 export const shippingFormSchema = z.object({
   firstName: z.string().min(1, "First name is required"),

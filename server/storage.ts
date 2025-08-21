@@ -616,6 +616,17 @@ export class FirestoreStorage implements IStorage {
     const docRef = await db.collection("orders").add(data);
     return { id: docRef.id, ...data } as Order;
   }
+
+  async updateOrder(id: string, updatedData: any): Promise<Order | null> {
+    const orderRef = db.collection("orders").doc(id);
+    const doc = await orderRef.get();
+    if (!doc.exists) {
+      return null;
+    }
+    await orderRef.update(updatedData);
+    const updatedDoc = await orderRef.get();
+    return { id, ...updatedDoc.data() } as Order;
+  }
 }
 
 export const storage = new FirestoreStorage();

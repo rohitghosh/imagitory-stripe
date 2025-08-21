@@ -10,6 +10,8 @@ import CreateStoryPage from "@/pages/CreateStoryPage";
 import LoginPage from "@/pages/LoginPage";
 import BookDetailPage from "@/pages/BookDetailPage";
 import EditPDFPage from "@/pages/EditPDFPage";
+import PaymentPage from "@/pages/PaymentPage";
+import OrderSuccessPage from "@/pages/OrderSuccessPage";
 import { AuthErrorInterceptor } from "@/components/AuthErrorInterceptor";
 import React, { Suspense, useEffect } from "react";
 
@@ -81,6 +83,12 @@ function Router() {
         {(params) => <ProtectedRoute component={BookDetailPage} {...params} />}
       </Route>
       <Route path="/edit-pdf/:bookId" component={EditPDFPage} />
+      <Route path="/payment/:orderId">
+        {(params) => <ProtectedRoute component={PaymentPage} {...params} />}
+      </Route>
+      <Route path="/order-success/:orderId">
+        {(params) => <ProtectedRoute component={OrderSuccessPage} {...params} />}
+      </Route>
       <Route component={NotFound} />
     </Switch>
   );

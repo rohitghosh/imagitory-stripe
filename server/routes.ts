@@ -1997,6 +1997,7 @@ import { pickContrastingTextColor } from "./utils/textColorUtils";
 import { loadBase64Image } from "./utils/layouts";
 import { uploadBase64ToFirebase } from "./utils/uploadImage";
 import { jobTracker } from "./lib/jobTracker";
+import Razorpay from "razorpay";
 
 import { validateStoryInputs } from "./utils/story-generation-api/src/routes/validation";
 import { validateCharacterArrays } from "./utils/story-generation-api/src/utils/helpers";
@@ -3925,6 +3926,118 @@ export async function registerRoutes(app: Express): Promise<Server> {
       })();
     },
   );
+
+  // Payment routes for Razorpay integration
+  
+  // Get Razorpay config for frontend
+  app.get("/api/payments/config", (req, res) => {
+    res.json({
+      keyId: process.env.RAZORPAY_KEY_ID,
+    });
+  });
+  
+  const razorpay = new Razorpay({
+    key_id: process.env.RAZORPAY_KEY_ID,
+    key_secret: process.env.RAZORPAY_KEY_SECRET,
+  });
+
+  // Create Razorpay order
+  app.post("/api/payments/create-order", async (req, res) => {
+    try {
+      const { orderId, amount, currency = "INR" } = req.body;
+
+      if (!orderId || !amount) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      // Create order in Razorpay
+      const options = {
+        amount: amount, // amount in paise
+        currency,
+        receipt: orderId,
+        payment_capture: 1,
+      };
+
+      const razorpayOrder = await razorpay.orders.create(options);
+
+      // Update order with Razorpay order ID
+      await storage.updateOrder(orderId, {
+        razorpayOrderId: razorpayOrder.id,
+        amount: amount / 100, // store in dollars
+        currency,
+        status: "payment_pending",
+      });
+
+      res.json({
+        razorpayOrderId: razorpayOrder.id,
+        amount: razorpayOrder.amount,
+        currency: razorpayOrder.currency,
+      });
+    } catch (error) {
+      console.error("Error creating Razorpay order:", error);
+      res.status(500).json({ error: "Failed to create payment order" });
+    }
+  });
+
+  // Verify payment
+  app.post("/api/payments/verify", async (req, res) => {
+    try {
+      const {
+        orderId,
+        razorpayOrderId,
+        razorpayPaymentId,
+        razorpaySignature,
+      } = req.body;
+
+      if (!orderId || !razorpayOrderId || !razorpayPaymentId || !razorpaySignature) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      // Verify signature
+      const { createHmac } = await import('crypto');
+      const expectedSignature = createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+        .update(`${razorpayOrderId}|${razorpayPaymentId}`)
+        .digest('hex');
+
+      if (expectedSignature !== razorpaySignature) {
+        await storage.updateOrder(orderId, {
+          paymentStatus: "failed",
+          status: "cancelled",
+        });
+        return res.status(400).json({ error: "Invalid signature" });
+      }
+
+      // Update order with payment details
+      await storage.updateOrder(orderId, {
+        razorpayPaymentId,
+        razorpaySignature,
+        paymentStatus: "success",
+        status: "paid",
+      });
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error verifying payment:", error);
+      res.status(500).json({ error: "Payment verification failed" });
+    }
+  });
+
+  // Get single order by ID
+  app.get("/api/orders/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const order = await storage.getOrder(id);
+      
+      if (!order) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+
+      res.json(order);
+    } catch (error) {
+      console.error("Error fetching order:", error);
+      res.status(500).json({ error: "Failed to fetch order" });
+    }
+  });
 
   return httpServer;
 }

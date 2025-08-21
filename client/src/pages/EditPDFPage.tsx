@@ -3770,17 +3770,15 @@ export default function EditPDFPage() {
   const handleShippingSubmit = async (formData) => {
     try {
       if (user) {
-        await apiRequest("POST", "/api/orders", {
+        const orderResponse = await apiRequest("POST", "/api/orders", {
           ...formData,
           bookId,
           userId: user.uid,
         });
-        setOrderCompleted(true);
+        
+        // Redirect to payment page instead of marking as completed
         setShowShippingForm(false);
-        toast({
-          title: "Order placed successfully!",
-          description: "Your book will be delivered soon.",
-        });
+        setLocation(`/payment/${orderResponse.id}`);
       }
     } catch (error) {
       toast({
