@@ -10,7 +10,8 @@ interface OrderSuccessPageProps {
   orderId?: string;
 }
 
-export default function OrderSuccessPage({ orderId }: OrderSuccessPageProps) {
+export default function OrderSuccessPage(params: { orderId?: string }) {
+  const orderId = params?.orderId;
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [orderData, setOrderData] = useState<any>(null);

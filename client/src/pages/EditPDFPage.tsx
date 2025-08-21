@@ -3770,17 +3770,22 @@ export default function EditPDFPage() {
   const handleShippingSubmit = async (formData) => {
     try {
       if (user) {
+        console.log("🚀 Creating order with formData:", formData);
         const orderResponse = await apiRequest("POST", "/api/orders", {
           ...formData,
           bookId,
           userId: user.uid,
         });
         
+        console.log("✅ Order created:", orderResponse);
+        console.log("🔄 Redirecting to:", `/payment/${orderResponse.id}`);
+        
         // Redirect to payment page instead of marking as completed
         setShowShippingForm(false);
         setLocation(`/payment/${orderResponse.id}`);
       }
     } catch (error) {
+      console.error("❌ Order creation failed:", error);
       toast({
         title: "Order failed",
         description: "There was a problem placing your order.",

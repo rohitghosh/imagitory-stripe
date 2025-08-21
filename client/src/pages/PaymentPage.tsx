@@ -17,7 +17,9 @@ declare global {
   }
 }
 
-export default function PaymentPage({ orderId }: PaymentPageProps) {
+export default function PaymentPage(params: { orderId?: string }) {
+  const orderId = params?.orderId;
+  console.log("💳 PaymentPage loaded with params:", params, "orderId:", orderId);
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const { user } = useAuth();
@@ -27,18 +29,24 @@ export default function PaymentPage({ orderId }: PaymentPageProps) {
   const [razorpayKeyId, setRazorpayKeyId] = useState<string>("");
 
   useEffect(() => {
+    console.log("💳 PaymentPage useEffect - orderId:", orderId);
     if (!orderId) {
+      console.log("❌ No orderId provided, redirecting to home");
       setLocation("/");
       return;
     }
 
     const loadData = async () => {
       try {
+        console.log("🔄 Loading order data and payment config...");
         // Load both order data and Razorpay config
         const [orderResponse, configResponse] = await Promise.all([
           fetch(`/api/orders/${orderId}`),
           fetch("/api/payments/config")
         ]);
+
+        console.log("📦 Order response:", orderResponse.status, orderResponse.ok);
+        console.log("⚙️ Config response:", configResponse.status, configResponse.ok);
 
         if (!orderResponse.ok) throw new Error("Order not found");
         if (!configResponse.ok) throw new Error("Payment config not available");
@@ -46,9 +54,13 @@ export default function PaymentPage({ orderId }: PaymentPageProps) {
         const order = await orderResponse.json();
         const config = await configResponse.json();
         
+        console.log("✅ Order data loaded:", order);
+        console.log("✅ Config loaded:", config);
+        
         setOrderData(order);
         setRazorpayKeyId(config.keyId);
       } catch (error) {
+        console.error("❌ Error loading payment page data:", error);
         toast({
           title: "Error",
           description: "Could not load order details",
