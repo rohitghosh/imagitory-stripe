@@ -333,6 +333,9 @@ export default function ProfilePage() {
                     <tbody className="bg-white divide-y divide-gray-200">
                       {books
                         .slice() // create a shallow copy
+                        .filter(
+                          (book) => book.title && book.title.trim() !== "",
+                        )
                         .sort(
                           (a, b) =>
                             new Date(b.createdAt).getTime() -
