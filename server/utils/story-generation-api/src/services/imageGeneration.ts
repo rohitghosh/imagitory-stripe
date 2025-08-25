@@ -1,635 +1,3 @@
-// import { fal } from "@fal-ai/client";
-// import fs from "fs";
-// import OpenAI from "openai";
-// import tmp from "tmp-promise";
-// import fetch from "node-fetch";
-// import { uploadBase64ToFirebase } from "../../../uploadImage";
-// import { toFile } from "openai";
-// import { storage } from "../../../../storage"; // already exported in storage.ts
-
-// import {
-//   UnifiedSceneDescription,
-//   UnifiedFrontCover,
-//   ProgressCallback,
-//   CharacterVariables,
-//   SceneRegenerationInput,
-//   FinalCoverRegenerationInput,
-//   BaseCoverRegenerationInput,
-// } from "../types";
-// import { DEFAULT_CHARACTER_IMAGES } from "../utils/constants";
-
-// const quality = "low";
-// const input_fidelity = "low";
-// const openai = new OpenAI({
-//   apiKey: process.env.OPENAI_API_KEY!,
-// });
-
-// const endpoint = process.env.AZURE_OPENAI_ENDPOINT; // ends with /openai/v1/
-// const apiKey = process.env.AZURE_OPENAI_API_KEY;
-// const apiVersion = process.env.AZURE_OPENAI_API_VERSION || "2025-04-01-preview";
-// const imageDeployment = process.env.AZURE_IMAGE_DEPLOYMENT; // your gpt-image-1 deployment name
-
-// // Create OpenAI client for Azure endpoint with API key
-// const azureopenai = new OpenAI({
-//   baseURL: endpoint,
-//   apiKey,
-//   defaultHeaders: {
-//     // CRITICAL: Route the image tool to your gpt-image-1 deployment
-//     "x-ms-oai-image-generation-deployment": imageDeployment,
-//   },
-//   defaultQuery: { "api-version": "preview" }, // <-- correct key & value
-// });
-
-// async function urlToReadableStream(url: string) {
-//   const res = await fetch(url);
-//   const { path } = await tmp.file({ postfix: ".png" });
-//   const buf = Buffer.from(await res.arrayBuffer());
-//   await fs.promises.writeFile(path, buf);
-//   return fs.createReadStream(path);
-// }
-
-// async function toDataUrl(url: string) {
-//   const r = await fetch(url);
-//   if (!r.ok) throw new Error(`fetch failed: ${r.status}`);
-//   const ct = r.headers.get("content-type") || "image/jpeg";
-//   const b64 = Buffer.from(await r.arrayBuffer()).toString("base64");
-//   return `data:${ct};base64,${b64}`;
-// }
-
-// /**
-//  * Removes *adjacent* duplicate words (e.g. "looking looking" → "looking"),
-//  * but will *not* collapse across punctuation (e.g. "looking. looking" stays).
-//  */
-// function removeDuplicateAdjacentWords(text: string): string {
-//   const regex = /\b(\w+)\s+\1\b/gi;
-//   let result = text;
-//   // repeat until no more adjacent duplicates
-//   while (regex.test(result)) {
-//     result = result.replace(regex, "$1");
-//   }
-//   return result;
-// }
-
-// /**
-//  * Replaces every occurrence of the real character names with short aliases,
-//  * saves the mapping in Firestore under
-//  * `books/{bookId}/characterAliases`, and returns the substituted prompt.
-//  * @returns the prompt with character names replaced by their aliases
-//  */
-// export async function createAndSaveAliasMap(
-//   presentChars: string[],
-//   aliasPool: string[],
-//   bookId: string,
-// ): Promise<Record<string, string>> {
-//   /* 1️⃣  Build the replacement map */
-//   const aliasMap: Record<string, string> = Object.fromEntries(
-//     presentChars.map((name, i) => [name, aliasPool[i % aliasPool.length]]),
-//   );
-
-//   /* 2️⃣  Persist to Firestore (books/{bookId}/characterAliases) */
-//   await storage.updateBook(bookId, { characterAliases: aliasMap });
-
-//   return aliasMap;
-// }
-
-// export function applyCharacterAliases(
-//   prompt: string,
-//   aliasMap: Record<string, string>,
-// ): string {
-//   const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-//   let out = prompt;
-//   for (const [realName, alias] of Object.entries(aliasMap)) {
-//     out = out.replace(new RegExp(esc(realName), "gi"), alias);
-//   }
-//   return out;
-// }
-
-// /**
-//  * Generate unified image prompt for scenes with characters (unified schema)
-//  */
-// function generateUnifiedImagePrompt(input: any): string {
-//   const promptParts: string[] = [];
-
-//   const addPart = (content: string | null | undefined) => {
-//     if (content && content.trim()) {
-//       promptParts.push(content.trim().replace(/\.$/, "") + ".");
-//     }
-//   };
-
-//   // Time of Day and Atmosphere (High Priority)
-//   if (
-//     input.Time_of_Day_and_Atmosphere &&
-//     input.Time_of_Day_and_Atmosphere.trim()
-//   ) {
-//     addPart(
-//       `The scene is set during ${input.Time_of_Day_and_Atmosphere.toLowerCase()}`,
-//     );
-//   }
-
-//   // Present Characters - only if the array is not empty
-//   if (input.Present_Characters && input.Present_Characters.length > 0) {
-//     addPart(
-//       `The scene features: ${input.Present_Characters.join(", ").toLowerCase()}`,
-//     );
-//   }
-
-//   // Character Interaction Summary - only if it's a non-empty string
-//   if (
-//     input.Character_Interaction_Summary &&
-//     input.Character_Interaction_Summary.trim()
-//   ) {
-//     addPart(input.Character_Interaction_Summary);
-//   }
-
-//   // Character Details - only if the array is not empty
-//   if (input.Character_Details && input.Character_Details.length > 0) {
-//     input.Character_Details.forEach((char: any) => {
-//       const nameDesc = char.Character_Name.split(" (")[0];
-//       const desc = char.Character_Name.match(/\((.*)\)/)?.[1] || "";
-//       const charDescription = `${nameDesc}${desc ? ` (${desc})` : ""} is ${char.Pose_and_Action.toLowerCase()}, looking ${char.Gaze_Direction.toLowerCase()} with an expression of ${char.Expression.toLowerCase()}`;
-//       addPart(charDescription);
-//     });
-//   }
-
-//   // Setting and Environment
-//   addPart(`It unfolds in ${input.Setting_and_Environment.toLowerCase()}`);
-
-//   // Focal Action
-//   addPart(`The focal action is ${input.Focal_Action.toLowerCase()}`);
-
-//   // Lighting
-//   addPart(input.Lighting_Description);
-
-//   // Key Storytelling Props
-//   addPart(input.Key_Storytelling_Props);
-
-//   // Background Elements
-//   addPart(input.Background_Elements);
-
-//   // Color Palette
-//   if (input.Dominant_Color_Palette && input.Dominant_Color_Palette.trim()) {
-//     addPart(
-//       `The dominant color palette includes ${input.Dominant_Color_Palette.toLowerCase()}`,
-//     );
-//   }
-
-//   // Camera and Composition
-//   if (input.Camera_Shot && input.Camera_Shot.trim()) {
-//     const composition =
-//       input.Composition_and_Blocking && input.Composition_and_Blocking.trim()
-//         ? ` with ${input.Composition_and_Blocking.toLowerCase()}`
-//         : "";
-//     addPart(
-//       `The camera shot is a ${input.Camera_Shot.toLowerCase()}${composition}`,
-//     );
-//   }
-
-//   // Hidden Object
-//   addPart(input.Hidden_Object);
-
-//   return promptParts.join(" ");
-// }
-
-// /**
-//  * Generate unified front cover prompt for covers with characters (unified schema)
-//  */
-// function generateUnifiedFrontCoverPrompt(input: any): string {
-//   const promptParts: string[] = [];
-
-//   const addPart = (content: string | null | undefined) => {
-//     if (content && content.trim()) {
-//       promptParts.push(content.trim().replace(/\.$/, "") + ".");
-//     }
-//   };
-
-//   addPart(input.Cover_Concept);
-//   addPart(input.Focal_Point);
-//   addPart(input.Character_Placement);
-
-//   if (input.Character_Details && input.Character_Details.length > 0) {
-//     input.Character_Details.forEach((char: any) => {
-//       const charDescription = `${char.Character_Name} is ${char.Pose_and_Action.toLowerCase()}, looking ${char.Gaze_Direction.toLowerCase()} with an expression of ${char.Expression.toLowerCase()}`;
-//       addPart(charDescription);
-//     });
-//   }
-
-//   addPart(`The background shows ${input.Background_Setting.toLowerCase()}`);
-
-//   if (input.Key_Visual_Elements && input.Key_Visual_Elements.length > 0) {
-//     addPart(
-//       `Key visual elements include: ${input.Key_Visual_Elements.join(", ").toLowerCase()}`,
-//     );
-//   }
-
-//   addPart(input.Lighting_and_Mood);
-//   addPart(
-//     `The dominant color palette includes ${input.Color_Palette.toLowerCase()}`,
-//   );
-
-//   return promptParts.join(" ");
-// }
-
-// /**
-//  * Generate image for a scene (supports both with and without characters)
-//  */
-// function buildImageGenTool(
-//   opts: {
-//     hasInputImage: boolean;
-//   } = { hasInputImage: false },
-// ) {
-//   return {
-//     type: "image_generation" as const,
-//     model: "gpt-image-1",
-//     size: "1024x1024",
-//     quality,
-//     output_format: "png",
-//     ...(opts.hasInputImage && {
-//       input_fidelity,
-//     }),
-//   };
-// }
-
-// export async function generateImageForScene(
-//   bookId: string,
-//   scene: { scene_description: any; scene_text: string[] },
-//   previousImageUrl: string | null,
-//   characterImageMap: Record<
-//     string,
-//     CharacterVariables
-//   > = DEFAULT_CHARACTER_IMAGES,
-//   onProgress?: ProgressCallback,
-//   seed = 3,
-// ): Promise<{ firebaseUrl: string; responseId: string }> {
-//   onProgress?.("generating", 0, "Building image prompt…");
-
-//   // Generate the base prompt from scene description using unified schema
-//   let prompt = generateUnifiedImagePrompt(scene.scene_description);
-
-//   // Apply character aliases if needed
-//   if (scene.scene_description.Present_Characters.length > 0) {
-//     const aliasPool = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"];
-//     const aliasMap = await createAndSaveAliasMap(
-//       scene.scene_description.Present_Characters,
-//       aliasPool,
-//       bookId,
-//     );
-//     prompt = applyCharacterAliases(prompt, aliasMap);
-//   }
-
-//   // Remove duplicate adjacent words
-//   prompt = removeDuplicateAdjacentWords(prompt);
-
-//   onProgress?.("generating", 10, "Prompt ready, calling image generation…");
-
-//   /* ---------- Build Responses-API input array ---------- */
-//   // Build the character image inputs using toDataUrl method
-//   const characterImages: any[] = [];
-//   if (scene.scene_description.Present_Characters.length > 0) {
-//     for (const charName of scene.scene_description.Present_Characters) {
-//       const charVars = characterImageMap[charName];
-//       if (charVars && charVars.image_url) {
-//         try {
-//           characterImages.push({
-//             type: "input_image" as const,
-//             image_url: await toDataUrl(charVars.image_url),
-//           });
-//         } catch (error) {
-//           console.warn(
-//             `Failed to load image for character ${charName}:`,
-//             error,
-//           );
-//         }
-//       }
-//     }
-//   }
-
-//   // Add previous image if visual overlap is needed
-//   if (
-//     scene.scene_description.Visual_Overlap_With_Previous &&
-//     previousImageUrl
-//   ) {
-//     try {
-//       characterImages.push({
-//         type: "input_image" as const,
-//         image_url: await toDataUrl(previousImageUrl),
-//       });
-//     } catch (error) {
-//       console.warn(`Failed to load previous scene image:`, error);
-//     }
-//   }
-
-//   // Build the tool configuration
-//   const tools = [
-//     buildImageGenTool({ hasInputImage: characterImages.length > 0 }),
-//   ];
-
-//   const inputs = [
-//     {
-//       role: "user" as const,
-//       content: [
-//         { type: "input_text" as const, text: prompt },
-//         ...characterImages,
-//       ],
-//     },
-//   ];
-
-//   onProgress?.("generating", 30, "Calling image generation API…");
-
-//   // Make the API call using the original responses API
-//   const response = await openai.responses.create({
-//     model: "gpt-4o-mini",
-//     input: inputs,
-//     tools,
-//   });
-
-//   onProgress?.("generating", 70, "Image generated, processing…");
-
-//   const responseId = response.id;
-//   const imageBase64 = response.output.find(
-//     (o) => o.type === "image_generation_call",
-//   )?.result;
-
-//   if (!imageBase64) {
-//     throw new Error("No image returned from OpenAI");
-//   }
-
-//   /* ---------- Persist to Firebase ---------- */
-//   const firebaseUrl = await uploadBase64ToFirebase(
-//     imageBase64,
-//     `books/${bookId}/scene_${scene.scene_description.Scene_Number}.png`,
-//   );
-
-//   onProgress?.(
-//     "generating",
-//     100,
-//     `Scene ${scene.scene_description.Scene_Number} ready`,
-//   );
-//   return { firebaseUrl, responseId };
-// }
-
-// export async function generateImageForFrontCover(
-//   bookId: string,
-//   frontCover: any,
-//   characterImageMap: Record<
-//     string,
-//     CharacterVariables
-//   > = DEFAULT_CHARACTER_IMAGES,
-//   onProgress?: ProgressCallback,
-//   seed = 3,
-// ): Promise<{ firebaseUrl: string; responseId: string }> {
-//   onProgress?.("generating_cover", 0, "Building cover prompt…");
-
-//   // Generate the base prompt from front cover description using unified schema
-//   let prompt = generateUnifiedFrontCoverPrompt(frontCover);
-
-//   // Apply character aliases if needed
-//   if (frontCover.Present_Characters.length > 0) {
-//     const aliasPool = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"];
-//     const aliasMap = await createAndSaveAliasMap(
-//       frontCover.Present_Characters,
-//       aliasPool,
-//       bookId,
-//     );
-//     prompt = applyCharacterAliases(prompt, aliasMap);
-//   }
-
-//   // Remove duplicate adjacent words
-//   prompt = removeDuplicateAdjacentWords(prompt);
-
-//   onProgress?.(
-//     "generating_cover",
-//     10,
-//     "Prompt ready, calling image generation…",
-//   );
-
-//   /* ---------- Build Responses-API input array ---------- */
-//   // Build the character image inputs using toDataUrl method
-//   const characterImages: any[] = [];
-//   if (frontCover.Present_Characters.length > 0) {
-//     for (const charName of frontCover.Present_Characters) {
-//       const charVars = characterImageMap[charName];
-//       if (charVars && charVars.image_url) {
-//         try {
-//           characterImages.push({
-//             type: "input_image" as const,
-//             image_url: await toDataUrl(charVars.image_url),
-//           });
-//         } catch (error) {
-//           console.warn(
-//             `Failed to load image for character ${charName}:`,
-//             error,
-//           );
-//         }
-//       }
-//     }
-//   }
-
-//   // Build the tool configuration
-//   const tools = [
-//     buildImageGenTool({ hasInputImage: characterImages.length > 0 }),
-//   ];
-
-//   const inputs = [
-//     {
-//       role: "user" as const,
-//       content: [
-//         { type: "input_text" as const, text: prompt },
-//         ...characterImages,
-//       ],
-//     },
-//   ];
-
-//   onProgress?.("generating_cover", 30, "Calling image generation API…");
-
-//   // Make the API call using the original responses API
-//   const response = await openai.responses.create({
-//     model: "gpt-4o-mini",
-//     input: inputs,
-//     tools,
-//   });
-
-//   onProgress?.("generating_cover", 70, "Image generated, processing…");
-
-//   const responseId = response.id;
-//   const imageBase64 = response.output.find(
-//     (o) => o.type === "image_generation_call",
-//   )?.result;
-
-//   if (!imageBase64) {
-//     throw new Error("No image returned from OpenAI");
-//   }
-
-//   /* ---------- Persist to Firebase ---------- */
-//   const firebaseUrl = await uploadBase64ToFirebase(
-//     imageBase64,
-//     `books/${bookId}/frontcoverimage.png`,
-//   );
-
-//   onProgress?.("generating_cover", 100, "Front-cover image ready");
-//   return { firebaseUrl, responseId };
-// }
-
-// export async function generateFinalCoverWithTitle(
-//   bookId: string,
-//   baseCoverUrl: string,
-//   storyTitle: string,
-//   seed: number = 3,
-//   onProgress?: ProgressCallback,
-// ): Promise<string> {
-//   onProgress?.("generating_cover", 0, "Adding title to cover…");
-
-//   const onQueueUpdate = (update: any) => {
-//     if (update.status === "completed") {
-//       onProgress?.("generating_cover", 100, "Title added successfully");
-//     } else if (update.status === "failed") {
-//       throw new Error("Failed to add title to cover");
-//     } else {
-//       onProgress?.("generating_cover", 50, "Processing title overlay…");
-//     }
-//   };
-
-//   const result = await fal.subscribe("fal-ai/flux-pro/kontext", {
-//     input: {
-//       prompt: createTitleOverlayPrompt(storyTitle),
-//       image_url: baseCoverUrl,
-//       sync_mode: true,
-//       enable_safety_checker: false,
-//     },
-//     pollInterval: 1000,
-//     onQueueUpdate,
-//   });
-
-//   if (!result.images || result.images.length === 0) {
-//     throw new Error("No image generated for final cover");
-//   }
-
-//   const finalImageUrl = result.images[0].url;
-//   const dataUrl = await toDataUrl(finalImageUrl);
-//   const firebaseUrl = await uploadBase64ToFirebase(
-//     dataUrl,
-//     `books/${bookId}/covers`,
-//   );
-
-//   return firebaseUrl;
-// }
-
-// function createTitleOverlayPrompt(storyTitle: string): string {
-//   return `Add a beautiful, child-friendly book title "${storyTitle}" to the center-top of this image. The title should be:
-// - Large, clear, and easy to read
-// - In a playful, colorful font suitable for children
-// - Positioned in the top third of the image
-// - With a subtle background or shadow to ensure readability
-// - In colors that complement the existing image palette
-// - Stylized to look like a professional children's book cover`;
-// }
-
-// export async function regenerateBaseCoverImage(
-//   bookId: string,
-//   coverResponseId: string,
-//   revisedPrompt: string,
-//   onProgress?: ProgressCallback,
-// ): Promise<{ firebaseUrl: string; responseId: string }> {
-//   onProgress?.("regenerating", 0, "Regenerating base cover…");
-
-//   // Build the tool configuration
-//   const tools = [buildImageGenTool()];
-
-//   // Build the input structure for responses API
-//   const inputs = [
-//     {
-//       role: "user" as const,
-//       content: [
-//         {
-//           type: "input_text" as const,
-//           text: `Regenerate this cover image with the following changes: ${revisedPrompt}`,
-//         },
-//       ],
-//     },
-//   ];
-
-//   onProgress?.("regenerating", 30, "Calling image generation API…");
-
-//   // Make the API call using the original responses API
-//   const response = await openai.responses.create({
-//     model: "gpt-4o-mini",
-//     input: inputs,
-//     tools,
-//   });
-
-//   onProgress?.("regenerating", 70, "Image generated, processing…");
-
-//   const responseId = response.id;
-//   const imageBase64 = response.output.find(
-//     (o) => o.type === "image_generation_call",
-//   )?.result;
-
-//   if (!imageBase64) {
-//     throw new Error("No image returned from OpenAI");
-//   }
-
-//   /* ---------- Persist to Firebase ---------- */
-//   const firebaseUrl = await uploadBase64ToFirebase(
-//     imageBase64,
-//     `books/${bookId}/revisedbasecover_${responseId}.png`,
-//   );
-
-//   onProgress?.("regenerating", 100, "Cover regeneration complete");
-//   return { firebaseUrl, responseId };
-// }
-
-// export async function regenerateSceneImage(
-//   bookId: string,
-//   sceneResponseId: string,
-//   revisedPrompt: string,
-//   onProgress?: ProgressCallback,
-// ): Promise<{ firebaseUrl: string; responseId: string }> {
-//   onProgress?.("regenerating", 0, "Regenerating scene image…");
-
-//   // Build the tool configuration
-//   const tools = [buildImageGenTool()];
-
-//   // Build the input structure for responses API
-//   const inputs = [
-//     {
-//       role: "user" as const,
-//       content: [
-//         {
-//           type: "input_text" as const,
-//           text: `Regenerate this scene image with the following changes: ${revisedPrompt}`,
-//         },
-//       ],
-//     },
-//   ];
-
-//   onProgress?.("regenerating", 30, "Calling image generation API…");
-
-//   // Make the API call using the original responses API
-//   const response = await openai.responses.create({
-//     model: "gpt-4o-mini",
-//     input: inputs,
-//     tools,
-//   });
-
-//   onProgress?.("regenerating", 70, "Image generated, processing…");
-
-//   const responseId = response.id;
-//   const imageBase64 = response.output.find(
-//     (o) => o.type === "image_generation_call",
-//   )?.result;
-
-//   if (!imageBase64) {
-//     throw new Error("No image returned from OpenAI");
-//   }
-
-//   /* ---------- Persist to Firebase ---------- */
-//   const firebaseUrl = await uploadBase64ToFirebase(
-//     imageBase64,
-//     `books/${bookId}/revisedscene_${responseId}.png`,
-//   );
-
-//   onProgress?.("regenerating", 100, "Scene regeneration complete");
-//   return { firebaseUrl, responseId };
-// }
 import { fal } from "@fal-ai/client";
 import fs from "fs";
 import OpenAI from "openai";
@@ -652,8 +20,15 @@ import { DEFAULT_CHARACTER_IMAGES } from "../utils/constants";
 
 type CharacterImageMap = Record<string, CharacterVariables>;
 
-const quality = "medium";
-const input_fidelity = "high";
+const TEST_MODE = process.env.TEST_MODE;
+if (TEST_MODE) {
+  const quality = "low";
+  const input_fidelity = "low";
+} else {
+  const quality = "medium";
+  const input_fidelity = "high";
+}
+
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY!,
 });
@@ -1221,15 +596,18 @@ export async function generateImageForScene(
 
   onProgress?.("generating", 30, "Calling image generation API…");
 
-  // Make the API call using the original responses API
-  const response = await openai.responses.create({
-    model: "gpt-4o-mini",
-    input: inputs,
-    tools,
-  });
-  // const response = await openai.responses.retrieve(
-  //   "resp_68a259cb613c8194b4af7906a7d7d93e076c7acadee13977",
-  // );
+  if (TEST_MODE) {
+    const response = await openai.responses.retrieve(
+      "resp_68a259cb613c8194b4af7906a7d7d93e076c7acadee13977",
+    );
+  } else {
+    // Make the API call using the original responses API
+    const response = await openai.responses.create({
+      model: "gpt-4o-mini",
+      input: inputs,
+      tools,
+    });
+  }
 
   onProgress?.("generating", 70, "Image generated, processing…");
 
@@ -1338,15 +716,27 @@ export async function generateImageForFrontCover(
   onProgress?.("generating_cover", 30, "Calling image generation API…");
 
   // Make the API call using the original responses API
-  const response = await openai.responses.create({
-    model: "gpt-4o-mini",
-    input: inputs,
-    tools,
-  });
+  // const response = await openai.responses.create({
+  //   model: "gpt-4o-mini",
+  //   input: inputs,
+  //   tools,
+  // });
   // const response = await openai.responses.retrieve(
   //   "resp_68a259cb009081908be84383be9363f90385d78bb1c4df69",
   // );
 
+  if (TEST_MODE) {
+    const response = await openai.responses.retrieve(
+      "resp_68a259cb009081908be84383be9363f90385d78bb1c4df69",
+    );
+  } else {
+    // Make the API call using the original responses API
+    const response = await openai.responses.create({
+      model: "gpt-4o-mini",
+      input: inputs,
+      tools,
+    });
+  }
   onProgress?.("generating_cover", 70, "Image generated, processing…");
 
   const responseId = response.id;
@@ -1387,17 +777,26 @@ export async function generateFinalCoverWithTitle(
     }
   };
 
-  const result = await fal.subscribe("fal-ai/flux-pro/kontext", {
-    input: {
-      prompt: createTitleOverlayPrompt(storyTitle),
-      image_url: baseCoverUrl,
-      enable_safety_checker: false,
-    },
-    pollInterval: 1000,
-    onQueueUpdate,
-  });
+  let finalImageUrl = null;
+  
+  if (TEST_MODE) {
+    finalImageUrl =
+      "https://fal.media/files/zebra/gmaYiChEr3BYD11bv22pq_cb45651b96c04d7fb9f7aa5982ceb756.jpg";
+  } 
+  else 
+  {
+    const result = await fal.subscribe("fal-ai/flux-pro/kontext", {
+      input: {
+        prompt: createTitleOverlayPrompt(storyTitle),
+        image_url: baseCoverUrl,
+        enable_safety_checker: false,
+      },
+      pollInterval: 1000,
+      onQueueUpdate,
+    });
 
-  const finalImageUrl = result?.data?.images?.[0]?.url;
+    const finalImageUrl = result?.data?.images?.[0]?.url;
+  }
 
   if (!finalImageUrl) {
     throw new Error("No final cover URL returned from Fal AI title overlay");
@@ -1453,12 +852,26 @@ export async function regenerateBaseCoverImage(
   onProgress?.("regenerating", 30, "Calling image generation API…");
 
   // Make the API call using the original responses API
-  const response = await openai.responses.create({
-    model: "gpt-4o-mini",
-    input: inputs,
-    previous_response_id: coverResponseId,
-    tools,
-  });
+  // const response = await openai.responses.create({
+  //   model: "gpt-4o-mini",
+  //   input: inputs,
+  //   previous_response_id: coverResponseId,
+  //   tools,
+  // });
+
+  if (TEST_MODE) {
+    const response = await openai.responses.retrieve(
+      "resp_68a259cb009081908be84383be9363f90385d78bb1c4df69",
+    );
+  } else {
+    // Make the API call using the original responses API
+    const response = await openai.responses.create({
+      model: "gpt-4o-mini",
+      input: inputs,
+      previous_response_id: coverResponseId,
+      tools,
+    });
+  }
 
   onProgress?.("regenerating", 70, "Image generated, processing…");
 
@@ -1513,12 +926,26 @@ export async function regenerateSceneImage(
   onProgress?.("regenerating", 30, "Calling image generation API…");
 
   // Make the API call using the original responses API
-  const response = await openai.responses.create({
-    model: "gpt-4o-mini",
-    input: inputs,
-    previous_response_id: sceneResponseId,
-    tools,
-  });
+  // const response = await openai.responses.create({
+  //   model: "gpt-4o-mini",
+  //   input: inputs,
+  //   previous_response_id: sceneResponseId,
+  //   tools,
+  // });
+
+  if (TEST_MODE) {
+    const response = await openai.responses.retrieve(
+      "resp_68a259cb009081908be84383be9363f90385d78bb1c4df69",
+    );
+  } else {
+    // Make the API call using the original responses API
+    const response = await openai.responses.create({
+      model: "gpt-4o-mini",
+      input: inputs,
+      previous_response_id: sceneResponseId,
+      tools,
+    });
+  }
 
   onProgress?.("regenerating", 70, "Image generated, processing…");
 

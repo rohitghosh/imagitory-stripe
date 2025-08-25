@@ -15,6 +15,7 @@ import { jobTracker } from "../lib/jobTracker";
 //   generateImageForScene,
 // } from "./generate";
 
+const TEST_MODE = process.env.TEST_MODE;
 const DEBUG_LOGGING = process.env.DEBUG_LOGGING === "true";
 
 /**
@@ -705,6 +706,7 @@ export async function generateStoryfromMoralLLM(
   // Execute the OpenAI Chat API call.
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
+
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
@@ -1200,33 +1202,37 @@ export async function cartoonifyImage(imageUrl: string): Promise<string> {
   // const result = await fal.subscribe("fal-ai/image-editing/cartoonify", {
   //   input: { image_url: imageUrl },
   // });
-  const result = await fal.subscribe("fal-ai/instant-character", {
-    input: {
-      prompt:
-        "Pixar style 3D high-resolution character of a young kid, based on the reference photo. Full body shot, character is standing straight and erect, symmetrical pose, looking directly at the camera. Retain the exact hair color, skin tone, and facial features from the photo. Plain white background. CRITICAL: the image should be high resolution.",
-      image_url: imageUrl,
-      image_size: "square_hd",
-      scale: 0.9,
-      negative_prompt:
-        "blurry, low-resolution, pixelated, photorealistic, hyper-real pores, harsh skin texture, fine wrinkles",
-      guidance_scale: 5,
-      num_inference_steps: 40,
-      num_images: 1,
-      enable_safety_checker: true,
-      output_format: "png",
-    },
-    logs: true,
-    onQueueUpdate: (update) => {
-      if (update.status === "IN_PROGRESS") {
-        update.logs.map((log) => log.message).forEach(console.log);
-      }
-    },
-  });
-
-  if (result.data && result.data.images && result.data.images.length > 0) {
-    return result.data.images[0].url;
+  if (TEST_MODE) {
+    return "https://v3.fal.media/files/penguin/D9g2chjiCZrFkDps_y9Zd.png"; // dummy cartoonified image
   } else {
-    throw new Error("No image returned from toonify generation");
+    const result = await fal.subscribe("fal-ai/instant-character", {
+      input: {
+        prompt:
+          "Pixar style 3D high-resolution character of a young kid, based on the reference photo. Full body shot, character is standing straight and erect, symmetrical pose, looking directly at the camera. Retain the exact hair color, skin tone, and facial features from the photo. Plain white background. CRITICAL: the image should be high resolution.",
+        image_url: imageUrl,
+        image_size: "square_hd",
+        scale: 0.9,
+        negative_prompt:
+          "blurry, low-resolution, pixelated, photorealistic, hyper-real pores, harsh skin texture, fine wrinkles",
+        guidance_scale: 5,
+        num_inference_steps: 40,
+        num_images: 1,
+        enable_safety_checker: true,
+        output_format: "png",
+      },
+      logs: true,
+      onQueueUpdate: (update) => {
+        if (update.status === "IN_PROGRESS") {
+          update.logs.map((log) => log.message).forEach(console.log);
+        }
+      },
+    });
+
+    if (result.data && result.data.images && result.data.images.length > 0) {
+      return result.data.images[0].url;
+    } else {
+      throw new Error("No image returned from toonify generation");
+    }
   }
 
   // await new Promise((resolve) => setTimeout(resolve, 15000));
