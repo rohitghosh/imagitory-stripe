@@ -127,7 +127,6 @@ export function CustomCharacter({ onSubmit }: CustomCharactersProps) {
     const missing: string[] = [];
     if (!char.age) missing.push("age");
     if (!char.gender) missing.push("gender");
-    if (!(char.interests?.length > 0)) missing.push("interests");
     if (!(char.imageUrls?.length > 0)) missing.push("photos");
 
     if (missing.length === 0) {

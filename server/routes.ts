@@ -3940,10 +3940,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/user/orders", authenticate, async (req, res) => {
     try {
       const userId = req.userId;
+      console.log("Getting orders for userId:", userId);
       const orders = await storage.getOrdersByUserId(userId);
       res.json(orders);
     } catch (error) {
-      logger.error("Failed to get user orders:", error);
+      console.error("Failed to get user orders:", error);
       res.status(500).json({ error: "Failed to get user orders" });
     }
   });
