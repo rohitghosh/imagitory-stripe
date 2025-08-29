@@ -847,8 +847,10 @@ export default function CreateStoryPage() {
   async function checkUserStatus() {
     try {
       // Check if user has any previous orders
+      console.log("Checking user status...");
       const response = await apiRequest("GET", "/api/user/orders");
       const orders = response || [];
+      console.log("User orders found:", orders.length);
       return orders.length === 0; // First time if no previous orders
     } catch (error) {
       console.error("Error checking user status:", error);
