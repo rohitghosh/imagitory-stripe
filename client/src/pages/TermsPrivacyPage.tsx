@@ -333,7 +333,7 @@ export default function TermsPrivacyPage() {
               <div className="text-center">
                 <Shield className="w-8 h-8 mx-auto mb-2 text-green-600" />
                 <h4 className="font-medium">Privacy Inquiries</h4>
-                <p className="text-sm text-gray-600">privacy@storypals.com</p>
+                <p className="text-sm text-gray-600">hello@imagitory.in</p>
                 <p className="text-xs text-gray-500">Data protection officer</p>
               </div>
               <div className="text-center">
