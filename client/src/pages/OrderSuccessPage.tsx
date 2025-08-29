@@ -38,6 +38,17 @@ export default function OrderSuccessPage() {
           const book = await bookResponse.json();
           setBookData(book);
         }
+
+        // If this is a story generation order, redirect to story creation page
+        if (order.type === "story_generation" && order.bookId) {
+          toast({
+            title: "Payment successful!",
+            description: "Redirecting to story generation...",
+          });
+          setTimeout(() => {
+            setLocation(`/create/${order.bookId}?payment_completed=true`);
+          }, 2000);
+        }
       } catch (error) {
         toast({
           title: "Error",

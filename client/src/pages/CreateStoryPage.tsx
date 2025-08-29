@@ -596,6 +596,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/contexts/AuthContext";
 import { useJobProgress } from "@/hooks/use-job-progress";
+import { ShippingForm } from "@/components/preview/ShippingForm";
 import {
   createThemeSubjectSchema,
   requiresValidation,
@@ -604,7 +605,8 @@ import {
 const STEPS = [
   { id: 1, name: "Choose Character" },
   { id: 2, name: "Select Story" },
-  { id: 3, name: "Preview & Download" },
+  { id: 3, name: "Payment & Shipping" },
+  { id: 4, name: "Preview & Download" },
 ];
 
 const STORY_SUB_STEPS = [
@@ -669,6 +671,11 @@ export default function CreateStoryPage() {
   const [rhyming, setRhyming] = useState<boolean>(false);
   const [themeSubjectSchema, setThemeSubjectSchema] =
     useState<ThemeSubjectSchema | null>(null);
+
+  // Payment and order state
+  const [showPaymentStep, setShowPaymentStep] = useState<boolean>(false);
+  const [isFirstTimeUser, setIsFirstTimeUser] = useState<boolean>(false);
+  const [pendingStoryPayload, setPendingStoryPayload] = useState<any>(null);
 
   /* progress job ids */
   const [imagesJobId, setImagesJobId] = useState<string>();
@@ -742,8 +749,37 @@ export default function CreateStoryPage() {
       setImagesJobId(undefined);
       setReasoningLog("");
       setSection(null);
+      // Clear any stored payment payload when starting fresh
+      localStorage.removeItem('pendingStoryPayload');
+      setPendingStoryPayload(null);
     }
   }, [id, bookId]);
+
+  /* ─────────────────────────── handle payment completion ──────────────────── */
+  useEffect(() => {
+    // Check if we're returning from payment and need to generate story
+    const urlParams = new URLSearchParams(window.location.search);
+    const paymentCompleted = urlParams.get('payment_completed');
+    
+    if (paymentCompleted === 'true') {
+      // Get payload from localStorage or current state
+      const storedPayload = localStorage.getItem('pendingStoryPayload');
+      const payload = storedPayload ? JSON.parse(storedPayload) : pendingStoryPayload;
+      
+      if (payload) {
+        console.log("Payment completed, generating story...");
+        generateStory(payload);
+        
+        // Clean up
+        localStorage.removeItem('pendingStoryPayload');
+        setPendingStoryPayload(null);
+      }
+      
+      // Clean up URL params
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, '', newUrl);
+    }
+  }, []);
 
   /* ─────────────────────────── character pick (main character) ──────────────────── */
   async function handleSelectCharacter(character: any) {
@@ -807,8 +843,21 @@ export default function CreateStoryPage() {
     }
   }
 
+  /* ─────────────────────────── check user status ──────────────────── */
+  async function checkUserStatus() {
+    try {
+      // Check if user has any previous orders
+      const response = await apiRequest("GET", "/api/user/orders");
+      const orders = response || [];
+      return orders.length === 0; // First time if no previous orders
+    } catch (error) {
+      console.error("Error checking user status:", error);
+      return false; // Default to returning user if we can't check
+    }
+  }
+
   /* ─────────────────────────── story settings and generation ──────────────────── */
-  function handleStorySettings(rhymingEnabled: boolean) {
+  async function handleStorySettings(rhymingEnabled: boolean) {
     setRhyming(rhymingEnabled);
 
     // Prepare character data for story generation
@@ -856,14 +905,60 @@ export default function CreateStoryPage() {
       themeSubjectSchema: themeSubjectSchema,
     };
 
+    // Check if this is a first-time user
+    const isFirstTime = await checkUserStatus();
+    setIsFirstTimeUser(isFirstTime);
+
+    if (isFirstTime) {
+      // First-time users: Generate story immediately (skip payment)
+      log("First-time user: generating story directly", payload);
+      generateStory(payload);
+    } else {
+      // Returning users: Show payment step first
+      log("Returning user: requiring payment before story generation");
+      setPendingStoryPayload(payload);
+      // Store payload in localStorage so it survives payment redirect
+      localStorage.setItem('pendingStoryPayload', JSON.stringify(payload));
+      setCurrentStep(3); // Go to payment step
+    }
+  }
+
+  /* ─────────────────────────── story generation ──────────────────── */
+  function generateStory(payload: any) {
     log("POST /api/generateFullStory", payload);
     apiRequest("POST", "/api/generateFullStory", payload)
       .then((r) => {
         setImagesJobId(r.jobId);
         patchBookM.mutate({ id: bookId!, payload: { imagesJobId: r.jobId } });
-        setCurrentStep(3);
+        setCurrentStep(isFirstTimeUser ? 3 : 4); // Step 3 for first-time, step 4 for returning users
       })
       .catch((err) => log("Full-story kickoff error", err));
+  }
+
+  /* ─────────────────────────── payment handling ──────────────────── */
+  async function handlePaymentSubmit(formData: any) {
+    try {
+      if (user && pendingStoryPayload) {
+        console.log("🚀 Creating order for story generation:", formData);
+        const orderResponse = await apiRequest("POST", "/api/orders", {
+          ...formData,
+          bookId,
+          userId: user.uid,
+          type: "story_generation", // Different from print orders
+        });
+        
+        console.log("✅ Order created, redirecting to payment:", orderResponse);
+        // Redirect to payment page
+        setLocation(`/payment/${orderResponse.id}`);
+      }
+    } catch (error) {
+      console.error("❌ Order creation failed:", error);
+      toast({
+        title: "Order failed",
+        description: "There was a problem creating your order.",
+        variant: "destructive",
+      });
+    }
   }
 
   /* ─────────────────────────── hydration logic ─────────────────── */
@@ -1179,10 +1274,22 @@ export default function CreateStoryPage() {
           </section>
         )}
 
-        {currentStep === 3 && (
+        {currentStep === 3 && !isFirstTimeUser && (
           <section>
             <h2 className="text-2xl font-bold mb-4">
-              Step 3: Preview & Download
+              Step 3: Payment & Shipping
+            </h2>
+            <p className="text-gray-600 mb-6">
+              Complete your payment to start generating your personalized story.
+            </p>
+            <ShippingForm onSubmit={handlePaymentSubmit} />
+          </section>
+        )}
+
+        {((currentStep === 3 && isFirstTimeUser) || currentStep === 4) && (
+          <section>
+            <h2 className="text-2xl font-bold mb-4">
+              {isFirstTimeUser ? "Step 3: Preview & Download" : "Step 4: Preview & Download"}
             </h2>
 
             {imagesProg && (

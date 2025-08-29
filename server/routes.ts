@@ -3935,6 +3935,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       keyId: process.env.RAZORPAY_KEY_ID,
     });
   });
+
+  // Get user's order history to check if first-time user
+  app.get("/api/user/orders", authenticate, async (req, res) => {
+    try {
+      const userId = req.userId;
+      const orders = await storage.getOrdersByUserId(userId);
+      res.json(orders);
+    } catch (error) {
+      logger.error("Failed to get user orders:", error);
+      res.status(500).json({ error: "Failed to get user orders" });
+    }
+  });
   
   const razorpay = new Razorpay({
     key_id: process.env.RAZORPAY_KEY_ID,
