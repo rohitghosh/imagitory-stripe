@@ -7,7 +7,7 @@ export function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           <div>
             <h3 className="text-2xl font-heading font-bold mb-4 text-imaginory-black">
-              <span className="text-imaginory-black">Imaginory</span>
+              <span className="text-imaginory-black">Imagitory</span>
               <span className="text-imaginory-yellow ml-1">✨</span>
             </h3>
             <p className="text-muted-foreground font-body leading-relaxed">
@@ -54,10 +54,10 @@ export function Footer() {
               Contact
             </h3>
             <ul className="space-y-3 font-body text-muted-foreground">
-              {/* <li className="flex items-center">
+              <li className="flex items-center">
                 <span className="mr-2">📧</span>
-                support@imaginory.com
-              </li> */}
+                hello@imagitory.in
+              </li>
               <li className="flex items-center">
                 <span className="mr-2">💌</span>
                 We'd love to hear from you!
@@ -68,7 +68,7 @@ export function Footer() {
 
         <div className="mt-12 pt-8 border-t border-gray-200 text-center">
           <p className="text-muted-foreground font-body">
-            © {new Date().getFullYear()} Imaginory. All rights reserved.
+            © {new Date().getFullYear()} Imagitory. All rights reserved.
             <span className="ml-2">Made with ❤️ for families everywhere</span>
           </p>
         </div>

@@ -36,7 +36,7 @@ export function Header() {
         <div className="flex items-center">
           <Link href="/">
             <span className="text-3xl font-heading font-bold cursor-pointer transform hover:scale-105 transition-transform">
-              <span className="text-imaginory-black">imaginory</span>
+              <span className="text-imaginory-black">imagitory</span>
               <span className="text-imaginory-yellow ml-1">✨</span>
             </span>
           </Link>
@@ -72,9 +72,14 @@ export function Header() {
                   </AvatarFallback>
                 </Avatar>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56 bg-white border border-gray-200 rounded-2xl shadow-xl">
+              <DropdownMenuContent
+                align="end"
+                className="w-56 bg-white border border-gray-200 rounded-2xl shadow-xl"
+              >
                 <DropdownMenuLabel className="font-body">
-                  <div className="font-normal text-muted-foreground">Signed in as</div>
+                  <div className="font-normal text-muted-foreground">
+                    Signed in as
+                  </div>
                   <div className="font-bold text-imaginory-black truncate">
                     {user.displayName || user.email}
                   </div>
@@ -113,8 +118,8 @@ export function Header() {
             </DropdownMenu>
           ) : (
             <Link href="/login">
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 className="font-body border-2 border-gray-300 text-imaginory-black hover:bg-gray-100 rounded-2xl px-2 py-1.5 text-xs hover:scale-100 sm:px-6 sm:text-base sm:hover:scale-105 transition-all"
               >
                 Sign In

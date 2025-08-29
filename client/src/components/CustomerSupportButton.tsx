@@ -116,7 +116,7 @@ export const CustomerSupportButton: React.FC<CustomerSupportButtonProps> = ({
           <div className="flex items-start space-x-2">
             <HelpCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
             <div>
-              <p className="font-medium">Hey! I'm your Imaginory assistant.</p>
+              <p className="font-medium">Hey! I'm your Imagitory assistant.</p>
               <p className="text-xs opacity-90 mt-1">
                 I'm here to help you with any questions about your story!
               </p>
@@ -129,7 +129,7 @@ export const CustomerSupportButton: React.FC<CustomerSupportButtonProps> = ({
       {/* Tooltip – desktop only */}
       {isHovered && !showWelcomeMessage && (
         <div className="hidden md:block absolute bottom-full right-0 mb-2 px-3 py-1 bg-gray-800 text-white text-sm rounded-lg whitespace-nowrap animate-fadeIn">
-          Need help with Imaginory?
+          Need help with Imagitory?
           <div className="absolute top-full right-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-800" />
         </div>
       )}
@@ -140,7 +140,7 @@ export const CustomerSupportButton: React.FC<CustomerSupportButtonProps> = ({
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
         className="group relative px-4 py-3 md:px-4 md:py-3 bg-white hover:bg-gray-50 text-red-600 rounded-full shadow-lg transition-all duration-200 hover:scale-105 touch-manipulation border-2 border-red-600 hover:border-red-700"
-        aria-label="Imaginory support"
+        aria-label="Imagitory support"
         style={{ WebkitTapHighlightColor: "transparent" }}
       >
         <span className="text-xs md:text-sm font-medium whitespace-nowrap">

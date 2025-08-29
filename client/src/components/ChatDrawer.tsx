@@ -466,7 +466,7 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({
             <div className="flex items-center space-x-3">
               <MessageCircle className="w-5 h-5 text-red-600" />
               <h3 className="font-semibold text-lg text-gray-900">
-                Imaginory Assistant
+                Imagitory Assistant
               </h3>
             </div>
             <div className="flex items-center space-x-2">
@@ -506,7 +506,7 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({
             <div className="flex items-center justify-center h-full">
               <div className="flex items-center space-x-2 text-gray-600">
                 <MessageCircle className="w-5 h-5 text-red-600" />
-                <span className="font-medium">Imaginory Assistant</span>
+                <span className="font-medium">Imagitory Assistant</span>
               </div>
             </div>
           )}

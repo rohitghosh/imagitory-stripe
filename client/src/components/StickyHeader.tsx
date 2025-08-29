@@ -60,7 +60,7 @@ export const StickyHeader: React.FC<StickyHeaderProps> = ({
                   <div className="flex items-start space-x-2">
                     <HelpCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
                     <div>
-                      <p className="font-medium">Need help with imaginory?</p>
+                      <p className="font-medium">Need help with imagitory?</p>
                       <p className="text-xs opacity-90 mt-1">
                         Click here to get assistance!
                       </p>
