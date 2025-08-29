@@ -21,12 +21,14 @@ import { DEFAULT_CHARACTER_IMAGES } from "../utils/constants";
 type CharacterImageMap = Record<string, CharacterVariables>;
 
 const TEST_MODE = process.env.TEST_MODE;
+let quality = "";
+let input_fidelity = "";
 if (TEST_MODE) {
-  const quality = "low";
-  const input_fidelity = "low";
+  quality = "low";
+  input_fidelity = "low";
 } else {
-  const quality = "medium";
-  const input_fidelity = "high";
+  quality = "medium";
+  input_fidelity = "high";
 }
 
 const openai = new OpenAI({
@@ -596,13 +598,15 @@ export async function generateImageForScene(
 
   onProgress?.("generating", 30, "Calling image generation API…");
 
+  let response = null;
+
   if (TEST_MODE) {
-    const response = await openai.responses.retrieve(
+    response = await openai.responses.retrieve(
       "resp_68a259cb613c8194b4af7906a7d7d93e076c7acadee13977",
     );
   } else {
     // Make the API call using the original responses API
-    const response = await openai.responses.create({
+    response = await openai.responses.create({
       model: "gpt-4o-mini",
       input: inputs,
       tools,
@@ -725,13 +729,15 @@ export async function generateImageForFrontCover(
   //   "resp_68a259cb009081908be84383be9363f90385d78bb1c4df69",
   // );
 
+  let response = null;
+
   if (TEST_MODE) {
-    const response = await openai.responses.retrieve(
+    response = await openai.responses.retrieve(
       "resp_68a259cb009081908be84383be9363f90385d78bb1c4df69",
     );
   } else {
     // Make the API call using the original responses API
-    const response = await openai.responses.create({
+    response = await openai.responses.create({
       model: "gpt-4o-mini",
       input: inputs,
       tools,
@@ -778,13 +784,11 @@ export async function generateFinalCoverWithTitle(
   };
 
   let finalImageUrl = null;
-  
+
   if (TEST_MODE) {
     finalImageUrl =
       "https://fal.media/files/zebra/gmaYiChEr3BYD11bv22pq_cb45651b96c04d7fb9f7aa5982ceb756.jpg";
-  } 
-  else 
-  {
+  } else {
     const result = await fal.subscribe("fal-ai/flux-pro/kontext", {
       input: {
         prompt: createTitleOverlayPrompt(storyTitle),
@@ -795,7 +799,7 @@ export async function generateFinalCoverWithTitle(
       onQueueUpdate,
     });
 
-    const finalImageUrl = result?.data?.images?.[0]?.url;
+    finalImageUrl = result?.data?.images?.[0]?.url;
   }
 
   if (!finalImageUrl) {
@@ -859,13 +863,15 @@ export async function regenerateBaseCoverImage(
   //   tools,
   // });
 
+  let response = null;
+
   if (TEST_MODE) {
-    const response = await openai.responses.retrieve(
+    response = await openai.responses.retrieve(
       "resp_68a259cb009081908be84383be9363f90385d78bb1c4df69",
     );
   } else {
     // Make the API call using the original responses API
-    const response = await openai.responses.create({
+    response = await openai.responses.create({
       model: "gpt-4o-mini",
       input: inputs,
       previous_response_id: coverResponseId,
@@ -933,13 +939,15 @@ export async function regenerateSceneImage(
   //   tools,
   // });
 
+  let response = null;
+
   if (TEST_MODE) {
-    const response = await openai.responses.retrieve(
+    response = await openai.responses.retrieve(
       "resp_68a259cb009081908be84383be9363f90385d78bb1c4df69",
     );
   } else {
     // Make the API call using the original responses API
-    const response = await openai.responses.create({
+    response = await openai.responses.create({
       model: "gpt-4o-mini",
       input: inputs,
       previous_response_id: sceneResponseId,

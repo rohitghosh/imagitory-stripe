@@ -3664,6 +3664,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log("[routes] prepareSplit hit:", req.params.bookId);
       const bookId = req.params.bookId;
 
+      // TIMING CONFIGURATION - Modify these values as needed
+      const TIMING_CONFIG = {
+        COVER_EXPANSION_TIME: 3000, // 3 seconds for cover expansion
+        IMAGE_EXPANSION_TIME: 20000, // 20 seconds for all image expansions
+        TEXT_OVERLAY_BATCH_TIME: 9000, // 9 seconds per text overlay batch
+        MESSAGE_ROTATION_INTERVAL: 1000, // 1 seconds between message updates
+        FINAL_POLISH_TIME: 2000, // 2 seconds for final touches
+      };
+
       const book = await storage.getBookById(bookId);
       const pages = book.pages;
       if (!Array.isArray(pages)) {
@@ -3686,13 +3695,65 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       (async () => {
         try {
-          // 1) Expand back cover if needed
+          // MESSAGE POOLS
+          const coverMessages = [
+            "🎨 Designing the perfect book cover...",
+            "📚 Creating that special first impression...",
+            "✨ Adding cover magic...",
+          ];
 
-          jobTracker.set(jobId, {
-            phase: "expandingCover",
-            pct: 5,
-            message: "Creating back cover…",
-          });
+          const expansionMessages = [
+            "🎨 Stretching scenes into wide cinematic views...",
+            "✨ Adding magical details to every corner...",
+            "🖼️ Creating those perfect panoramic moments...",
+            "🌟 Making your world come alive...",
+            "🎭 Bringing out the best in every scene...",
+            "💫 Crafting visual magic...",
+            "🎪 Setting the stage for your story...",
+            "🌈 Painting broader horizons...",
+            "🎬 Directing the perfect shots...",
+          ];
+
+          const textOverlayMessages = [
+            "📝 Finding the perfect spots for your words...",
+            "🎭 Making sure every word fits just right...",
+            "✨ Arranging text like poetry on canvas...",
+            "🎨 Balancing words and images perfectly...",
+            "📖 Creating that perfect reading flow...",
+            "🌟 Adding literary sparkle...",
+            "💫 Weaving words into the scenes...",
+          ];
+
+          // Helper function to start message rotation
+          const startMessageRotation = (
+            messages,
+            phase,
+            basePct,
+            interval = TIMING_CONFIG.MESSAGE_ROTATION_INTERVAL,
+          ) => {
+            let messageIndex = 0;
+            jobTracker.set(jobId, {
+              phase: phase,
+              pct: basePct,
+              message: messages[0],
+            });
+
+            return setInterval(() => {
+              messageIndex = (messageIndex + 1) % messages.length;
+              jobTracker.set(jobId, {
+                phase: phase,
+                pct: basePct,
+                message: messages[messageIndex],
+              });
+            }, interval);
+          };
+
+          // 1) Expand back cover if needed
+          let coverInterval = startMessageRotation(
+            coverMessages,
+            "expandingCover",
+            5,
+          );
 
           console.log(`url: ${book.cover.base_cover_url}`);
 
@@ -3703,15 +3764,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
             });
           }
 
+          clearInterval(coverInterval);
+
           // 2) PHASE 1: Expand all page images in parallel
           console.log(
             `[prepareSplit] Starting image expansion for ${pages.length} pages`,
           );
-          jobTracker.set(jobId, {
-            phase: "expandingImages",
-            pct: 15,
-            message: "Expanding page images…",
-          });
+
+          const expansionInterval = startMessageRotation(
+            expansionMessages,
+            "expandingImages",
+            20,
+          );
 
           const isRhyming = Boolean(book.isStoryRhyming);
           const storedPages = book.pages; // contains pre-assigned side
@@ -3737,14 +3801,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
               console.log(
                 `[prepareSplit] Page ${idx + 1} expanded: ${expandedUrl}`,
               );
-              // const expandedUrl =
-              //   "https://v3.fal.media/files/tiger/LfKPl6vdMmKXuAF2X_OjI_67831c38bc95428793087c8908604d19.png";
               return {
                 ...page,
                 expanded_scene_url: expandedUrl, // Store expanded URL
               };
             }),
           );
+
+          clearInterval(expansionInterval);
 
           console.log(
             `[prepareSplit] All ${expandedPages.length} images expanded successfully`,
@@ -3770,15 +3834,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           jobTracker.set(jobId, {
             phase: "expandingComplete",
             pct: 35,
-            message: "Image expansion complete. Starting text overlay…",
+            message:
+              "🖼️ Your scenes look amazing! Now let's add the perfect words...",
           });
-          console.log(
-            `[prepareSplit] Progress updated to expandingComplete phase`,
-          );
 
-          // 3) PHASE 2: Process text overlay in batches of 3
-
-          const batchSize = 3;
+          // 3) PHASE 2: Process text overlay in batches
+          const batchSize = 9;
           const processedPages = [];
           let completed = 0;
 
@@ -3788,15 +3849,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           for (let i = 0; i < expandedPages.length; i += batchSize) {
             const batch = expandedPages.slice(i, i + batchSize);
+            const currentBatch = Math.floor(i / batchSize) + 1;
+            const totalBatches = Math.ceil(expandedPages.length / batchSize);
+            const batchStartPct =
+              35 + Math.round((i / expandedPages.length) * 55);
+
             console.log(
-              `[prepareSplit] Processing batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(expandedPages.length / batchSize)}`,
+              `[prepareSplit] Processing batch ${currentBatch}/${totalBatches}`,
             );
 
-            jobTracker.set(jobId, {
-              phase: "processingBatch",
-              pct: 35 + Math.round((i / expandedPages.length) * 50),
-              message: `Processing text overlay batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(expandedPages.length / batchSize)}…`,
-            });
+            // Start message rotation for this batch
+            const batchInterval = startMessageRotation(
+              textOverlayMessages,
+              "processingBatch",
+              batchStartPct,
+            );
 
             // Process current batch in parallel
             const batchResults = await Promise.all(
@@ -3875,21 +3942,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   out.rightText = hint.lines;
                 }
 
-                // Progress update
-                completed++;
-                jobTracker.set(jobId, {
-                  phase: "generating",
-                  pct: 35 + Math.round((completed / expandedPages.length) * 55),
-                  message: `Page ${completed}/${expandedPages.length}`,
-                });
-
                 return out;
               }),
             );
 
+            clearInterval(batchInterval);
             processedPages.push(...batchResults);
 
-            // Small delay between batches to be gentle on the text overlay API
+            // Update progress after each batch completion
+            const batchCompletePct =
+              35 + Math.round(((i + batchSize) / expandedPages.length) * 55);
+            let batchCompleteMessage;
+
+            if (currentBatch < totalBatches) {
+              const pagesCompleted = Math.min(
+                i + batchSize,
+                expandedPages.length,
+              );
+              if (batchCompletePct < 60) {
+                batchCompleteMessage = `📚 ${pagesCompleted} of ${expandedPages.length} pages looking fantastic!`;
+              } else if (batchCompletePct < 80) {
+                batchCompleteMessage = `🎨 Your story is coming together beautifully... ${pagesCompleted}/${expandedPages.length} done!`;
+              } else {
+                batchCompleteMessage = `✨ Almost ready to turn the pages... ${pagesCompleted}/${expandedPages.length} complete!`;
+              }
+
+              jobTracker.set(jobId, {
+                phase: "batchComplete",
+                pct: Math.min(batchCompletePct, 90),
+                message: batchCompleteMessage,
+              });
+            }
+
+            // Small delay between batches
             if (i + batchSize < expandedPages.length) {
               await new Promise((resolve) => setTimeout(resolve, 100));
             }
@@ -3899,13 +3984,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.log(
             `[prepareSplit] About to update book with final processed pages...`,
           );
+
+          const finalInterval = startMessageRotation(
+            [
+              "🎉 Adding the final sparkle to your book...",
+              "✨ Putting everything together perfectly...",
+              "🌟 Making sure it's absolutely perfect...",
+            ],
+            "finalizing",
+            95,
+            1000,
+          );
+
           await storage.updateBook(bookId, { pages: processedPages });
+
+          // Give a moment for the final polish feeling
+          await new Promise((resolve) =>
+            setTimeout(resolve, TIMING_CONFIG.FINAL_POLISH_TIME),
+          );
+
+          clearInterval(finalInterval);
           console.log(`[prepareSplit] Final book update completed`);
 
           jobTracker.set(jobId, {
             phase: "complete",
             pct: 100,
-            message: "Pages ready",
+            message: "📖 Ta-da! Your amazing book is ready to read!",
           });
           console.log(`[prepareSplit] Job marked as complete`);
 
@@ -3919,12 +4023,281 @@ export async function registerRoutes(app: Express): Promise<Server> {
           jobTracker.set(jobId, {
             phase: "error",
             pct: 100,
-            error: String(error),
+            error:
+              "Oops! Something went wrong while creating your book. Let's try again!",
           });
         }
       })();
     },
   );
+
+  //   app.post(
+  //     "/api/books/:bookId/prepareSplit",
+  //     async (req: Request, res: Response) => {
+  //       console.log("[routes] prepareSplit hit:", req.params.bookId);
+  //       const bookId = req.params.bookId;
+
+  //       const book = await storage.getBookById(bookId);
+  //       const pages = book.pages;
+  //       if (!Array.isArray(pages)) {
+  //         return res.status(400).json({ message: "Missing pages array" });
+  //       }
+
+  //       const alreadyDone =
+  //         !!book.cover?.back_cover_url &&
+  //         book.pages.length === pages.length &&
+  //         book.pages.every((p) => p.final_scene_url != null);
+  //       if (alreadyDone) {
+  //         console.log("prepareSplit: cached book — returning immediately");
+  //         return res.json({ pages: book.pages });
+  //       }
+
+  //       const jobId = req.get("x-client-job") ?? jobTracker.newJob();
+  //       res.setHeader("X-Job-Id", jobId);
+  //       res.setHeader("Access-Control-Expose-Headers", "X-Job-Id");
+  //       res.status(202).json({ jobId });
+
+  //       (async () => {
+  //         try {
+  //           // 1) Expand back cover if needed
+
+  //           jobTracker.set(jobId, {
+  //             phase: "expandingCover",
+  //             pct: 5,
+  //             message: "Creating cover…",
+  //           });
+
+  //           console.log(`url: ${book.cover.base_cover_url}`);
+
+  //           if (!book.cover?.back_cover_url) {
+  //             const backUrl = await expandImageToLeft(book.cover.base_cover_url);
+  //             await storage.updateBook(bookId, {
+  //               cover: { ...book.cover, back_cover_url: backUrl },
+  //             });
+  //           }
+
+  //           // 2) PHASE 1: Expand all page images in parallel
+  //           console.log(
+  //             `[prepareSplit] Starting image expansion for ${pages.length} pages`,
+  //           );
+  //           jobTracker.set(jobId, {
+  //             phase: "expandingImages",
+  //             pct: 15,
+  //             message: "Expanding page images…",
+  //           });
+
+  //           const isRhyming = Boolean(book.isStoryRhyming);
+  //           const storedPages = book.pages; // contains pre-assigned side
+
+  //           // Expand all images in parallel
+  //           console.log(
+  //             `[prepareSplit] Expanding ${pages.length} images in parallel...`,
+  //           );
+
+  //           const expandedPages = await Promise.all(
+  //             pages.map(async (page, idx) => {
+  //               console.log(
+  //                 `[prepareSplit] Expanding page ${idx + 1}/${pages.length}: ${page.scene_number}`,
+  //               );
+  //               const pageSide: "left" | "right" = pages[idx]?.side || "left";
+
+  //               // Expand the scene image based on side
+  //               const expandedUrl = page.expanded_scene_url
+  //                 ? page.expanded_scene_url
+  //                 : pageSide === "left"
+  //                   ? await expandImageToLeft(page.imageUrl)
+  //                   : await expandImageToRight(page.imageUrl);
+  //               console.log(
+  //                 `[prepareSplit] Page ${idx + 1} expanded: ${expandedUrl}`,
+  //               );
+  //               // const expandedUrl =
+  //               //   "https://v3.fal.media/files/tiger/LfKPl6vdMmKXuAF2X_OjI_67831c38bc95428793087c8908604d19.png";
+  //               return {
+  //                 ...page,
+  //                 expanded_scene_url: expandedUrl, // Store expanded URL
+  //               };
+  //             }),
+  //           );
+
+  //           console.log(
+  //             `[prepareSplit] All ${expandedPages.length} images expanded successfully`,
+  //           );
+
+  //           console.log(
+  //             `[prepareSplit] About to update book with expanded URLs...`,
+  //           );
+  //           // Update book with expanded URLs
+  //           await storage.updateBook(bookId, {
+  //             pages: expandedPages.map((page) => ({
+  //               ...(storedPages.find(
+  //                 (p) => p.scene_number === page.scene_number,
+  //               ) || {}),
+  //               ...page,
+  //             })),
+  //           });
+  //           console.log(`[prepareSplit] Book updated successfully`);
+
+  //           console.log(
+  //             `[prepareSplit] Book updated with expanded URLs, moving to text overlay phase`,
+  //           );
+  //           jobTracker.set(jobId, {
+  //             phase: "expandingComplete",
+  //             pct: 35,
+  //             message: "Image expansion complete. Starting text overlay…",
+  //           });
+  //           console.log(
+  //             `[prepareSplit] Progress updated to expandingComplete phase`,
+  //           );
+
+  //           // 3) PHASE 2: Process text overlay in batches of 3
+
+  //           const batchSize = 9;
+  //           const processedPages = [];
+  //           let completed = 0;
+
+  //           console.log(
+  //             `[prepareSplit] Starting text overlay processing with ${expandedPages.length} pages in batches of ${batchSize}`,
+  //           );
+
+  //           for (let i = 0; i < expandedPages.length; i += batchSize) {
+  //             const batch = expandedPages.slice(i, i + batchSize);
+  //             console.log(
+  //               `[prepareSplit] Processing batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(expandedPages.length / batchSize)}`,
+  //             );
+
+  //             jobTracker.set(jobId, {
+  //               phase: "processingBatch",
+  //               pct: 35 + Math.round((i / expandedPages.length) * 50),
+  //               message: `Processing text overlay batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(expandedPages.length / batchSize)}…`,
+  //             });
+
+  //             // Process current batch in parallel
+  //             const batchResults = await Promise.all(
+  //               batch.map(async (page) => {
+  //                 let hint;
+  //                 if (page.content) {
+  //                   try {
+  //                     // Use the expanded URL for text overlay
+  //                     hint = await getOverlayHint(
+  //                       page.expanded_scene_url, // Use expanded URL
+  //                       page.content, // now always string[]
+  //                       page.side,
+  //                       isRhyming,
+  //                       {
+  //                         fontSize: DEFAULT_FONT_ENLARGED_SIZE,
+  //                         fontFamily: DEFAULT_FONT_FAMILY,
+  //                         debugMode: false,
+  //                       },
+  //                     );
+  //                   } catch (err) {
+  //                     console.warn(
+  //                       `[prepareSplit] overlay-text failed for page ${page.id}, using defaults:`,
+  //                       err,
+  //                     );
+  //                     // Fallback to defaults if overlay API fails
+  //                     hint = {
+  //                       startX: FULL_W / 2 - 100,
+  //                       startY: FULL_H / 2 - 25,
+  //                       side: page.side,
+  //                       color: DEFAULT_COLOR,
+  //                       lines: isRhyming
+  //                         ? page.content
+  //                         : Array.isArray(page.content)
+  //                           ? page.content
+  //                           : [page.content],
+  //                       imageWidth: FULL_W,
+  //                       imageHeight: FULL_H,
+  //                       fontSize: DEFAULT_FONT_ENLARGED_SIZE,
+  //                       fontFamily: DEFAULT_FONT_FAMILY,
+  //                     };
+  //                   }
+  //                 } else {
+  //                   hint = {
+  //                     startX: 0,
+  //                     startY: 0,
+  //                     side: page.side,
+  //                     color: DEFAULT_COLOR,
+  //                     lines: [],
+  //                     imageWidth: FULL_W,
+  //                     imageHeight: FULL_H,
+  //                     fontSize: DEFAULT_FONT_ENLARGED_SIZE,
+  //                     fontFamily: DEFAULT_FONT_FAMILY,
+  //                   };
+  //                 }
+
+  //                 const m = mapHint(hint as OverlayHint);
+
+  //                 // Assemble output
+  //                 const out: any = {
+  //                   ...page,
+  //                   final_scene_url: page.expanded_scene_url, // Use expanded URL as final
+  //                   width: 400,
+  //                   height: 100,
+  //                   fontSize: m.fontSize,
+  //                   leftTextColor: hint.color,
+  //                   rightTextColor: hint.color,
+  //                 };
+
+  //                 if (hint.side === "left") {
+  //                   out.leftX = m.x;
+  //                   out.leftY = m.y;
+  //                   out.leftText = hint.lines;
+  //                 } else {
+  //                   out.rightX = m.x;
+  //                   out.rightY = m.y;
+  //                   out.rightText = hint.lines;
+  //                 }
+
+  //                 // Progress update
+  //                 completed++;
+  //                 jobTracker.set(jobId, {
+  //                   phase: "generating",
+  //                   pct: 35 + Math.round((completed / expandedPages.length) * 55),
+  //                   message: `Page ${completed}/${expandedPages.length}`,
+  //                 });
+
+  //                 return out;
+  //               }),
+  //             );
+
+  //             processedPages.push(...batchResults);
+
+  //             // Small delay between batches to be gentle on the text overlay API
+  //             if (i + batchSize < expandedPages.length) {
+  //               await new Promise((resolve) => setTimeout(resolve, 100));
+  //             }
+  //           }
+
+  //           // 4) Final update with all processed pages
+  //           console.log(
+  //             `[prepareSplit] About to update book with final processed pages...`,
+  //           );
+  //           await storage.updateBook(bookId, { pages: processedPages });
+  //           console.log(`[prepareSplit] Final book update completed`);
+
+  //           jobTracker.set(jobId, {
+  //             phase: "complete",
+  //             pct: 100,
+  //             message: "Pages ready",
+  //           });
+  //           console.log(`[prepareSplit] Job marked as complete`);
+
+  //           await new Promise((resolve) => setTimeout(resolve, 1000));
+
+  //           console.log(
+  //             `[prepareSplit] Successfully processed ${processedPages.length} pages in batches`,
+  //           );
+  //         } catch (error) {
+  //           console.error("prepareSplit error:", error);
+  //           jobTracker.set(jobId, {
+  //             phase: "error",
+  //             pct: 100,
+  //             error: String(error),
+  //           });
+  //         }
+  //       })();
+  //     },
+  //   );
 
   return httpServer;
 }
