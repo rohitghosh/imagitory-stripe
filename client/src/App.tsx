@@ -12,6 +12,7 @@ import BookDetailPage from "@/pages/BookDetailPage";
 import EditPDFPage from "@/pages/EditPDFPage";
 import PaymentPage from "@/pages/PaymentPage";
 import OrderSuccessPage from "@/pages/OrderSuccessPage";
+import TermsPrivacyPage from "@/pages/TermsPrivacyPage";
 import { AuthErrorInterceptor } from "@/components/AuthErrorInterceptor";
 import React, { Suspense, useEffect } from "react";
 
@@ -89,6 +90,7 @@ function Router() {
       <Route path="/order-success/:orderId">
         {(params) => <ProtectedRoute component={OrderSuccessPage} {...params} />}
       </Route>
+      <Route path="/terms-privacy" component={TermsPrivacyPage} />
       <Route component={NotFound} />
     </Switch>
   );

@@ -277,6 +277,71 @@ export default function PaymentPage() {
           </CardContent>
         </Card>
 
+        {/* Policies Section */}
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Shield className="w-5 h-5" />
+              Shipping & Policies
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid md:grid-cols-2 gap-6">
+              <div>
+                <h4 className="font-semibold text-sm mb-2 text-blue-700">📦 Shipping Policy</h4>
+                <ul className="text-sm text-gray-600 space-y-1">
+                  <li>• Standard delivery: 3-5 business days</li>
+                  <li>• Free shipping on all orders</li>
+                  <li>• Tracking details provided via email</li>
+                  <li>• Secure packaging for book protection</li>
+                </ul>
+              </div>
+              
+              <div>
+                <h4 className="font-semibold text-sm mb-2 text-green-700">💰 Refund Policy</h4>
+                <ul className="text-sm text-gray-600 space-y-1">
+                  <li>• Cancellations: Within 2 hours (₹200 processing fee)</li>
+                  <li>• Delayed shipments: Partial refund available</li>
+                  <li>• Damaged items: Replacement or refund</li>
+                  <li>• Refunds processed within 5-7 business days</li>
+                </ul>
+              </div>
+              
+              <div>
+                <h4 className="font-semibold text-sm mb-2 text-purple-700">📞 Contact & Support</h4>
+                <ul className="text-sm text-gray-600 space-y-1">
+                  <li>• Email support: help@storypals.com</li>
+                  <li>• Response time: Within 24 hours</li>
+                  <li>• Order tracking assistance available</li>
+                  <li>• Quality assurance guarantee</li>
+                </ul>
+              </div>
+              
+              <div>
+                <h4 className="font-semibold text-sm mb-2 text-orange-700">🔄 Cancellations</h4>
+                <ul className="text-sm text-gray-600 space-y-1">
+                  <li>• Cancel within 2 hours: Minimal processing fee</li>
+                  <li>• After printing: Only if delayed shipment</li>
+                  <li>• Contact support for assistance</li>
+                  <li>• Refunds via original payment method</li>
+                </ul>
+              </div>
+            </div>
+            
+            <div className="border-t pt-4 mt-6">
+              <p className="text-xs text-gray-500 text-center">
+                By placing this order, you agree to our{" "}
+                <button 
+                  onClick={() => setLocation("/terms-privacy")}
+                  className="text-blue-600 hover:underline font-medium"
+                >
+                  Terms & Conditions and Privacy Policy
+                </button>
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
         <div className="text-center text-sm text-muted-foreground">
           <p>Your payment is secured with 256-bit SSL encryption</p>
         </div>
