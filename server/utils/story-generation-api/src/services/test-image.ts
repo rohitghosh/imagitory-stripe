@@ -125,164 +125,385 @@
 //   });
 // }
 
+// import fs from "fs";
+// import OpenAI from "openai";
+// import path from "path";
+// import { fileURLToPath } from "url";
+
+// const __filename = fileURLToPath(import.meta.url);
+// const __dirname = path.dirname(__filename);
+
+// const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
+
+// /* ------------------------------------------------------------------ */
+// /* configuration                                                      */
+// /* ------------------------------------------------------------------ */
+// const IMAGE_URLS = [
+//   // "https://firebasestorage.googleapis.com/v0/b/kids-story-5eb1b.firebasestorage.app/o/customCharacters%2FgyV-fP5PVcOYNMeAdxyzT_d41b388b415d48ddb1ff53947152dc52.jpg?alt=media&token=b890ec1f-5f4b-41de-b6aa-42877605ce15",
+//   "https://fal.media/files/kangaroo/vehO-KtjxXEc9w85gIsFY_843bd51892ef43dc8038ad395e9f1268.jpg",
+// ];
+
+// const QUALITY = "low"; // “high” | “medium” | “low”
+// const INPUT_FIDELITY = "low"; // only used when images are attached
+
+// /* helper: builds the flattened tool object -------------------------------- */
+// function buildImageGenTool({
+//   hasInputImage,
+//   quality = QUALITY,
+// }: {
+//   hasInputImage: boolean;
+//   quality?: "high" | "medium" | "low";
+// }) {
+//   const tool: Record<string, any> = {
+//     type: "image_generation",
+//     n: 1,
+//     model: "gpt-image-1",
+//     size: "1024x1024",
+//     quality,
+//     output_format: "png",
+//   };
+
+//   if (hasInputImage) tool.input_fidelity = INPUT_FIDELITY;
+//   return tool;
+// }
+
+// /* ------------------------------------------------------------------ */
+// /* main test routine                                                  */
+// /* ------------------------------------------------------------------ */
+// async function runTest() {
+//   /* --------------------------- 1. WITH ATTACHMENTS --------------------- */
+//   console.log("▶ Test 1 — with reference images");
+
+//   const promptWithImages =
+//     // "Attached images show a 4-year-old child (1st image) and a friendly kangaroo (2nd image). " +
+//     "Attached images show a friendly elephant (1st image). " +
+//     "Create a Pixar-style illustration where the elephant plays with a ball. " +
+//     "Do NOT write any names on the picture.";
+
+//   // const inputsWith = [
+//   //   { type: "input_text", text: promptWithImages },
+//   //   ...IMAGE_URLS.map((url) => ({ type: "input_image", image_url: { url } })),
+//   // ];
+
+//   const inputsWith = [
+//     {
+//       role: "user",
+//       content: [
+//         { type: "input_text", text: promptWithImages },
+//         ...IMAGE_URLS.map((url) => ({
+//           type: "input_image",
+//           image_url: url,
+//         })),
+//       ],
+//     },
+//   ];
+
+//   const toolWith = buildImageGenTool({ hasInputImage: true });
+
+//   // const respWith = await client.responses.create({
+//   //   model: "gpt-4o-mini", // wrapper model
+//   //   input: inputsWith,
+//   //   tools: [toolWith],
+//   // });
+//   const respWith = await client.responses.retrieve(
+//     "resp_6880d4746124819f85bac69f0055c03700d1ab5d60bfc8c6",
+//   );
+
+//   console.log(respWith.id);
+
+//   reportUsage(respWith.usage);
+//   saveImage(respWith, "out_with_attachments.png");
+
+//   /* --------------------------- 2. TEXT-ONLY ---------------------------- */
+//   console.log("\n▶ Test 2 — text only (no attachments)");
+
+//   const promptText =
+//     "Create a Pixar-style illustration of a joyful child flying a kite on a sunny meadow. " +
+//     "Do NOT write any text inside the picture.";
+
+//   // const inputsText = [{ type: "input_text", text: promptText }];
+//   const inputsText = [
+//     {
+//       role: "user",
+//       content: [{ type: "input_text", text: promptText }],
+//     },
+//   ];
+//   const toolText = buildImageGenTool({ hasInputImage: false });
+
+//   const respText = await client.responses.create({
+//     model: "gpt-4o-mini",
+//     input: inputsText,
+//     tools: [toolText],
+//   });
+//   // const respText = await client.responses.retrieve(
+//   //   "resp_6880d48a2750819d8d89dad908e22e6c04bf8c6eb295ed19",
+//   // );
+
+//   reportUsage(respText.usage);
+//   await saveImage(respText, "out_text_only.png");
+// }
+
+// /* ------------------------------------------------------------------ */
+// /* helpers                                                            */
+// /* ------------------------------------------------------------------ */
+// function reportUsage(usage: any) {
+//   if (!usage) {
+//     console.warn("⚠️  No usage information returned");
+//     return;
+//   }
+//   const {
+//     total_tokens,
+//     input_tokens,
+//     output_tokens,
+//     input_tokens_details: { text_tokens, image_tokens } = {},
+//   } = usage;
+
+//   console.log("✅ Token usage");
+//   console.log("  • total_tokens :", total_tokens);
+//   console.log("  • input_tokens :", input_tokens);
+//   console.log("      – text     :", text_tokens ?? "n/a");
+//   console.log("      – image    :", image_tokens ?? "n/a");
+//   console.log("  • output_tokens:", output_tokens);
+// }
+
+// function saveImage(resp: any, filename: string) {
+//   const b64 = resp.output.find(
+//     (o: any) => o.type === "image_generation_call",
+//   )?.result;
+
+//   if (!b64) {
+//     console.error("❌ No image data in response");
+//     return;
+//   }
+//   fs.writeFileSync(filename, Buffer.from(b64, "base64"));
+//   console.log(`🖼️  Saved ${filename}`);
+// }
+
+// /* ------------------------------------------------------------------ */
+// /* kick it off                                                        */
+// /* ------------------------------------------------------------------ */
+// runTest().catch((err) => {
+//   console.error("❌ Test failed:", err);
+//   process.exit(1);
+// });
+
 import fs from "fs";
-import OpenAI from "openai";
 import path from "path";
+import https from "https";
+import util from "util";
 import { fileURLToPath } from "url";
+import { GoogleGenAI, Modality } from "@google/genai";
+import "dotenv/config";
+import https from "https";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
 
 /* ------------------------------------------------------------------ */
 /* configuration                                                      */
 /* ------------------------------------------------------------------ */
 const IMAGE_URLS = [
-  // "https://firebasestorage.googleapis.com/v0/b/kids-story-5eb1b.firebasestorage.app/o/customCharacters%2FgyV-fP5PVcOYNMeAdxyzT_d41b388b415d48ddb1ff53947152dc52.jpg?alt=media&token=b890ec1f-5f4b-41de-b6aa-42877605ce15",
+  // same idea as your OpenAI test; add/remove as you like
   "https://fal.media/files/kangaroo/vehO-KtjxXEc9w85gIsFY_843bd51892ef43dc8038ad395e9f1268.jpg",
 ];
 
-const QUALITY = "low"; // “high” | “medium” | “low”
-const INPUT_FIDELITY = "low"; // only used when images are attached
+const MODEL = "gemini-2.5-flash-image-preview"; // multimodal text+image out :contentReference[oaicite:3]{index=3}
+const OUT_DIR = path.join(__dirname);
 
-/* helper: builds the flattened tool object -------------------------------- */
-function buildImageGenTool({
-  hasInputImage,
-  quality = QUALITY,
-}: {
-  hasInputImage: boolean;
-  quality?: "high" | "medium" | "low";
-}) {
-  const tool: Record<string, any> = {
-    type: "image_generation",
-    n: 1,
-    model: "gpt-image-1",
-    size: "1024x1024",
-    quality,
-    output_format: "png",
+/* ------------------------------------------------------------------ */
+/* helpers                                                            */
+/* ------------------------------------------------------------------ */
+function guessMimeFromUrl(u: string): string {
+  const ext = path.extname(new URL(u).pathname).toLowerCase();
+  if (ext === ".png") return "image/png";
+  if (ext === ".webp") return "image/webp";
+  if (ext === ".gif") return "image/gif";
+  return "image/jpeg";
+}
+
+// async function fetchImageAsInlineData(
+//   url: string,
+// ): Promise<{ inlineData: { mimeType: string; data: Uint8Array } }> {
+//   const mimeFallback = guessMimeFromUrl(url);
+
+//   const data: Uint8Array = await new Promise((resolve, reject) => {
+//     https
+//       .get(url, (res) => {
+//         const chunks: Buffer[] = [];
+//         const mimeType = res.headers["content-type"] || mimeFallback;
+
+//         res.on("data", (c) => chunks.push(c as Buffer));
+//         res.on("end", () => {
+//           const buf = Buffer.concat(chunks);
+//           resolve(new Uint8Array(buf));
+//         });
+//         res.on("error", reject);
+//       })
+//       .on("error", reject);
+//   });
+
+//   return { inlineData: { mimeType: mimeFallback, data } };
+// }
+
+async function fetchImageAsInlineData(
+  url: string,
+): Promise<{ inlineData: { mimeType: string; data: string } }> {
+  const mimeFromExt = (u: string) => {
+    const ext = new URL(u).pathname.split(".").pop()?.toLowerCase();
+    return ext === "png"
+      ? "image/png"
+      : ext === "webp"
+        ? "image/webp"
+        : ext === "gif"
+          ? "image/gif"
+          : "image/jpeg";
   };
 
-  if (hasInputImage) tool.input_fidelity = INPUT_FIDELITY;
-  return tool;
+  const mimeType = mimeFromExt(url);
+
+  const base64: string = await new Promise((resolve, reject) => {
+    https
+      .get(url, (res) => {
+        const chunks: Buffer[] = [];
+        res.on("data", (c) => chunks.push(c as Buffer));
+        res.on("end", () => resolve(Buffer.concat(chunks).toString("base64")));
+        res.on("error", reject);
+      })
+      .on("error", reject);
+  });
+
+  return { inlineData: { mimeType, data: base64 } }; // <-- base64 string required
+}
+
+function printUsage(resp: any) {
+  const usage = resp?.usageMetadata || resp?.usage;
+  if (!usage) {
+    console.warn("⚠️  No usage metadata on response");
+    return;
+  }
+  console.log("✅ Usage");
+  for (const [k, v] of Object.entries(usage)) {
+    console.log(`  • ${k}:`, v as any);
+  }
+}
+
+function saveImagesFromResponse(resp: any, prefix = "gemini_out") {
+  let saved = 0;
+
+  const parts = resp?.candidates?.[0]?.content?.parts ?? [];
+  for (const [i, part] of parts.entries()) {
+    const inline = part?.inlineData || part?.inline_data; // be liberal in what we accept
+    if (!inline?.data) continue;
+
+    // normalize to Buffer
+    const raw = inline.data as any;
+    const buf = Buffer.isBuffer(raw)
+      ? raw
+      : raw instanceof Uint8Array
+        ? Buffer.from(raw)
+        : typeof raw === "string"
+          ? Buffer.from(raw, "base64")
+          : null;
+
+    if (!buf) continue;
+
+    const mime = inline.mimeType || inline.mime_type || "image/png";
+    const ext = (mime.split("/")[1] || "png").replace("+", "_");
+    const filename = path.join(OUT_DIR, `${prefix}_${i}.${ext}`);
+    fs.writeFileSync(filename, buf);
+    console.log(`🖼️  Saved ${filename}`);
+    saved++;
+  }
+
+  if (!saved) {
+    console.warn("⚠️  No inline image bytes found in the response.");
+  }
+}
+
+/* pretty-print *everything* (including large arrays/objects) */
+function logFullResponse(label: string, resp: any) {
+  console.log(`\n📦 ${label} — FULL RESPONSE\n`);
+  console.log(
+    util.inspect(resp, {
+      depth: null,
+      maxArrayLength: null,
+      maxStringLength: null,
+      colors: false,
+      compact: false,
+    }),
+  );
 }
 
 /* ------------------------------------------------------------------ */
 /* main test routine                                                  */
 /* ------------------------------------------------------------------ */
-async function runTest() {
-  /* --------------------------- 1. WITH ATTACHMENTS --------------------- */
-  console.log("▶ Test 1 — with reference images");
+async function runGeminiTest() {
+  /* --------------------------- 1. TEXT CHAT ---------------------------- */
+  console.log("▶ Test A — basic chat");
 
-  const promptWithImages =
-    // "Attached images show a 4-year-old child (1st image) and a friendly kangaroo (2nd image). " +
-    "Attached images show a friendly elephant (1st image). " +
-    "Create a Pixar-style illustration where the elephant plays with a ball. " +
-    "Do NOT write any names on the picture.";
-
-  // const inputsWith = [
-  //   { type: "input_text", text: promptWithImages },
-  //   ...IMAGE_URLS.map((url) => ({ type: "input_image", image_url: { url } })),
-  // ];
-
-  const inputsWith = [
-    {
-      role: "user",
-      content: [
-        { type: "input_text", text: promptWithImages },
-        ...IMAGE_URLS.map((url) => ({
-          type: "input_image",
-          image_url: url,
-        })),
-      ],
+  const chat = ai.chats.create({
+    model: MODEL,
+    history: [
+      { role: "user", parts: [{ text: "Hello" }] },
+      {
+        role: "model",
+        parts: [{ text: "Great to meet you. What would you like to know?" }],
+      },
+    ],
+    // default config for the chat; can be overridden per-message
+    config: {
+      // nothing special here
     },
-  ];
-
-  const toolWith = buildImageGenTool({ hasInputImage: true });
-
-  // const respWith = await client.responses.create({
-  //   model: "gpt-4o-mini", // wrapper model
-  //   input: inputsWith,
-  //   tools: [toolWith],
-  // });
-  const respWith = await client.responses.retrieve(
-    "resp_6880d4746124819f85bac69f0055c03700d1ab5d60bfc8c6",
-  );
-
-  console.log(respWith.id);
-
-  reportUsage(respWith.usage);
-  saveImage(respWith, "out_with_attachments.png");
-
-  /* --------------------------- 2. TEXT-ONLY ---------------------------- */
-  console.log("\n▶ Test 2 — text only (no attachments)");
-
-  const promptText =
-    "Create a Pixar-style illustration of a joyful child flying a kite on a sunny meadow. " +
-    "Do NOT write any text inside the picture.";
-
-  // const inputsText = [{ type: "input_text", text: promptText }];
-  const inputsText = [
-    {
-      role: "user",
-      content: [{ type: "input_text", text: promptText }],
-    },
-  ];
-  const toolText = buildImageGenTool({ hasInputImage: false });
-
-  const respText = await client.responses.create({
-    model: "gpt-4o-mini",
-    input: inputsText,
-    tools: [toolText],
   });
-  // const respText = await client.responses.retrieve(
-  //   "resp_6880d48a2750819d8d89dad908e22e6c04bf8c6eb295ed19",
-  // );
 
-  reportUsage(respText.usage);
-  await saveImage(respText, "out_text_only.png");
-}
+  const response1 = await chat.sendMessage({
+    message: "I have 2 dogs in my house.",
+  });
+  console.log("Chat response 1 (text):", response1.text);
+  logFullResponse("Chat response 1", response1);
+  printUsage(response1);
 
-/* ------------------------------------------------------------------ */
-/* helpers                                                            */
-/* ------------------------------------------------------------------ */
-function reportUsage(usage: any) {
-  if (!usage) {
-    console.warn("⚠️  No usage information returned");
-    return;
-  }
-  const {
-    total_tokens,
-    input_tokens,
-    output_tokens,
-    input_tokens_details: { text_tokens, image_tokens } = {},
-  } = usage;
+  const response2 = await chat.sendMessage({
+    message: "How many paws are in my house?",
+  });
+  console.log("Chat response 2 (text):", response2.text);
+  logFullResponse("Chat response 2", response2);
+  printUsage(response2);
 
-  console.log("✅ Token usage");
-  console.log("  • total_tokens :", total_tokens);
-  console.log("  • input_tokens :", input_tokens);
-  console.log("      – text     :", text_tokens ?? "n/a");
-  console.log("      – image    :", image_tokens ?? "n/a");
-  console.log("  • output_tokens:", output_tokens);
-}
+  /* -------------- 2. MULTIMODAL: TEXT + IMAGE INPUT → IMAGE OUT ------- */
+  console.log("\n▶ Test B — multimodal (request text + image output)");
 
-function saveImage(resp: any, filename: string) {
-  const b64 = resp.output.find(
-    (o: any) => o.type === "image_generation_call",
-  )?.result;
+  // Pull your image URLs and attach them as inline data parts.
+  const imageParts = await Promise.all(IMAGE_URLS.map(fetchImageAsInlineData));
 
-  if (!b64) {
-    console.error("❌ No image data in response");
-    return;
-  }
-  fs.writeFileSync(filename, Buffer.from(b64, "base64"));
-  console.log(`🖼️  Saved ${filename}`);
+  const prompt =
+    "Attached image shows a friendly elephant. Create a Pixar-style illustration where the elephant plays with a ball. " +
+    "Do NOT write any text in the picture. Provide an image as part of your response.";
+
+  const response3 = await chat.sendMessage({
+    // IMPORTANT: request interleaved text + image output
+    config: { responseModalities: [Modality.TEXT, Modality.IMAGE] }, // :contentReference[oaicite:4]{index=4}
+    // In @google/genai, message accepts a Part list; include text + images. :contentReference[oaicite:5]{index=5}
+    message: [{ text: prompt }, ...imageParts],
+  });
+
+  console.log(
+    "\nChat response 3 (text helper):",
+    response3.text || "(no text)",
+  );
+  logFullResponse("Chat response 3", response3); // print entire raw object
+  printUsage(response3);
+
+  // Try to extract & save any returned images (non-streaming path).
+  saveImagesFromResponse(response3, "gemini_image_out");
 }
 
 /* ------------------------------------------------------------------ */
 /* kick it off                                                        */
 /* ------------------------------------------------------------------ */
-runTest().catch((err) => {
+runGeminiTest().catch((err) => {
   console.error("❌ Test failed:", err);
   process.exit(1);
 });

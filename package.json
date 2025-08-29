@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@fal-ai/client": "^1.2.3",
+    "@google/genai": "^1.16.0",
     "@hookform/resolvers": "^3.9.1",
     "@jridgewell/trace-mapping": "^0.3.25",
     "@logtail/node": "^0.5.4",
@@ -57,6 +58,7 @@
     "connect-pg-simple": "^10.0.0",
     "cors": "^2.8.5",
     "date-fns": "^3.6.0",
+    "dotenv": "^17.2.1",
     "drizzle-orm": "^0.39.1",
     "drizzle-zod": "^0.7.0",
     "embla-carousel-react": "^8.3.0",
