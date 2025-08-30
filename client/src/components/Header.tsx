@@ -11,6 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import imagitoryLogo from "../assets/imagitory-logo.png";
 
 export function Header() {
   const { user, signOut } = useAuth();
@@ -35,10 +36,11 @@ export function Header() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
         <div className="flex items-center">
           <Link href="/">
-            <span className="text-3xl font-heading font-bold cursor-pointer transform hover:scale-105 transition-transform">
-              <span className="text-imaginory-black">imaginory</span>
-              <span className="text-imaginory-yellow ml-1">✨</span>
-            </span>
+            <img 
+              src={imagitoryLogo} 
+              alt="imagitory" 
+              className="h-12 w-auto cursor-pointer transform hover:scale-105 transition-transform"
+            />
           </Link>
         </div>
 
