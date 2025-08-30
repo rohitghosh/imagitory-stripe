@@ -1,5 +1,5 @@
 import { Link } from "wouter";
-import imagitoryLogo from "../assets/imagitory-logo.png";
+import imagitoryLogo from "/src/assets/imagitory-logo.png";
 
 export function Footer() {
   return (
@@ -7,11 +7,13 @@ export function Footer() {
       <div className="imaginory-container">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           <div>
-            <img 
-              src={imagitoryLogo} 
-              alt="imagitory" 
-              className="h-12 w-auto mb-4 bg-white rounded-lg p-1"
-            />
+            <div className="bg-white rounded-lg p-2 mb-4 inline-block">
+              <img 
+                src={imagitoryLogo} 
+                alt="imagitory" 
+                className="h-10 sm:h-12 w-auto min-w-[100px] sm:min-w-[140px] object-contain"
+              />
+            </div>
             <p className="text-muted-foreground font-body leading-relaxed">
               Creating personalized children's stories with your child as the
               main character. Every story is a magical adventure waiting to
