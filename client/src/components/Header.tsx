@@ -39,7 +39,7 @@ export function Header() {
             <img 
               src={imagitoryLogo} 
               alt="imagitory" 
-              className="h-12 w-auto cursor-pointer transform hover:scale-105 transition-transform"
+              className="h-16 w-auto cursor-pointer transform hover:scale-105 transition-transform bg-white rounded-lg p-1"
             />
           </Link>
         </div>

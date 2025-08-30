@@ -10,7 +10,7 @@ export function Footer() {
             <img 
               src={imagitoryLogo} 
               alt="imagitory" 
-              className="h-8 w-auto mb-4"
+              className="h-12 w-auto mb-4 bg-white rounded-lg p-1"
             />
             <p className="text-muted-foreground font-body leading-relaxed">
               Creating personalized children's stories with your child as the
