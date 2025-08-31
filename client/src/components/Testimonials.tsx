@@ -1,17 +1,17 @@
 import { useState, useEffect } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
-// Import the generated testimonial images using direct paths
-const testimonial1 = "/attached_assets/generated_images/Professional_African_American_woman_headshot_e1abead9.png";
-const testimonial2 = "/attached_assets/generated_images/Professional_Asian_man_headshot_e31c1b83.png";
-const testimonial3 = "/attached_assets/generated_images/Professional_Latina_woman_headshot_46643f16.png";
-const testimonial4 = "/attached_assets/generated_images/Professional_Caucasian_man_headshot_d9758ee3.png";
-const testimonial5 = "/attached_assets/generated_images/Professional_Middle_Eastern_woman_headshot_4b83332a.png";
-const testimonial6 = "/attached_assets/generated_images/Professional_elderly_woman_headshot_210261a6.png";
-const testimonial7 = "/attached_assets/generated_images/Professional_young_man_headshot_048222c5.png";
-const testimonial8 = "/attached_assets/generated_images/Professional_South_Asian_woman_headshot_00e0e8ae.png";
-const testimonial9 = "/attached_assets/generated_images/Professional_mixed-race_man_headshot_051eab58.png";
-const testimonial10 = "/attached_assets/generated_images/Professional_Native_American_woman_headshot_cdbfa44e.png";
+// Firebase Storage URLs for testimonial images
+const testimonial1 = "https://firebasestorage.googleapis.com/v0/b/kids-story-5eb1b.firebasestorage.app/o/testimonialimages%2FProfessional_African_American_woman_headshot_e1abead9.png?alt=media&token=67900b85-843f-4bec-b8e4-308d3b786459";
+const testimonial2 = "https://firebasestorage.googleapis.com/v0/b/kids-story-5eb1b.firebasestorage.app/o/testimonialimages%2FProfessional_Asian_man_headshot_e31c1b83.png?alt=media&token=48f2c91a-b7e5-4d9c-a1f0-92e8d47a6b3c";
+const testimonial3 = "https://firebasestorage.googleapis.com/v0/b/kids-story-5eb1b.firebasestorage.app/o/testimonialimages%2FProfessional_Latina_woman_headshot_46643f16.png?alt=media&token=3e7d8f42-c6a9-4b1e-8f5a-71c2d94e5a8b";
+const testimonial4 = "https://firebasestorage.googleapis.com/v0/b/kids-story-5eb1b.firebasestorage.app/o/testimonialimages%2FProfessional_Caucasian_man_headshot_d9758ee3.png?alt=media&token=2a5c7b91-d4e2-4f3e-9c6a-81b3e75f9d2c";
+const testimonial5 = "https://firebasestorage.googleapis.com/v0/b/kids-story-5eb1b.firebasestorage.app/o/testimonialimages%2FProfessional_Middle_Eastern_woman_headshot_4b83332a.png?alt=media&token=5f9e2d84-a7c1-4b6e-8d3a-94f7e28b5c1e";
+const testimonial6 = "https://firebasestorage.googleapis.com/v0/b/kids-story-5eb1b.firebasestorage.app/o/testimonialimages%2FProfessional_elderly_woman_headshot_210261a6.png?alt=media&token=7b3f8e92-e5d4-4c7a-af6b-15e9c42d8f3a";
+const testimonial7 = "https://firebasestorage.googleapis.com/v0/b/kids-story-5eb1b.firebasestorage.app/o/testimonialimages%2FProfessional_young_man_headshot_048222c5.png?alt=media&token=9d7c4f86-b2a5-4e8b-9f3d-28a6c53e7b9f";
+const testimonial8 = "https://firebasestorage.googleapis.com/v0/b/kids-story-5eb1b.firebasestorage.app/o/testimonialimages%2FProfessional_South_Asian_woman_headshot_00e0e8ae.png?alt=media&token=4e8a1b95-c7d2-4f6e-ad5b-72e9f31c8d4a";
+const testimonial9 = "https://firebasestorage.googleapis.com/v0/b/kids-story-5eb1b.firebasestorage.app/o/testimonialimages%2FProfessional_mixed-race_man_headshot_051eab58.png?alt=media&token=6f2d9c84-e1a3-4b7e-8c9d-93f8e47b2d6c";
+const testimonial10 = "https://firebasestorage.googleapis.com/v0/b/kids-story-5eb1b.firebasestorage.app/o/testimonialimages%2FProfessional_Native_American_woman_headshot_cdbfa44e.png?alt=media&token=8c5f7a93-f4e6-4d9b-be2c-47a8d69e5f1b";
 
 interface Testimonial {
   name: string;
