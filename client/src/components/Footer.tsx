@@ -86,7 +86,7 @@ export function Footer() {
                 Privacy Policy
               </Link>
               <a
-                href="mailto:help@imagitory.in"
+                href="mailto:hello@imagitory.in"
                 className="text-muted-foreground hover:text-imaginory-black transition-colors"
               >
                 Support
