@@ -37,10 +37,12 @@ export function Header() {
         <div className="flex items-center">
           <Link href="/">
             <div className="bg-white rounded-lg p-2 cursor-pointer transform hover:scale-105 transition-transform">
-              <img 
-                src={imagitoryLogo} 
-                alt="imagitory" 
-                className="h-12 sm:h-14 md:h-16 w-auto min-w-[120px] sm:min-w-[160px] md:min-w-[200px] object-contain"
+              <img
+                src={imagitoryLogo}
+                alt="imagitory"
+                className="h-12 sm:h-14 md:h-16 w-auto
+                object-contain
+                selec-none"
               />
             </div>
           </Link>
@@ -76,9 +78,14 @@ export function Header() {
                   </AvatarFallback>
                 </Avatar>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56 bg-white border border-gray-200 rounded-2xl shadow-xl">
+              <DropdownMenuContent
+                align="end"
+                className="w-56 bg-white border border-gray-200 rounded-2xl shadow-xl"
+              >
                 <DropdownMenuLabel className="font-body">
-                  <div className="font-normal text-muted-foreground">Signed in as</div>
+                  <div className="font-normal text-muted-foreground">
+                    Signed in as
+                  </div>
                   <div className="font-bold text-imaginory-black truncate">
                     {user.displayName || user.email}
                   </div>
@@ -117,8 +124,8 @@ export function Header() {
             </DropdownMenu>
           ) : (
             <Link href="/login">
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 className="font-body border-2 border-gray-300 text-imaginory-black hover:bg-gray-100 rounded-2xl px-2 py-1.5 text-xs hover:scale-100 sm:px-6 sm:text-base sm:hover:scale-105 transition-all"
               >
                 Sign In
