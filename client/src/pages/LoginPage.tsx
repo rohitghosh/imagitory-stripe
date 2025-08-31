@@ -76,7 +76,16 @@ export default function LoginPage() {
               </div>
               
               <div className="text-center text-sm text-gray-500 mt-8">
-                <p>By signing in, you agree to our Terms of Service and Privacy Policy.</p>
+                <p>
+                  By signing in, you agree to our{" "}
+                  <button
+                    onClick={() => setLocation("/terms-privacy")}
+                    className="text-blue-600 hover:underline font-medium"
+                  >
+                    Terms of Service and Privacy Policy
+                  </button>
+                  .
+                </p>
               </div>
             </div>
           </div>

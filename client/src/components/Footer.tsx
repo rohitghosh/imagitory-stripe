@@ -66,11 +66,33 @@ export function Footer() {
           </div>
         </div>
 
-        <div className="mt-12 pt-8 border-t border-gray-200 text-center">
-          <p className="text-muted-foreground font-body">
-            © {new Date().getFullYear()} Imagitory. All rights reserved.
-            <span className="ml-2">Made with ❤️ for families everywhere</span>
-          </p>
+        <div className="mt-12 pt-8 border-t border-gray-200">
+          <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
+            <p className="text-muted-foreground font-body text-sm">
+              © {new Date().getFullYear()} Imagitory. All rights reserved.
+              <span className="ml-2">Made with ❤️ for families everywhere</span>
+            </p>
+            <div className="flex flex-wrap justify-center md:justify-end space-x-6 text-sm">
+              <Link
+                href="/terms-privacy"
+                className="text-muted-foreground hover:text-imaginory-black transition-colors"
+              >
+                Terms & Privacy
+              </Link>
+              <Link
+                href="/terms-privacy"
+                className="text-muted-foreground hover:text-imaginory-black transition-colors"
+              >
+                Privacy Policy
+              </Link>
+              <a
+                href="mailto:help@imagitory.in"
+                className="text-muted-foreground hover:text-imaginory-black transition-colors"
+              >
+                Support
+              </a>
+            </div>
+          </div>
         </div>
       </div>
     </footer>
