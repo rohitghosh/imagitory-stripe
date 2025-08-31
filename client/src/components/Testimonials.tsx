@@ -104,10 +104,36 @@ const testimonials: Testimonial[] = [
 export function Testimonials() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isAutoPlaying, setIsAutoPlaying] = useState(true);
+  const [imagesLoaded, setImagesLoaded] = useState(false);
 
-  // Auto-advance testimonials every 5 seconds
+  // Preload all images to ensure smooth transitions
   useEffect(() => {
-    if (!isAutoPlaying) return;
+    const preloadImages = async () => {
+      const imagePromises = testimonials.map((testimonial) => {
+        return new Promise<void>((resolve, reject) => {
+          const img = new Image();
+          img.onload = () => resolve();
+          img.onerror = () => reject();
+          img.src = testimonial.image;
+        });
+      });
+
+      try {
+        await Promise.all(imagePromises);
+        setImagesLoaded(true);
+      } catch (error) {
+        console.error('Error preloading testimonial images:', error);
+        // Set as loaded anyway to show fallback behavior
+        setImagesLoaded(true);
+      }
+    };
+
+    preloadImages();
+  }, []);
+
+  // Auto-advance testimonials every 5 seconds (only after images are loaded)
+  useEffect(() => {
+    if (!isAutoPlaying || !imagesLoaded) return;
 
     const timer = setInterval(() => {
       setCurrentIndex((prevIndex) => 
@@ -116,7 +142,7 @@ export function Testimonials() {
     }, 5000);
 
     return () => clearInterval(timer);
-  }, [isAutoPlaying]);
+  }, [isAutoPlaying, imagesLoaded]);
 
   const goToPrevious = () => {
     setIsAutoPlaying(false);
@@ -145,89 +171,125 @@ export function Testimonials() {
         </div>
 
         <div className="relative max-w-4xl mx-auto">
-          {/* Main Testimonial Card */}
-          <div className="bg-white rounded-2xl shadow-xl p-8 md:p-12 mx-4">
-            <div className="flex flex-col items-center text-center">
-              {/* Profile Image */}
-              <div className="w-20 h-20 md:w-24 md:h-24 rounded-full overflow-hidden mb-6 shadow-lg">
-                <img
-                  src={currentTestimonial.image}
-                  alt={currentTestimonial.name}
-                  className="w-full h-full object-cover"
-                />
-              </div>
-
-              {/* Testimonial Text */}
-              <div className="mb-6">
-                <svg
-                  className="w-8 h-8 text-imaginory-yellow mb-4 mx-auto"
-                  fill="currentColor"
-                  viewBox="0 0 32 32"
-                >
-                  <path d="M10 8c-3.3 0-6 2.7-6 6v10h10V14H8c0-1.1.9-2 2-2V8zm16 0c-3.3 0-6 2.7-6 6v10h10V14h-6c0-1.1.9-2 2-2V8z" />
-                </svg>
-                <blockquote className="text-lg md:text-xl font-body text-gray-700 leading-relaxed italic">
-                  "{currentTestimonial.testimonial}"
-                </blockquote>
-              </div>
-
-              {/* Author Info */}
-              <div>
-                <h4 className="font-heading font-bold text-xl text-foreground mb-1">
-                  {currentTestimonial.name}
-                </h4>
-                <p className="text-muted-foreground font-body">
-                  {currentTestimonial.title}
-                </p>
-                <p className="text-imaginory-yellow font-body font-medium">
-                  {currentTestimonial.company}
-                </p>
+          {/* Loading State */}
+          {!imagesLoaded && (
+            <div className="bg-white rounded-2xl shadow-xl p-8 md:p-12 mx-4 animate-pulse">
+              <div className="flex flex-col items-center text-center">
+                <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-gray-200 mb-6"></div>
+                <div className="w-8 h-8 bg-yellow-200 rounded mb-4"></div>
+                <div className="space-y-2 mb-6">
+                  <div className="h-4 bg-gray-200 rounded w-3/4 mx-auto"></div>
+                  <div className="h-4 bg-gray-200 rounded w-full mx-auto"></div>
+                  <div className="h-4 bg-gray-200 rounded w-5/6 mx-auto"></div>
+                </div>
+                <div className="space-y-2">
+                  <div className="h-5 bg-gray-200 rounded w-32 mx-auto"></div>
+                  <div className="h-3 bg-gray-200 rounded w-24 mx-auto"></div>
+                  <div className="h-3 bg-gray-200 rounded w-28 mx-auto"></div>
+                </div>
               </div>
             </div>
+          )}
+
+          {/* Main Testimonial Card */}
+          {imagesLoaded && (
+            <div 
+              key={currentIndex}
+              className="bg-white rounded-2xl shadow-xl p-8 md:p-12 mx-4 animate-fade-in"
+            >
+              <div className="flex flex-col items-center text-center">
+                {/* Profile Image */}
+                <div className="w-20 h-20 md:w-24 md:h-24 rounded-full overflow-hidden mb-6 shadow-lg">
+                  <img
+                    src={currentTestimonial.image}
+                    alt={currentTestimonial.name}
+                    className="w-full h-full object-cover transition-all duration-300"
+                  />
+                </div>
+
+                {/* Testimonial Text */}
+                <div className="mb-6">
+                  <svg
+                    className="w-8 h-8 text-imaginory-yellow mb-4 mx-auto"
+                    fill="currentColor"
+                    viewBox="0 0 32 32"
+                  >
+                    <path d="M10 8c-3.3 0-6 2.7-6 6v10h10V14H8c0-1.1.9-2 2-2V8zm16 0c-3.3 0-6 2.7-6 6v10h10V14h-6c0-1.1.9-2 2-2V8z" />
+                  </svg>
+                  <blockquote className="text-lg md:text-xl font-body text-gray-700 leading-relaxed italic">
+                    "{currentTestimonial.testimonial}"
+                  </blockquote>
+                </div>
+
+                {/* Author Info */}
+                <div>
+                  <h4 className="font-heading font-bold text-xl text-foreground mb-1">
+                    {currentTestimonial.name}
+                  </h4>
+                  <p className="text-muted-foreground font-body">
+                    {currentTestimonial.title}
+                  </p>
+                  <p className="text-imaginory-yellow font-body font-medium">
+                    {currentTestimonial.company}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Navigation Arrows - Only show when images are loaded */}
+          {imagesLoaded && (
+            <>
+              <button
+                onClick={goToPrevious}
+                className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-2 bg-white hover:bg-gray-50 rounded-full p-3 shadow-lg transition-all duration-200 hover:shadow-xl"
+                aria-label="Previous testimonial"
+              >
+                <ChevronLeft className="w-6 h-6 text-gray-600" />
+              </button>
+
+              <button
+                onClick={goToNext}
+                className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-2 bg-white hover:bg-gray-50 rounded-full p-3 shadow-lg transition-all duration-200 hover:shadow-xl"
+                aria-label="Next testimonial"
+              >
+                <ChevronRight className="w-6 h-6 text-gray-600" />
+              </button>
+            </>
+          )}
+        </div>
+
+        {/* Dots Indicator - Only show when images are loaded */}
+        {imagesLoaded && (
+          <div className="flex justify-center mt-8 space-x-2">
+            {testimonials.map((_, index) => (
+              <button
+                key={index}
+                onClick={() => {
+                  setIsAutoPlaying(false);
+                  setCurrentIndex(index);
+                  setTimeout(() => setIsAutoPlaying(true), 10000);
+                }}
+                className={`w-3 h-3 rounded-full transition-all duration-200 ${
+                  index === currentIndex
+                    ? "bg-imaginory-yellow scale-125"
+                    : "bg-gray-300 hover:bg-gray-400"
+                }`}
+                aria-label={`Go to testimonial ${index + 1}`}
+              />
+            ))}
           </div>
+        )}
 
-          {/* Navigation Arrows */}
-          <button
-            onClick={goToPrevious}
-            className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-2 bg-white hover:bg-gray-50 rounded-full p-3 shadow-lg transition-all duration-200 hover:shadow-xl"
-            aria-label="Previous testimonial"
-          >
-            <ChevronLeft className="w-6 h-6 text-gray-600" />
-          </button>
-
-          <button
-            onClick={goToNext}
-            className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-2 bg-white hover:bg-gray-50 rounded-full p-3 shadow-lg transition-all duration-200 hover:shadow-xl"
-            aria-label="Next testimonial"
-          >
-            <ChevronRight className="w-6 h-6 text-gray-600" />
-          </button>
-        </div>
-
-        {/* Dots Indicator */}
-        <div className="flex justify-center mt-8 space-x-2">
-          {testimonials.map((_, index) => (
-            <button
-              key={index}
-              onClick={() => {
-                setIsAutoPlaying(false);
-                setCurrentIndex(index);
-                setTimeout(() => setIsAutoPlaying(true), 10000);
-              }}
-              className={`w-3 h-3 rounded-full transition-all duration-200 ${
-                index === currentIndex
-                  ? "bg-imaginory-yellow scale-125"
-                  : "bg-gray-300 hover:bg-gray-400"
-              }`}
-              aria-label={`Go to testimonial ${index + 1}`}
-            />
-          ))}
-        </div>
-
-        {/* Auto-play indicator */}
+        {/* Status indicator */}
         <div className="text-center mt-4">
           <p className="text-sm text-muted-foreground">
-            {isAutoPlaying ? "Auto-playing testimonials" : "Auto-play paused"}
+            {!imagesLoaded 
+              ? "Loading testimonials..." 
+              : isAutoPlaying 
+                ? "Auto-playing testimonials" 
+                : "Auto-play paused"
+            }
           </p>
         </div>
       </div>
