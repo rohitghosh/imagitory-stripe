@@ -1,97 +1,73 @@
-// Theme and Subject data structures for the new story creation workflow
-
-export interface Subject {
-  id: string;
-  name: string;
-  image: string;
-  description?: string;
-}
-
-export interface Theme {
-  id: string;
-  name: string;
-  image: string;
-  description?: string;
-  subjects: Subject[];
-}
-
-// Firebase Storage helper for theme/subject images (without embedded tokens)
-const getFirebaseImageUrl = (imagePath: string) => {
-  // Remove leading slash and convert to Firebase Storage path
-  const cleanPath = imagePath.startsWith('/') ? imagePath.slice(1) : imagePath;
-  return `https://firebasestorage.googleapis.com/v0/b/kids-story-5eb1b.firebasestorage.app/o/${encodeURIComponent(cleanPath)}?alt=media`;
-};
-
 const EDUCATIONAL_THEME: Theme = {
   id: "educational",
   name: "Educational",
-  image: getFirebaseImageUrl("themes_and_subjects/education.png"),
+  image: "/themes_and_subjects/education.png",
   description: "Learning through fun stories",
   subjects: [
     {
       id: "alphabet",
       name: "Alphabet",
-      image: getFirebaseImageUrl("themes_and_subjects/alphabets.png"),
+      image: "/themes_and_subjects/alphabets.png",
       description: "Learning letters and sounds",
     },
     {
       id: "learning-to-count",
       name: "Learning to Count",
-      image: getFirebaseImageUrl("themes_and_subjects/learning-to-count.png"),
+      image: "/themes_and_subjects/learning-to-count.png",
       description: "Numbers and counting",
     },
     {
       id: "shapes-and-colours",
       name: "Shapes and colours",
-      image: getFirebaseImageUrl("themes_and_subjects/shapes-and-colours.png"),
+      image: "/themes_and_subjects/shapes-and-colours.png",
       description: "Shapes, sizes, and colours",
     },
     {
       id: "first-words",
       name: "First Words",
-      image: getFirebaseImageUrl("themes_and_subjects/first-words.png"),
+      image: "/themes_and_subjects/first-words.png",
       description: "Early vocabulary",
     },
     {
       id: "body-parts",
       name: "Body Parts",
-      image: getFirebaseImageUrl("themes_and_subjects/body-parts.png"),
+      image: "/themes_and_subjects/body-parts.png",
       description: "Learning about the body",
     },
     {
       id: "to-school",
       name: "To School",
-      image: getFirebaseImageUrl("themes_and_subjects/to-school.png"),
+      image: "/themes_and_subjects/to-school.png",
       description: "Starting school",
     },
     {
       id: "learning-to-walk",
       name: "Learning to walk",
-      image: getFirebaseImageUrl("themes_and_subjects/learning-to-walk.png"),
+      image: "/themes_and_subjects/learning-to-walk.png",
       description: "First steps",
     },
     {
       id: "weaning-off-the-pacifier",
       name: "Weaning off the pacifier",
-      image: getFirebaseImageUrl("themes_and_subjects/weaning-off-the-pacifier.png"),
+      image: "/themes_and_subjects/weaning-off-the-pacifier.png",
       description: "Growing up milestones",
     },
     {
       id: "brushing-teeth",
       name: "Brushing teeth",
-      image: getFirebaseImageUrl("themes_and_subjects/brushing-teeth.png"),
+      image: "/themes_and_subjects/brushing-teeth.png",
       description: "Healthy habits",
     },
     {
       id: "telling-the-time",
       name: "Telling the time",
-      image: getFirebaseImageUrl("themes_and_subjects/telling-the-time.png"),
+      image: "/themes_and_subjects/telling-the-time.png",
       description: "Learning time",
     },
     {
       id: "seasons-and-weather",
       name: "Seasons and Weather",
-      image: getFirebaseImageUrl("themes_and_subjects/seasons-and-weathers.png"),
+      image: "/themes_and_subjects/seasons-and-weathers.png",
       description: "Weather and seasons",
     },
   ],
@@ -100,43 +76,43 @@ const EDUCATIONAL_THEME: Theme = {
 const FAIRY_TALES_THEME: Theme = {
   id: "fairy-tales",
   name: "Fairy Tales",
-  image: getFirebaseImageUrl("themes_and_subjects/fairy-tales.png"),
+  image: "/themes_and_subjects/fairy-tales.png",
   description: "Classic magical stories",
   subjects: [
     {
       id: "fairy-tales-classic",
       name: "Fairy Tales",
-      image: getFirebaseImageUrl("themes_and_subjects/fairy.png"),
+      image: "/themes_and_subjects/fairy.png",
       description: "Traditional fairy tale stories",
     },
     {
       id: "fantasy-worlds",
       name: "Fantasy Worlds",
-      image: getFirebaseImageUrl("themes_and_subjects/fantasy-worlds.png"),
+      image: "/themes_and_subjects/fantasy-worlds.png",
       description: "Magical realms and creatures",
     },
     {
       id: "unicorns",
       name: "Unicorns",
-      image: getFirebaseImageUrl("themes_and_subjects/unicorns.png"),
+      image: "/themes_and_subjects/unicorns.png",
       description: "Magical unicorn adventures",
     },
     {
       id: "knights-and-dragons",
       name: "Knights and Dragons",
-      image: getFirebaseImageUrl("themes_and_subjects/knights-and-dragons.png"),
+      image: "/themes_and_subjects/knights-and-dragons.png",
       description: "Heroic tales",
     },
     {
       id: "princes-and-princesses",
       name: "Princes and Princesses",
-      image: getFirebaseImageUrl("themes_and_subjects/princes-and-princesses.png"),
+      image: "/themes_and_subjects/princes-and-princesses.png",
       description: "Royal adventures",
     },
     {
       id: "wizard-school",
       name: "Wizard School",
-      image: getFirebaseImageUrl("themes_and_subjects/wizard-school.png"),
+      image: "/themes_and_subjects/wizard-school.png",
       description: "Magic and learning",
     },
   ],
@@ -145,73 +121,73 @@ const FAIRY_TALES_THEME: Theme = {
 const ADVENTURE_THEME: Theme = {
   id: "adventure",
   name: "Adventure",
-  image: getFirebaseImageUrl("themes_and_subjects/adventure.png"),
+  image: "/themes_and_subjects/adventure.png",
   description: "Exciting journeys and quests",
   subjects: [
     {
       id: "travel",
       name: "Travel",
-      image: getFirebaseImageUrl("themes_and_subjects/travel.png"),
+      image: "/themes_and_subjects/travel.png",
       description: "Exploring new places",
     },
     {
       id: "pirates",
       name: "Pirates",
-      image: getFirebaseImageUrl("themes_and_subjects/pirates.png"),
+      image: "/themes_and_subjects/pirates.png",
       description: "High seas adventures",
     },
     {
       id: "space",
       name: "Space",
-      image: getFirebaseImageUrl("themes_and_subjects/space.png"),
+      image: "/themes_and_subjects/space.png",
       description: "Cosmic exploration",
     },
     {
       id: "underwater",
       name: "Underwater",
-      image: getFirebaseImageUrl("themes_and_subjects/underwater.png"),
+      image: "/themes_and_subjects/underwater.png",
       description: "Ocean adventures",
     },
     {
       id: "time-travel",
       name: "Time Travel",
-      image: getFirebaseImageUrl("themes_and_subjects/time-travel.png"),
+      image: "/themes_and_subjects/time-travel.png",
       description: "Journeying through time",
     },
     {
       id: "jungle",
       name: "Jungle",
-      image: getFirebaseImageUrl("themes_and_subjects/jungle.png"),
+      image: "/themes_and_subjects/jungle.png",
       description: "Wild rainforest journeys",
     },
     {
       id: "dinosaurs",
       name: "Dinosaurs",
-      image: getFirebaseImageUrl("themes_and_subjects/dinosaurs.png"),
+      image: "/themes_and_subjects/dinosaurs.png",
       description: "Prehistoric adventures",
     },
     {
       id: "wild-west",
       name: "Wild West",
-      image: getFirebaseImageUrl("themes_and_subjects/wild-west.png"),
+      image: "/themes_and_subjects/wild-west.png",
       description: "Cowboys and deserts",
     },
     {
       id: "treasure-hunt",
       name: "Treasure Hunt",
-      image: getFirebaseImageUrl("themes_and_subjects/treasure-hunt.png"),
+      image: "/themes_and_subjects/treasure-hunt.png",
       description: "Searching for hidden treasures",
     },
     {
       id: "haunted-house",
       name: "Haunted House",
-      image: getFirebaseImageUrl("themes_and_subjects/haunted-house.png"),
+      image: "/themes_and_subjects/haunted-house.png",
       description: "Spooky explorations",
     },
     {
       id: "secret-mission",
       name: "Secret Mission",
-      image: getFirebaseImageUrl("themes_and_subjects/secret-mission.png"),
+      image: "/themes_and_subjects/secret-mission.png",
       description: "Top-secret quests",
     },
   ],
@@ -220,115 +196,115 @@ const ADVENTURE_THEME: Theme = {
 const ACTIVITIES_THEME: Theme = {
   id: "activities",
   name: "Activities",
-  image: getFirebaseImageUrl("themes_and_subjects/activities.png"),
+  image: "/themes_and_subjects/activities.png",
   description: "Fun hobbies and everyday play",
   subjects: [
     {
       id: "cooking-and-baking",
       name: "Cooking and Baking",
-      image: getFirebaseImageUrl("themes_and_subjects/cooking-and-baking.png"),
+      image: "/themes_and_subjects/cooking-and-baking.png",
       description: "Kitchen fun",
     },
     {
       id: "arts-and-crafts",
       name: "Arts and Crafts",
-      image: getFirebaseImageUrl("themes_and_subjects/arts-and-crafts.png"),
+      image: "/themes_and_subjects/arts-and-crafts.png",
       description: "Creative projects",
     },
     {
       id: "painting",
       name: "Painting",
-      image: getFirebaseImageUrl("themes_and_subjects/painting.png"),
+      image: "/themes_and_subjects/painting.png",
       description: "Colorful art time",
     },
     {
       id: "making-music",
       name: "Making Music",
-      image: getFirebaseImageUrl("themes_and_subjects/making-music.png"),
+      image: "/themes_and_subjects/making-music.png",
       description: "Rhythm and melodies",
     },
     {
       id: "dancing",
       name: "Dancing",
-      image: getFirebaseImageUrl("themes_and_subjects/dancing.png"),
+      image: "/themes_and_subjects/dancing.png",
       description: "Move and groove",
     },
     {
       id: "caring-for-animals",
       name: "Caring for Animals",
-      image: getFirebaseImageUrl("themes_and_subjects/caring-for-animals.png"),
+      image: "/themes_and_subjects/caring-for-animals.png",
       description: "Kindness to pets",
     },
     {
       id: "outdoor-play",
       name: "Outdoor Play",
-      image: getFirebaseImageUrl("themes_and_subjects/outdoor-play.png"),
+      image: "/themes_and_subjects/outdoor-play.png",
       description: "Fun outside",
     },
     {
       id: "sports",
       name: "Sports",
-      image: getFirebaseImageUrl("themes_and_subjects/sports.png"),
+      image: "/themes_and_subjects/sports.png",
       description: "Games and teamwork",
     },
     {
       id: "gaming",
       name: "Gaming",
-      image: getFirebaseImageUrl("themes_and_subjects/gaming.png"),
+      image: "/themes_and_subjects/gaming.png",
       description: "Video game adventures",
     },
     {
       id: "sleepover",
       name: "Sleepover",
-      image: getFirebaseImageUrl("themes_and_subjects/sleepover.png"),
+      image: "/themes_and_subjects/sleepover.png",
       description: "Friends and pajamas",
     },
     {
       id: "building-a-treehouse",
       name: "Building a treehouse",
-      image: getFirebaseImageUrl("themes_and_subjects/building-a-treehouse.png"),
+      image: "/themes_and_subjects/building-a-treehouse.png",
       description: "Hands-on building",
     },
     {
       id: "go-to-the-beach",
       name: "Go to the beach",
-      image: getFirebaseImageUrl("themes_and_subjects/go-to-the-beach.png"),
+      image: "/themes_and_subjects/go-to-the-beach.png",
       description: "Sand and sea",
     },
     {
       id: "to-the-forest",
       name: "To the forest",
-      image: getFirebaseImageUrl("themes_and_subjects/to-the-forest.png"),
+      image: "/themes_and_subjects/to-the-forest.png",
       description: "Trees and trails",
     },
     {
       id: "to-the-farm",
       name: "To the farm",
-      image: getFirebaseImageUrl("themes_and_subjects/to-the-farm.png"),
+      image: "/themes_and_subjects/to-the-farm.png",
       description: "Barns and fields",
     },
     {
       id: "visit-the-zoo",
       name: "Visit the zoo",
-      image: getFirebaseImageUrl("themes_and_subjects/visiting-a-zoo.png"),
+      image: "/themes_and_subjects/visiting-a-zoo.png",
       description: "Animal encounters",
     },
     {
       id: "visit-the-doctor",
       name: "Visit the Doctor",
-      image: getFirebaseImageUrl("themes_and_subjects/visit-the-doctor.png"),
+      image: "/themes_and_subjects/visit-the-doctor.png",
       description: "Health checkups",
     },
     {
       id: "visit-the-dentist",
       name: "Visit the Dentist",
-      image: getFirebaseImageUrl("themes_and_subjects/visit-the-dentist.png"),
+      image: "/themes_and_subjects/visit-the-dentist.png",
       description: "Dental care",
     },
     {
       id: "gardening",
       name: "Gardening",
-      image: getFirebaseImageUrl("themes_and_subjects/gardening.png"),
+      image: "/themes_and_subjects/gardening.png",
       description: "Growing plants",
     },
   ],
@@ -337,19 +313,19 @@ const ACTIVITIES_THEME: Theme = {
 export const STORIES_THEME: Theme = {
   id: "stories",
   name: "Stories",
-  image: getFirebaseImageUrl("themes_and_subjects/stories.png"),
+  image: "/themes_and_subjects/stories.png",
   description: "Different styles of storytelling",
   subjects: [
     {
       id: "bedtime-story",
       name: "Bedtime story",
-      image: getFirebaseImageUrl("themes_and_subjects/bedtime-story.png"),
+      image: "/themes_and_subjects/bedtime-story.png",
       description: "Calming bedtime tales",
     },
     {
       id: "humorous-story",
       name: "Humorous story",
-      image: getFirebaseImageUrl("themes_and_subjects/humorous-story.png"),
+      image: "/themes_and_subjects/humorous-story.png",
       description: "Funny and lighthearted stories",
     },
   ],
@@ -358,73 +334,73 @@ export const STORIES_THEME: Theme = {
 export const HOLIDAYS_THEME: Theme = {
   id: "holidays",
   name: "Holidays",
-  image: getFirebaseImageUrl("themes_and_subjects/holidays.png"),
+  image: "/themes_and_subjects/holidays.png",
   description: "Seasonal celebrations",
   subjects: [
     {
       id: "birthday",
       name: "Birthday",
-      image: getFirebaseImageUrl("themes_and_subjects/birthday.png"),
+      image: "/themes_and_subjects/birthday.png",
       description: "Birthday fun",
     },
     {
       id: "christmas",
       name: "Christmas",
-      image: getFirebaseImageUrl("themes_and_subjects/christmas.png"),
+      image: "/themes_and_subjects/christmas.png",
       description: "Festive cheer",
     },
     {
       id: "easter",
       name: "Easter",
-      image: getFirebaseImageUrl("themes_and_subjects/easter.png"),
+      image: "/themes_and_subjects/easter.png",
       description: "Springtime joy",
     },
     {
       id: "halloween",
       name: "Halloween",
-      image: getFirebaseImageUrl("themes_and_subjects/halloween.png"),
+      image: "/themes_and_subjects/halloween.png",
       description: "Halloween fun and costumes",
     },
     {
       id: "world-animal-day",
       name: "World Animal Day",
-      image: getFirebaseImageUrl("themes_and_subjects/world-animal-day.png"),
+      image: "/themes_and_subjects/world-animal-day.png",
       description: "Celebrating animals",
     },
     {
       id: "eid-al-fitr",
       name: "Eid al-Fitr",
-      image: getFirebaseImageUrl("themes_and_subjects/eid-al-fitr.png"),
+      image: "/themes_and_subjects/eid-al-fitr.png",
       description: "End of Ramadan celebration",
     },
     {
       id: "saint-nicholas",
       name: "Saint Nicholas",
-      image: getFirebaseImageUrl("themes_and_subjects/saint-nicholas.png"),
+      image: "/themes_and_subjects/saint-nicholas.png",
       description: "St. Nicholas traditions",
     },
     {
       id: "fathers-day",
       name: "Father’s Day",
-      image: getFirebaseImageUrl("themes_and_subjects/fathers-day.png"),
+      image: "/themes_and_subjects/fathers-day.png",
       description: "Celebrating dads",
     },
     {
       id: "mothers-day",
       name: "Mother’s Day",
-      image: getFirebaseImageUrl("themes_and_subjects/mothers-day.png"),
+      image: "/themes_and_subjects/mothers-day.png",
       description: "Celebrating moms",
     },
     {
       id: "new-year-eve",
       name: "New Year’s Eve",
-      image: getFirebaseImageUrl("themes_and_subjects/new-year-eve.png"),
+      image: "/themes_and_subjects/new-year-eve.png",
       description: "Year-end festivities",
     },
     {
       id: "carnival",
       name: "Carnival",
-      image: getFirebaseImageUrl("themes_and_subjects/carnival.png"),
+      image: "/themes_and_subjects/carnival.png",
       description: "Parades and costumes",
     },
   ],
@@ -433,73 +409,73 @@ export const HOLIDAYS_THEME: Theme = {
 const FAMILY_THEME: Theme = {
   id: "family",
   name: "Family",
-  image: getFirebaseImageUrl("themes_and_subjects/family.png"),
+  image: "/themes_and_subjects/family.png",
   description: "Stories about family life and feelings",
   subjects: [
     {
       id: "new-baby",
       name: "New baby",
-      image: getFirebaseImageUrl("themes_and_subjects/new-baby.png"),
+      image: "/themes_and_subjects/new-baby.png",
       description: "Welcoming a new sibling",
     },
     {
       id: "gets-a-little-sister",
       name: "Gets a little sister",
-      image: getFirebaseImageUrl("themes_and_subjects/gets-a-little-sister.png"),
+      image: "/themes_and_subjects/gets-a-little-sister.png",
       description: "Having a baby sister",
     },
     {
       id: "gets-a-little-brother",
       name: "Gets a little brother",
-      image: getFirebaseImageUrl("themes_and_subjects/gets-a-little-brother.png"),
+      image: "/themes_and_subjects/gets-a-little-brother.png",
       description: "Having a baby brother",
     },
     {
       id: "moving",
       name: "Moving",
-      image: getFirebaseImageUrl("themes_and_subjects/moving.png"),
+      image: "/themes_and_subjects/moving.png",
       description: "New house, new place",
     },
     {
       id: "vacation",
       name: "Vacation",
-      image: getFirebaseImageUrl("themes_and_subjects/vacation.png"),
+      image: "/themes_and_subjects/vacation.png",
       description: "Family trips and fun",
     },
     {
       id: "train-travel",
       name: "Train travel",
-      image: getFirebaseImageUrl("themes_and_subjects/train-travel.png"),
+      image: "/themes_and_subjects/train-travel.png",
       description: "Riding the rails",
     },
     {
       id: "visiting-amusement-parks",
       name: "Visiting amusement parks",
-      image: getFirebaseImageUrl("themes_and_subjects/visiting-amusement-parks.png"),
+      image: "/themes_and_subjects/visiting-amusement-parks.png",
       description: "Rides and thrills",
     },
     {
       id: "parents-seperation",
       name: "Parents separation",
-      image: getFirebaseImageUrl("themes_and_subjects/parents-seperation.png"),
+      image: "/themes_and_subjects/parents-seperation.png",
       description: "Understanding family changes",
     },
     {
       id: "blended-family",
       name: "Blended family",
-      image: getFirebaseImageUrl("themes_and_subjects/blended-family.png"),
+      image: "/themes_and_subjects/blended-family.png",
       description: "New family structures",
     },
     {
       id: "saying-goodbye",
       name: "Saying goodbye",
-      image: getFirebaseImageUrl("themes_and_subjects/saying-goodbye.png"),
+      image: "/themes_and_subjects/saying-goodbye.png",
       description: "Dealing with goodbyes",
     },
     {
       id: "marriage",
       name: "Marriage",
-      image: getFirebaseImageUrl("themes_and_subjects/marriage.png"),
+      image: "/themes_and_subjects/marriage.png",
       description: "Weddings and celebrations",
     },
   ],
@@ -508,106 +484,77 @@ const FAMILY_THEME: Theme = {
 const MORALS_THEME: Theme = {
   id: "morals",
   name: "Morals",
-  image: getFirebaseImageUrl("themes_and_subjects/morals.png"),
+  image: "/themes_and_subjects/morals.png",
   description: "Stories that teach important life lessons",
   subjects: [
     {
       id: "patience-grows-good-things",
       name: "Patience grows good things",
-      image: getFirebaseImageUrl("themes_and_subjects/patience-grows-good-things.png"),
+      image: "/themes_and_subjects/patience-grows-good-things.png",
       description: "Real growth takes time; caring and waiting beat rushing.",
     },
     {
       id: "practice-makes-progress",
       name: "Practice makes progress",
-      image: getFirebaseImageUrl("themes_and_subjects/practice-makes-progress.png"),
+      image: "/themes_and_subjects/practice-makes-progress.png",
       description:
         "Improvement comes from trying, making mistakes, and trying again.",
     },
     {
       id: "be-gentle-with-living-things",
       name: "Be gentle with living things",
-      image: getFirebaseImageUrl("themes_and_subjects/be-gentle-with-living-things.png"),
+      image: "/themes_and_subjects/be-gentle-with-living-things.png",
       description:
         "Animals and plants deserve kindness; small acts can be big.",
     },
     {
       id: "take-care-of-your-world",
       name: "Take care of your world",
-      image: getFirebaseImageUrl("themes_and_subjects/take-care-of-your-world.png"),
+      image: "/themes_and_subjects/take-care-of-your-world.png",
       description:
         "Clean up, share, and respect—your choices help everyone.",
     },
     {
       id: "tell-the-truth-and-fix-it",
       name: "Tell the truth and fix it",
-      image: getFirebaseImageUrl("themes_and_subjects/tell-the-truth-and-fix-it.png"),
+      image: "/themes_and_subjects/tell-the-truth-and-fix-it.png",
       description:
         "Being honest and making repairs builds trust and courage.",
     },
     {
       id: "think-first-then-act",
       name: "Think first, then act",
-      image: getFirebaseImageUrl("themes_and_subjects/think-first-then-act.png"),
+      image: "/themes_and_subjects/think-first-then-act.png",
       description:
         "Pause, breathe, and choose carefully when feelings are big.",
     },
     {
       id: "curiosity-leads-to-discovery",
       name: "Curiosity leads to discovery",
-      image: getFirebaseImageUrl("themes_and_subjects/curiosity-leads-to-discovery.png"),
+      image: "/themes_and_subjects/curiosity-leads-to-discovery.png",
       description:
         "Asking questions opens doors; exploring safely grows wisdom.",
     },
     {
       id: "keep-going-adjust-the-plan",
       name: "Keep going, adjust the plan",
-      image: getFirebaseImageUrl("themes_and_subjects/keep-going-adjust-the-plan.png"),
+      image: "/themes_and_subjects/keep-going-adjust-the-plan.png",
       description:
         "When something’s hard, tweak the steps and try another way.",
     },
     {
       id: "calm-body-clear-choices",
       name: "Calm body, clear choices",
-      image: getFirebaseImageUrl("themes_and_subjects/calm-body-clear-choices.png"),
+      image: "/themes_and_subjects/calm-body-clear-choices.png",
       description:
         "Slow breathing helps brains make kinder, smarter choices.",
     },
     {
       id: "courage-with-care",
       name: "Courage with care",
-      image: getFirebaseImageUrl("themes_and_subjects/courage-with-care.png"),
+      image: "/themes_and_subjects/courage-with-care.png",
       description:
         "Be brave, move thoughtfully, and avoid risky or rough choices.",
     },
   ],
-};
-
-// All themes array
-export const ALL_THEMES: Theme[] = [
-  EDUCATIONAL_THEME,
-  FAIRY_TALES_THEME,
-  ADVENTURE_THEME,
-  ACTIVITIES_THEME,
-  STORIES_THEME,
-  HOLIDAYS_THEME,
-  FAMILY_THEME,
-  MORALS_THEME,
-];
-
-// Utility functions
-export const getThemeById = (id: string): Theme | undefined => {
-  return ALL_THEMES.find((theme) => theme.id === id);
-};
-
-export const getSubjectById = (
-  themeId: string,
-  subjectId: string,
-): Subject | undefined => {
-  const theme = getThemeById(themeId);
-  return theme?.subjects.find((subject) => subject.id === subjectId);
-};
-
-export const getAllSubjects = (): Subject[] => {
-  return ALL_THEMES.flatMap((theme) => theme.subjects);
 };
