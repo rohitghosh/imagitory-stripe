@@ -6,6 +6,7 @@ import { fal } from "@fal-ai/client";
 import { getImageDataURL } from "./imageUtils";
 import { createCanvas, loadImage, Canvas, Image } from "canvas";
 
+const TEST_MODE = process.env.TEST_MODE;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const CHAT_API_URL = "https://api.openai.com/v1/chat/completions";
 
@@ -249,30 +250,62 @@ export async function expandImageToLeft(imageUrl) {
   const originalImageLocation = [originalWidth, 0];
 
   // Call the Bria Expand API
-  const result = await fal.subscribe("fal-ai/bria/expand", {
-    input: {
-      image_url: imageUrl,
-      canvas_size: [newCanvasWidth, newCanvasHeight],
-      original_image_size: [originalWidth, originalHeight],
-      original_image_location: originalImageLocation,
-    },
-    logs: true,
-    onQueueUpdate: (update) => {
-      if (update.status === "IN_PROGRESS" && update.logs) {
-        update.logs.forEach((log) =>
-          console.log("[ExpandImageLeft] Queue update:", log.message),
-        );
-      }
-    },
-  });
+  // const result = await fal.subscribe("fal-ai/bria/expand", {
+  //   input: {
+  //     image_url: imageUrl,
+  //     canvas_size: [newCanvasWidth, newCanvasHeight],
+  //     original_image_size: [originalWidth, originalHeight],
+  //     original_image_location: originalImageLocation,
+  //   },
+  //   logs: true,
+  //   onQueueUpdate: (update) => {
+  //     if (update.status === "IN_PROGRESS" && update.logs) {
+  //       update.logs.forEach((log) =>
+  //         console.log("[ExpandImageLeft] Queue update:", log.message),
+  //       );
+  //     }
+  //   },
+  // });
 
-  // Return the expanded image as a data URL
-  if (result.data && result.data.image) {
-    const url = result.data.image.url;
-    console.log("Extended image URL:", url);
+  // // Return the expanded image as a data URL
+  // if (result.data && result.data.image) {
+  //   const url = result.data.image.url;
+  //   console.log("Extended image URL:", url);
+  //   return url;
+  // } else {
+  //   console.log("[expandImageLeft] Error observed with  ", result.data);
+  // }
+
+  if (TEST_MODE) {
+    const url =
+      "https://v3.fal.media/files/lion/RGNgroBRmshN7ed-_PQc__962ba9c27d2747448e02225d821531df.png";
     return url;
   } else {
-    console.log("[expandImageLeft] Error observed with  ", result.data);
+    const result = await fal.subscribe("fal-ai/bria/expand", {
+      input: {
+        image_url: imageUrl,
+        canvas_size: [newCanvasWidth, newCanvasHeight],
+        original_image_size: [originalWidth, originalHeight],
+        original_image_location: originalImageLocation,
+      },
+      logs: true,
+      onQueueUpdate: (update) => {
+        if (update.status === "IN_PROGRESS" && update.logs) {
+          update.logs.forEach((log) =>
+            console.log("[ExpandImageLeft] Queue update:", log.message),
+          );
+        }
+      },
+    });
+
+    // Return the expanded image as a data URL
+    if (result.data && result.data.image) {
+      const url = result.data.image.url;
+      console.log("Extended image URL:", url);
+      return url;
+    } else {
+      console.log("[expandImageleft] Error observed with  ", result.data);
+    }
   }
   // const url =
   //   "https://v3.fal.media/files/koala/ygHkTig3RLa1Pb9EsODYT_9afbb85b0f7d415a94a4071fa7b6188a.png";
@@ -298,30 +331,36 @@ export async function expandImageToRight(imageUrl) {
   const originalImageLocation = [0, 0];
 
   // Call the Bria Expand API
-  const result = await fal.subscribe("fal-ai/bria/expand", {
-    input: {
-      image_url: imageUrl,
-      canvas_size: [newCanvasWidth, newCanvasHeight],
-      original_image_size: [originalWidth, originalHeight],
-      original_image_location: originalImageLocation,
-    },
-    logs: true,
-    onQueueUpdate: (update) => {
-      if (update.status === "IN_PROGRESS" && update.logs) {
-        update.logs.forEach((log) =>
-          console.log("[ExpandImageRight] Queue update:", log.message),
-        );
-      }
-    },
-  });
-
-  // Return the expanded image as a data URL
-  if (result.data && result.data.image) {
-    const url = result.data.image.url;
-    console.log("Extended image URL:", url);
+  if (TEST_MODE) {
+    const url =
+      "https://v3.fal.media/files/rabbit/oWodpf2w2285BKqOG-njj_cf9447025e5b40eb8686baf87d2675d7.png";
     return url;
   } else {
-    console.log("[expandImageRight] Error observed with  ", result.data);
+    const result = await fal.subscribe("fal-ai/bria/expand", {
+      input: {
+        image_url: imageUrl,
+        canvas_size: [newCanvasWidth, newCanvasHeight],
+        original_image_size: [originalWidth, originalHeight],
+        original_image_location: originalImageLocation,
+      },
+      logs: true,
+      onQueueUpdate: (update) => {
+        if (update.status === "IN_PROGRESS" && update.logs) {
+          update.logs.forEach((log) =>
+            console.log("[ExpandImageRight] Queue update:", log.message),
+          );
+        }
+      },
+    });
+
+    // Return the expanded image as a data URL
+    if (result.data && result.data.image) {
+      const url = result.data.image.url;
+      console.log("Extended image URL:", url);
+      return url;
+    } else {
+      console.log("[expandImageRight] Error observed with  ", result.data);
+    }
   }
   // const url =
   //   "https://v3.fal.media/files/koala/ygHkTig3RLa1Pb9EsODYT_9afbb85b0f7d415a94a4071fa7b6188a.png";

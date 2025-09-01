@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
+import { Testimonials } from "@/components/Testimonials";
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
 import DecorativeElements from "@/components/DecorativeElements";
@@ -136,6 +137,9 @@ export default function HomePage() {
             </div>
           </div>
         </section>
+
+        {/* Testimonials Section */}
+        <Testimonials />
       </main>
 
       <Footer />

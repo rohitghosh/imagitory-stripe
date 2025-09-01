@@ -247,7 +247,7 @@
 
 //           {/* Character Grid */}
 //           {!showUploadForm && (
-//             <div className="grid grid-cols-4 gap-4">
+//             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
 //               {/* No characters option */}
 //               <div
 //                 className={`cursor-pointer rounded-lg border p-4 text-center transition-colors ${
@@ -257,10 +257,10 @@
 //                 }`}
 //                 onClick={() => setSelectedChars([])}
 //               >
-//                 <div className="w-16 h-16 mx-auto rounded-full border border-gray-300 flex items-center justify-center mb-2">
+//                 <div className="w-12 h-12 md:w-16 md:h-16 mx-auto rounded-full border border-gray-300 flex items-center justify-center mb-2">
 //                   <span className="text-gray-400">—</span>
 //                 </div>
-//                 <p className="text-sm">No additional characters</p>
+//                 <p className="text-xs md:text-sm">No additional characters</p>
 //               </div>
 
 //               {/* Predefined characters */}
@@ -281,14 +281,11 @@
 //                     <img
 //                       src={character.imageUrls[0] || character.toonUrl || ""}
 //                       alt={character.name}
-//                       className="w-16 h-16 mx-auto rounded-full object-cover mb-2"
+//                       className="w-12 h-12 md:w-16 md:h-16 mx-auto rounded-full object-cover mb-2"
 //                     />
-//                     <p className="text-sm font-medium">{character.name}</p>
-//                     {/* {character.description && (
-//                       <p className="text-xs text-gray-500 mt-1">
-//                         {character.description}
-//                       </p>
-//                     )} */}
+//                     <p className="text-xs md:text-sm font-medium">
+//                       {character.name}
+//                     </p>
 //                   </div>
 //                 );
 //               })}
@@ -305,20 +302,12 @@
 //                 </div>
 //               ) : (
 //                 <FileUploadTile
+//                   onUpload={handleUpload}
 //                   onStart={() => {
 //                     setUploading(true);
 //                     setUploadPct(0);
 //                   }}
 //                   onProgress={setUploadPct}
-//                   onComplete={handleUpload}
-//                   onError={(error) => {
-//                     setUploading(false);
-//                     toast({
-//                       title: "Upload failed",
-//                       description: error,
-//                       variant: "destructive",
-//                     });
-//                   }}
 //                 />
 //               )}
 //             </div>
@@ -326,18 +315,18 @@
 
 //           {/* Custom Character Form */}
 //           {showUploadForm && (
-//             <div className="bg-gray-50 rounded-lg p-4">
-//               <div className="flex gap-4 mb-4">
+//             <div className="bg-gray-50 rounded-lg p-3 md:p-4">
+//               <div className="flex gap-3 md:gap-4 mb-4 justify-center md:justify-start">
 //                 <img
 //                   src={tempAvatar}
 //                   alt="Original"
-//                   className="w-20 h-20 rounded-lg object-cover"
+//                   className="w-16 h-16 md:w-20 md:h-20 rounded-lg object-cover"
 //                 />
 //                 {cartoonUrl && (
 //                   <img
 //                     src={cartoonUrl}
 //                     alt="Cartoon"
-//                     className="w-20 h-20 rounded-lg object-cover"
+//                     className="w-16 h-16 md:w-20 md:h-20 rounded-lg object-cover"
 //                   />
 //                 )}
 //               </div>
@@ -379,14 +368,15 @@
 //                   />
 //                 </div>
 
-//                 <div className="flex gap-2">
-//                   <Button type="submit" size="sm">
+//                 <div className="flex flex-col md:flex-row gap-2">
+//                   <Button type="submit" size="sm" className="w-full md:w-auto">
 //                     Add Character
 //                   </Button>
 //                   <Button
 //                     type="button"
 //                     variant="outline"
 //                     size="sm"
+//                     className="w-full md:w-auto"
 //                     onClick={() => {
 //                       setShowUploadForm(false);
 //                       setTempAvatar("");
@@ -404,10 +394,10 @@
 //           )}
 
 //           {/* Confirm Button restored */}
-//           <div className="flex justify-end mt-4">
+//           <div className="flex justify-center md:justify-end mt-4">
 //             <Button
 //               onClick={() => onSubmit(selectedChars)}
-//               className="bg-yellow-500 hover:bg-yellow-600"
+//               className="bg-yellow-500 hover:bg-yellow-600 w-full md:w-auto"
 //             >
 //               Continue to Choose Theme
 //             </Button>
@@ -417,6 +407,8 @@
 //     </Card>
 //   );
 // }
+
+
 
 import React, { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -471,7 +463,24 @@ export function SideCharacterSelection({
   const [customDescription, setCustomDescription] = useState("");
   const [customRelation, setCustomRelation] = useState("");
 
+  // Modal state for image viewing
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalImage, setModalImage] = useState<{
+    url: string;
+    title: string;
+  } | null>(null);
+
   const { toast } = useToast();
+
+  const openImageModal = (url: string, title: string) => {
+    setModalImage({ url, title });
+    setModalOpen(true);
+  };
+
+  const closeImageModal = () => {
+    setModalOpen(false);
+    setModalImage(null);
+  };
 
   // Fetch side characters on mount
   useEffect(() => {
@@ -643,11 +652,22 @@ export function SideCharacterSelection({
                     key={char.id}
                     className="flex items-center gap-2 bg-white rounded-full px-3 py-1 border"
                   >
-                    <img
-                      src={char.avatar}
-                      alt={char.name}
-                      className="w-6 h-6 rounded-full object-cover"
-                    />
+                    <div className="relative group">
+                      <img
+                        src={char.avatar}
+                        alt={char.name}
+                        className="w-6 h-6 rounded-full object-cover cursor-pointer"
+                        onClick={() => openImageModal(char.avatar, char.name)}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => openImageModal(char.avatar, char.name)}
+                        className="absolute -bottom-1 -right-1 bg-black bg-opacity-50 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                        aria-label="Expand image"
+                      >
+                        <i className="fas fa-expand text-xs" style={{fontSize: '6px'}} />
+                      </button>
+                    </div>
                     <span className="text-sm">{char.name}</span>
                     <button
                       onClick={() =>
@@ -698,11 +718,27 @@ export function SideCharacterSelection({
                     }`}
                     onClick={() => toggleCharacter(character)}
                   >
-                    <img
-                      src={character.imageUrls[0] || character.toonUrl || ""}
-                      alt={character.name}
-                      className="w-12 h-12 md:w-16 md:h-16 mx-auto rounded-full object-cover mb-2"
-                    />
+                    <div className="relative group">
+                      <img
+                        src={character.imageUrls[0] || character.toonUrl || ""}
+                        alt={character.name}
+                        className="w-12 h-12 md:w-16 md:h-16 mx-auto rounded-full object-cover mb-2"
+                      />
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openImageModal(
+                            character.imageUrls[0] || character.toonUrl || "",
+                            character.name
+                          );
+                        }}
+                        className="absolute bottom-0 right-1/2 translate-x-1/2 bg-black bg-opacity-50 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                        aria-label="Expand image"
+                      >
+                        <i className="fas fa-expand text-xs" />
+                      </button>
+                    </div>
                     <p className="text-xs md:text-sm font-medium">
                       {character.name}
                     </p>
@@ -737,17 +773,39 @@ export function SideCharacterSelection({
           {showUploadForm && (
             <div className="bg-gray-50 rounded-lg p-3 md:p-4">
               <div className="flex gap-3 md:gap-4 mb-4 justify-center md:justify-start">
-                <img
-                  src={tempAvatar}
-                  alt="Original"
-                  className="w-16 h-16 md:w-20 md:h-20 rounded-lg object-cover"
-                />
-                {cartoonUrl && (
+                <div className="relative group">
                   <img
-                    src={cartoonUrl}
-                    alt="Cartoon"
-                    className="w-16 h-16 md:w-20 md:h-20 rounded-lg object-cover"
+                    src={tempAvatar}
+                    alt="Original"
+                    className="w-16 h-16 md:w-20 md:h-20 rounded-lg object-cover cursor-pointer"
+                    onClick={() => openImageModal(tempAvatar, "Original Photo")}
                   />
+                  <button
+                    type="button"
+                    onClick={() => openImageModal(tempAvatar, "Original Photo")}
+                    className="absolute bottom-1 right-1 bg-black bg-opacity-50 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                    aria-label="Expand image"
+                  >
+                    <i className="fas fa-expand text-xs" />
+                  </button>
+                </div>
+                {cartoonUrl && (
+                  <div className="relative group">
+                    <img
+                      src={cartoonUrl}
+                      alt="Cartoon"
+                      className="w-16 h-16 md:w-20 md:h-20 rounded-lg object-cover cursor-pointer"
+                      onClick={() => openImageModal(cartoonUrl, "Cartoon Avatar")}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => openImageModal(cartoonUrl, "Cartoon Avatar")}
+                      className="absolute bottom-1 right-1 bg-black bg-opacity-50 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                      aria-label="Expand image"
+                    >
+                      <i className="fas fa-expand text-xs" />
+                    </button>
+                  </div>
                 )}
               </div>
 
@@ -824,6 +882,35 @@ export function SideCharacterSelection({
           </div>
         </div>
       </CardContent>
+
+      {/* Image Modal */}
+      {modalOpen && modalImage && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75"
+          onClick={closeImageModal}
+        >
+          <div 
+            className="relative max-w-4xl max-h-[90vh] p-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={closeImageModal}
+              className="absolute -top-2 -right-2 bg-white rounded-full p-2 shadow-lg hover:bg-gray-100 z-10"
+              aria-label="Close modal"
+            >
+              <i className="fas fa-times text-gray-600" />
+            </button>
+            <div className="bg-white rounded-lg p-4 shadow-xl">
+              <h3 className="text-lg font-semibold mb-3 text-center">{modalImage.title}</h3>
+              <img
+                src={modalImage.url}
+                alt={modalImage.title}
+                className="max-w-full max-h-[70vh] object-contain mx-auto rounded-md"
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </Card>
   );
 }

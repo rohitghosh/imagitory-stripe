@@ -29,22 +29,10 @@
 // import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 // import { Progress } from "@/components/ui/progress";
 
-// // allowed interests
-// const INTEREST_OPTIONS = [
-//   "Reading",
-//   "Sports",
-//   "Music",
-//   "Art",
-//   "Science",
-// ] as const;
-
 // export const formSchema = z.object({
 //   name: z.string().min(1, "Name is required"),
 //   age: z.coerce.number().min(1, "Min age is 1").max(16, "Max age is 16"),
 //   gender: z.enum(["boy", "girl", "other"], { required_error: "Select gender" }),
-//   interests: z
-//     .array(z.enum(INTEREST_OPTIONS))
-//     .min(1, "Select at least one interest"),
 // });
 // export type FormValues = z.infer<typeof formSchema>;
 
@@ -78,7 +66,6 @@
 //       name: initialData?.name ?? "",
 //       age: initialData?.age ?? 5,
 //       gender: initialData?.gender ?? "boy",
-//       interests: initialData?.interests ?? [],
 //     },
 //   });
 
@@ -188,7 +175,7 @@
 //       if (!charId) {
 //         const draft = await apiRequest("POST", "/api/characters", {
 //           imageUrls: [firstUrl],
-//           type: "custom",
+//           type: "main",
 //           userId: user!.uid,
 //           name: "__DRAFT__",
 //         });
@@ -263,7 +250,7 @@
 //     const payload = {
 //       ...values,
 //       imageUrls: urls,
-//       type: "custom",
+//       type: "main", // Always main character for this form
 //       userId: user!.uid,
 //       createdAt: initialData?.id ? undefined : new Date().toISOString(),
 //     };
@@ -412,7 +399,7 @@
 //                   name="gender"
 //                   render={({ field }) => (
 //                     <FormItem>
-//                       <FormLabel>Pronoun</FormLabel>
+//                       <FormLabel>Gender</FormLabel>
 //                       <FormControl>
 //                         <RadioGroup
 //                           onValueChange={field.onChange}
@@ -423,50 +410,21 @@
 //                             <FormControl>
 //                               <RadioGroupItem value="boy" />
 //                             </FormControl>
-//                             <FormLabel>He/Him</FormLabel>
+//                             <FormLabel>Boy</FormLabel>
 //                           </FormItem>
 //                           <FormItem className="flex items-center space-x-2">
 //                             <FormControl>
 //                               <RadioGroupItem value="girl" />
 //                             </FormControl>
-//                             <FormLabel>She/Her</FormLabel>
+//                             <FormLabel>Girl</FormLabel>
 //                           </FormItem>
 //                           <FormItem className="flex items-center space-x-2">
 //                             <FormControl>
 //                               <RadioGroupItem value="other" />
 //                             </FormControl>
-//                             <FormLabel>They/Them</FormLabel>
+//                             <FormLabel>Other</FormLabel>
 //                           </FormItem>
 //                         </RadioGroup>
-//                       </FormControl>
-//                       <FormMessage />
-//                     </FormItem>
-//                   )}
-//                 />
-
-//                 <FormField
-//                   control={form.control}
-//                   name="interests"
-//                   render={({ field }) => (
-//                     <FormItem>
-//                       <FormLabel>Interests</FormLabel>
-//                       <FormControl>
-//                         <ToggleGroup
-//                           type="multiple"
-//                           value={field.value}
-//                           onValueChange={field.onChange}
-//                           className="flex flex-wrap gap-2"
-//                         >
-//                           {INTEREST_OPTIONS.map((opt) => (
-//                             <ToggleGroupItem
-//                               key={opt}
-//                               value={opt}
-//                               className="px-3 py-1 border rounded cursor-pointer"
-//                             >
-//                               {opt}
-//                             </ToggleGroupItem>
-//                           ))}
-//                         </ToggleGroup>
 //                       </FormControl>
 //                       <FormMessage />
 //                     </FormItem>
@@ -494,7 +452,6 @@
 //     </Card>
 //   );
 // }
-
 // src/components/character/CustomCharacterForm.tsx
 import React, { useEffect, useState, useRef } from "react";
 import { useForm } from "react-hook-form";
@@ -580,6 +537,13 @@ export function CustomCharacterForm({
       : null,
   );
 
+  // Modal state for image viewing
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalImage, setModalImage] = useState<{
+    url: string;
+    title: string;
+  } | null>(null);
+
   const removePhoto = () => {
     uploadToken.current += 1;
     setUploadedImages([]);
@@ -587,6 +551,16 @@ export function CustomCharacterForm({
     setCartoonPending(false);
     setStep("upload");
     setProgressPct(0);
+  };
+
+  const openImageModal = (url: string, title: string) => {
+    setModalImage({ url, title });
+    setModalOpen(true);
+  };
+
+  const closeImageModal = () => {
+    setModalOpen(false);
+    setModalImage(null);
   };
 
   // seed previews when editing
@@ -824,14 +798,21 @@ export function CustomCharacterForm({
               <h4 className="text-lg font-semibold">
                 Here’s how your cartoon avatar will look:
               </h4>
-              <div className="relative">
+              <div className="relative group">
                 <img
                   src={
                     uploadedImages.find((i) => i.finalUrl && !i.uploading)!
                       .localUrl
                   }
                   alt="Original"
-                  className="h-20 w-20 sm:h-24 sm:w-24 object-cover rounded-md border"
+                  className="h-20 w-20 sm:h-24 sm:w-24 object-cover rounded-md border cursor-pointer"
+                  onClick={() =>
+                    openImageModal(
+                      uploadedImages.find((i) => i.finalUrl && !i.uploading)!
+                        .localUrl,
+                      "Original Photo",
+                    )
+                  }
                 />
                 <button
                   type="button"
@@ -841,17 +822,42 @@ export function CustomCharacterForm({
                 >
                   <i className="fas fa-times text-xs text-gray-500" />
                 </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    openImageModal(
+                      uploadedImages.find((i) => i.finalUrl && !i.uploading)!
+                        .localUrl,
+                      "Original Photo",
+                    )
+                  }
+                  className="absolute bottom-1 right-1 bg-black bg-opacity-50 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                  aria-label="Expand image"
+                >
+                  <i className="fas fa-expand text-xs" />
+                </button>
               </div>
               {cartoonPending && !cartoonUrl ? (
                 <div className="h-20 w-20 sm:h-24 sm:w-24 flex items-center justify-center border rounded-md">
                   <i className="fas fa-spinner fa-spin text-gray-500 text-xl" />
                 </div>
               ) : cartoonUrl ? (
-                <img
-                  src={cartoonUrl}
-                  alt="Cartoon"
-                  className="h-20 w-20 sm:h-24 sm:w-24 object-cover rounded-md border"
-                />
+                <div className="relative group">
+                  <img
+                    src={cartoonUrl}
+                    alt="Cartoon"
+                    className="h-20 w-20 sm:h-24 sm:w-24 object-cover rounded-md border cursor-pointer"
+                    onClick={() => openImageModal(cartoonUrl, "Cartoon Avatar")}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => openImageModal(cartoonUrl, "Cartoon Avatar")}
+                    className="absolute bottom-1 right-1 bg-black bg-opacity-50 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                    aria-label="Expand image"
+                  >
+                    <i className="fas fa-expand text-xs" />
+                  </button>
+                </div>
               ) : null}
             </div>
 
@@ -946,6 +952,37 @@ export function CustomCharacterForm({
           </>
         )}
       </CardContent>
+
+      {/* Image Modal */}
+      {modalOpen && modalImage && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75"
+          onClick={closeImageModal}
+        >
+          <div
+            className="relative max-w-4xl max-h-[90vh] p-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={closeImageModal}
+              className="absolute -top-2 -right-2 bg-white rounded-full p-2 shadow-lg hover:bg-gray-100 z-10"
+              aria-label="Close modal"
+            >
+              <i className="fas fa-times text-gray-600" />
+            </button>
+            <div className="bg-white rounded-lg p-4 shadow-xl">
+              <h3 className="text-lg font-semibold mb-3 text-center">
+                {modalImage.title}
+              </h3>
+              <img
+                src={modalImage.url}
+                alt={modalImage.title}
+                className="max-w-full max-h-[70vh] object-contain mx-auto rounded-md"
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </Card>
   );
 }

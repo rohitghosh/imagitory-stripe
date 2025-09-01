@@ -3665,6 +3665,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log("[routes] prepareSplit hit:", req.params.bookId);
       const bookId = req.params.bookId;
 
+      // TIMING CONFIGURATION - Modify these values as needed
+      const TIMING_CONFIG = {
+        COVER_EXPANSION_TIME: 3000, // 3 seconds for cover expansion
+        IMAGE_EXPANSION_TIME: 20000, // 20 seconds for all image expansions
+        TEXT_OVERLAY_BATCH_TIME: 9000, // 9 seconds per text overlay batch
+        MESSAGE_ROTATION_INTERVAL: 1000, // 1 seconds between message updates
+        FINAL_POLISH_TIME: 2000, // 2 seconds for final touches
+      };
+
       const book = await storage.getBookById(bookId);
       const pages = book.pages;
       if (!Array.isArray(pages)) {
@@ -3687,13 +3696,65 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       (async () => {
         try {
-          // 1) Expand back cover if needed
+          // MESSAGE POOLS
+          const coverMessages = [
+            "🎨 Designing the perfect book cover...",
+            "📚 Creating that special first impression...",
+            "✨ Adding cover magic...",
+          ];
 
-          jobTracker.set(jobId, {
-            phase: "expandingCover",
-            pct: 5,
-            message: "Creating back cover…",
-          });
+          const expansionMessages = [
+            "🎨 Stretching scenes into wide cinematic views...",
+            "✨ Adding magical details to every corner...",
+            "🖼️ Creating those perfect panoramic moments...",
+            "🌟 Making your world come alive...",
+            "🎭 Bringing out the best in every scene...",
+            "💫 Crafting visual magic...",
+            "🎪 Setting the stage for your story...",
+            "🌈 Painting broader horizons...",
+            "🎬 Directing the perfect shots...",
+          ];
+
+          const textOverlayMessages = [
+            "📝 Finding the perfect spots for your words...",
+            "🎭 Making sure every word fits just right...",
+            "✨ Arranging text like poetry on canvas...",
+            "🎨 Balancing words and images perfectly...",
+            "📖 Creating that perfect reading flow...",
+            "🌟 Adding literary sparkle...",
+            "💫 Weaving words into the scenes...",
+          ];
+
+          // Helper function to start message rotation
+          const startMessageRotation = (
+            messages,
+            phase,
+            basePct,
+            interval = TIMING_CONFIG.MESSAGE_ROTATION_INTERVAL,
+          ) => {
+            let messageIndex = 0;
+            jobTracker.set(jobId, {
+              phase: phase,
+              pct: basePct,
+              message: messages[0],
+            });
+
+            return setInterval(() => {
+              messageIndex = (messageIndex + 1) % messages.length;
+              jobTracker.set(jobId, {
+                phase: phase,
+                pct: basePct,
+                message: messages[messageIndex],
+              });
+            }, interval);
+          };
+
+          // 1) Expand back cover if needed
+          let coverInterval = startMessageRotation(
+            coverMessages,
+            "expandingCover",
+            5,
+          );
 
           console.log(`url: ${book.cover.base_cover_url}`);
 
@@ -3704,15 +3765,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
             });
           }
 
+          clearInterval(coverInterval);
+
           // 2) PHASE 1: Expand all page images in parallel
           console.log(
             `[prepareSplit] Starting image expansion for ${pages.length} pages`,
           );
-          jobTracker.set(jobId, {
-            phase: "expandingImages",
-            pct: 15,
-            message: "Expanding page images…",
-          });
+
+          const expansionInterval = startMessageRotation(
+            expansionMessages,
+            "expandingImages",
+            20,
+          );
 
           const isRhyming = Boolean(book.isStoryRhyming);
           const storedPages = book.pages; // contains pre-assigned side
@@ -3738,14 +3802,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
               console.log(
                 `[prepareSplit] Page ${idx + 1} expanded: ${expandedUrl}`,
               );
-              // const expandedUrl =
-              //   "https://v3.fal.media/files/tiger/LfKPl6vdMmKXuAF2X_OjI_67831c38bc95428793087c8908604d19.png";
               return {
                 ...page,
                 expanded_scene_url: expandedUrl, // Store expanded URL
               };
             }),
           );
+
+          clearInterval(expansionInterval);
 
           console.log(
             `[prepareSplit] All ${expandedPages.length} images expanded successfully`,
@@ -3771,15 +3835,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           jobTracker.set(jobId, {
             phase: "expandingComplete",
             pct: 35,
-            message: "Image expansion complete. Starting text overlay…",
+            message:
+              "🖼️ Your scenes look amazing! Now let's add the perfect words...",
           });
-          console.log(
-            `[prepareSplit] Progress updated to expandingComplete phase`,
-          );
 
-          // 3) PHASE 2: Process text overlay in batches of 3
-
-          const batchSize = 3;
+          // 3) PHASE 2: Process text overlay in batches
+          const batchSize = 9;
           const processedPages = [];
           let completed = 0;
 
@@ -3789,15 +3850,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           for (let i = 0; i < expandedPages.length; i += batchSize) {
             const batch = expandedPages.slice(i, i + batchSize);
+            const currentBatch = Math.floor(i / batchSize) + 1;
+            const totalBatches = Math.ceil(expandedPages.length / batchSize);
+            const batchStartPct =
+              35 + Math.round((i / expandedPages.length) * 55);
+
             console.log(
-              `[prepareSplit] Processing batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(expandedPages.length / batchSize)}`,
+              `[prepareSplit] Processing batch ${currentBatch}/${totalBatches}`,
             );
 
-            jobTracker.set(jobId, {
-              phase: "processingBatch",
-              pct: 35 + Math.round((i / expandedPages.length) * 50),
-              message: `Processing text overlay batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(expandedPages.length / batchSize)}…`,
-            });
+            // Start message rotation for this batch
+            const batchInterval = startMessageRotation(
+              textOverlayMessages,
+              "processingBatch",
+              batchStartPct,
+            );
 
             // Process current batch in parallel
             const batchResults = await Promise.all(
@@ -3876,21 +3943,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   out.rightText = hint.lines;
                 }
 
-                // Progress update
-                completed++;
-                jobTracker.set(jobId, {
-                  phase: "generating",
-                  pct: 35 + Math.round((completed / expandedPages.length) * 55),
-                  message: `Page ${completed}/${expandedPages.length}`,
-                });
-
                 return out;
               }),
             );
 
+            clearInterval(batchInterval);
             processedPages.push(...batchResults);
 
-            // Small delay between batches to be gentle on the text overlay API
+            // Update progress after each batch completion
+            const batchCompletePct =
+              35 + Math.round(((i + batchSize) / expandedPages.length) * 55);
+            let batchCompleteMessage;
+
+            if (currentBatch < totalBatches) {
+              const pagesCompleted = Math.min(
+                i + batchSize,
+                expandedPages.length,
+              );
+              if (batchCompletePct < 60) {
+                batchCompleteMessage = `📚 ${pagesCompleted} of ${expandedPages.length} pages looking fantastic!`;
+              } else if (batchCompletePct < 80) {
+                batchCompleteMessage = `🎨 Your story is coming together beautifully... ${pagesCompleted}/${expandedPages.length} done!`;
+              } else {
+                batchCompleteMessage = `✨ Almost ready to turn the pages... ${pagesCompleted}/${expandedPages.length} complete!`;
+              }
+
+              jobTracker.set(jobId, {
+                phase: "batchComplete",
+                pct: Math.min(batchCompletePct, 90),
+                message: batchCompleteMessage,
+              });
+            }
+
+            // Small delay between batches
             if (i + batchSize < expandedPages.length) {
               await new Promise((resolve) => setTimeout(resolve, 100));
             }
@@ -3900,13 +3985,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.log(
             `[prepareSplit] About to update book with final processed pages...`,
           );
+
+          const finalInterval = startMessageRotation(
+            [
+              "🎉 Adding the final sparkle to your book...",
+              "✨ Putting everything together perfectly...",
+              "🌟 Making sure it's absolutely perfect...",
+            ],
+            "finalizing",
+            95,
+            1000,
+          );
+
           await storage.updateBook(bookId, { pages: processedPages });
+
+          // Give a moment for the final polish feeling
+          await new Promise((resolve) =>
+            setTimeout(resolve, TIMING_CONFIG.FINAL_POLISH_TIME),
+          );
+
+          clearInterval(finalInterval);
           console.log(`[prepareSplit] Final book update completed`);
 
           jobTracker.set(jobId, {
             phase: "complete",
             pct: 100,
-            message: "Pages ready",
+            message: "📖 Ta-da! Your amazing book is ready to read!",
           });
           console.log(`[prepareSplit] Job marked as complete`);
 
@@ -3920,7 +4024,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           jobTracker.set(jobId, {
             phase: "error",
             pct: 100,
-            error: String(error),
+            error:
+              "Oops! Something went wrong while creating your book. Let's try again!",
           });
         }
       })();
@@ -3928,7 +4033,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   );
 
   // Payment routes for Razorpay integration
-  
+
   // Get Razorpay config for frontend
   app.get("/api/payments/config", (req, res) => {
     res.json({
@@ -3948,7 +4053,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: "Failed to get user orders" });
     }
   });
-  
+
   const razorpay = new Razorpay({
     key_id: process.env.RAZORPAY_KEY_ID,
     key_secret: process.env.RAZORPAY_KEY_SECRET,
@@ -3995,22 +4100,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Verify payment
   app.post("/api/payments/verify", async (req, res) => {
     try {
-      const {
-        orderId,
-        razorpayOrderId,
-        razorpayPaymentId,
-        razorpaySignature,
-      } = req.body;
+      const { orderId, razorpayOrderId, razorpayPaymentId, razorpaySignature } =
+        req.body;
 
-      if (!orderId || !razorpayOrderId || !razorpayPaymentId || !razorpaySignature) {
+      if (
+        !orderId ||
+        !razorpayOrderId ||
+        !razorpayPaymentId ||
+        !razorpaySignature
+      ) {
         return res.status(400).json({ error: "Missing required fields" });
       }
 
       // Verify signature
-      const { createHmac } = await import('crypto');
-      const expectedSignature = createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+      const { createHmac } = await import("crypto");
+      const expectedSignature = createHmac(
+        "sha256",
+        process.env.RAZORPAY_KEY_SECRET,
+      )
         .update(`${razorpayOrderId}|${razorpayPaymentId}`)
-        .digest('hex');
+        .digest("hex");
 
       if (expectedSignature !== razorpaySignature) {
         await storage.updateOrder(orderId, {
@@ -4040,7 +4149,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       const order = await storage.getOrder(id);
-      
+
       if (!order) {
         return res.status(404).json({ error: "Order not found" });
       }
@@ -4051,6 +4160,5 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: "Failed to fetch order" });
     }
   });
-
   return httpServer;
 }

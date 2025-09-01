@@ -25,9 +25,9 @@
 // // Characters collection
 // export const characterSchema = z.object({
 //   id: z.string(),
-//   userId: z.string(),
+//   userId: z.string().optional(), // Not required for predefined characters
 //   name: z.string(),
-//   type: z.enum(["predefined", "custom"]),
+//   type: z.enum(["predefined", "main", "side"]),
 //   age: z.number().optional(),
 //   gender: z.enum(["boy", "girl", "other"]).optional(),
 //   predefinedId: z.string().optional(),
@@ -192,6 +192,7 @@
 //   .partial() // make every key optional
 //   .passthrough();
 
+
 import { z } from "zod";
 
 const INTEREST_OPTIONS = [
@@ -270,7 +271,9 @@ export const bookSchema = z.object({
         imageUrl: z.string().nullable().optional(),
         imageUrls: z.array(z.string()).optional(), // NEW
         currentImageIndex: z.number().optional(), // NEW;
-        content: z.string().nullable().optional(),
+        content: z.union([z.string(), z.array(z.string())]).nullable().optional(),
+        leftText: z.union([z.string(), z.array(z.string())]).nullable().optional(),
+        rightText: z.union([z.string(), z.array(z.string())]).nullable().optional(),
         prompt: z.string().optional(),
         loraScale: z.number().optional(),
         controlLoraStrength: z.number().optional(),
@@ -291,7 +294,7 @@ export const bookSchema = z.object({
   stylePreference: z.string().optional(),
   avatarUrl: z.string().nullable().optional(),
   skeletonJobId: z.string().optional(),
-  imagesJobId: z.string().optional(),
+  imagesJobId: z.string().nullable().optional(), // Allow null
 });
 export type Book = z.infer<typeof bookSchema>;
 
@@ -382,14 +385,17 @@ export const updateBookSchema = z
     imagePrompts: z.array(z.string()).optional(),
     stylePreference: z.string().optional(),
     skeletonJobId: z.string().optional(),
-    imagesJobId: z.string().optional(),
+    imagesJobId: z.string().nullable().optional(), // Allow null
     pages: z
       .array(
         z
           .object({
             id: z.number().optional(),
             imageUrl: z.string().nullable().optional(),
-            content: z.string().nullable().optional(),
+            // Accept both string and array for content and text fields
+            content: z.union([z.string(), z.array(z.string())]).nullable().optional(),
+            leftText: z.union([z.string(), z.array(z.string())]).nullable().optional(),
+            rightText: z.union([z.string(), z.array(z.string())]).nullable().optional(),
             prompt: z.string().optional(),
             loraScale: z.number().optional(),
             controlLoraStrength: z.number().optional(),
