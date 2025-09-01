@@ -97,7 +97,7 @@ export default function PaymentPage() {
       // Create Razorpay order
       const orderResponse = await apiRequest("POST", "/api/payments/create-order", {
         orderId: orderData.id,
-        amount: 2999, // $29.99 in paise (Indian currency subunit)
+        amount: 100, // $29.99 in paise (Indian currency subunit)
         currency: "INR",
       });
 
@@ -227,7 +227,7 @@ export default function PaymentPage() {
             <div className="space-y-4">
               <div className="flex justify-between">
                 <span className="font-medium">Custom Story Book</span>
-                <span className="font-bold">$29.99</span>
+                <span className="font-bold">₹1.00</span>
               </div>
               <div className="flex justify-between text-sm text-muted-foreground">
                 <span>Shipping</span>
@@ -236,7 +236,7 @@ export default function PaymentPage() {
               <hr />
               <div className="flex justify-between text-lg font-bold">
                 <span>Total</span>
-                <span>$29.99</span>
+                <span>₹1.00</span>
               </div>
             </div>
           </CardContent>
