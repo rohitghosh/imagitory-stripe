@@ -1326,20 +1326,20 @@ export default function CreateStoryPage() {
 
             {(imagesProg?.phase === "prompting" || reasoningLog) && (
               <div className="mt-6">
-                <p className="text-xs mb-1 flex items-center">
+                {/* <p className="text-xs mb-1 flex items-center">
                   <span className="font-semibold text-imaginory-black">
                     {imagesProg?.phase === "prompting"
                       ? "Planning story"
                       : "Story planner reasoning"}
                   </span>
                   <TypingDots />
-                </p>
+                </p> */}
 
                 {section && (
                   <div className="mt-6">
-                    <p className="font-semibold mb-1 flex items-center shimmer">
+                    {/* <p className="font-semibold mb-1 flex items-center shimmer">
                       {section.title}
-                    </p>
+                    </p> */}
                     {/* <div
                       ref={cardRef}
                       className="bg-white border border-imaginory-yellow/30 rounded-md p-3

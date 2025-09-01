@@ -53,6 +53,7 @@
 // import { loadBase64Image } from "./utils/layouts";
 // import { uploadBase64ToFirebase } from "./utils/uploadImage";
 // import { jobTracker } from "./lib/jobTracker";
+// import Razorpay from "razorpay";
 
 // import { validateStoryInputs } from "./utils/story-generation-api/src/routes/validation";
 // import { validateCharacterArrays } from "./utils/story-generation-api/src/utils/helpers";
@@ -89,7 +90,7 @@
 
 // const DEBUG_LOGGING = process.env.DEBUG_LOGGING === "true";
 
-// const DEFAULT_FONT_SIZE = 22;
+// const DEFAULT_FONT_ENLARGED_SIZE = 38;
 // const DEFAULT_FONT_FAMILY = "Cormorant Garamond Bold";
 // const DEFAULT_COLOR = "#ffffff";
 // const FULL_W = 2048;
@@ -593,10 +594,9 @@
 //       kidName,
 //       pronoun,
 //       age,
-//       moral,
+//       theme,
+//       subject,
 //       storyRhyming,
-//       kidInterests,
-//       storyThemes,
 //       characters,
 //       characterDescriptions,
 //       characterImageMap,
@@ -610,31 +610,30 @@
 //       !kidName ||
 //       !pronoun ||
 //       age === undefined ||
-//       !moral ||
-//       storyRhyming === undefined ||
-//       !kidInterests ||
-//       !storyThemes
+//       !theme ||
+//       !subject ||
+//       storyRhyming === undefined
 //     ) {
 //       console.log("Received request to generate full story with:", req.body);
 
 //       res.status(400).json({
 //         error:
-//           "Missing required fields: kidName, pronoun, age, moral, storyRhyming, kidInterests, storyThemes",
+//           "Missing required fields: kidName, pronoun, age, theme, subject, storyRhyming",
 //       });
 //       return;
 //     }
 
-//     // Validate arrays
-//     if (!Array.isArray(kidInterests) || kidInterests.length === 0) {
+//     // Validate theme and subject
+//     if (typeof theme !== "string" || theme.trim() === "") {
 //       res.status(400).json({
-//         error: "kidInterests must be a non-empty array",
+//         error: "theme must be a non-empty string",
 //       });
 //       return;
 //     }
 
-//     if (!Array.isArray(storyThemes) || storyThemes.length === 0) {
+//     if (typeof subject !== "string" || subject.trim() === "") {
 //       res.status(400).json({
-//         error: "storyThemes must be a non-empty array",
+//         error: "subject must be a non-empty string",
 //       });
 //       return;
 //     }
@@ -683,10 +682,9 @@
 //             kidName,
 //             pronoun,
 //             age,
-//             moral,
+//             theme,
+//             subject,
 //             storyRhyming,
-//             kidInterests,
-//             storyThemes,
 //             characters,
 //             characterDescriptions,
 //           },
@@ -1176,9 +1174,9 @@
 //           return res.status(404).json({ message: "Character not found" });
 //         }
 
-//         // Verify the character belongs to the authenticated user if it's a custom character
+//         // Verify the character belongs to the authenticated user if it's a user-created character
 //         if (
-//           character.type === "custom" &&
+//           (character.type === "main" || character.type === "side") &&
 //           character.userId !== req.session!.userId
 //         ) {
 //           return res.status(403).json({ message: "Access denied" });
@@ -1206,7 +1204,8 @@
 //         if (DEBUG_LOGGING) {
 //           console.log("[/api/characters GET] Fetching predefined characters");
 //         }
-//         characters = await storage.getCharactersByType("predefined");
+//         // Get predefined characters (these are available to all users)
+//         characters = await storage.getPredefinedCharacters();
 //       } else {
 //         // Custom characters require authentication
 //         if (!req.session || !req.session.userId) {
@@ -1230,7 +1229,7 @@
 //           );
 //         }
 
-//         characters = await storage.getCharactersByUserId(userId);
+//         characters = await storage.getMainCharacters(userId);
 //       }
 
 //       if (DEBUG_LOGGING) {
@@ -1248,6 +1247,51 @@
 //       });
 //     }
 //   });
+
+//   // New endpoint to get characters by character_type
+//   app.get(
+//     "/api/characters/by-character-type/:characterType",
+//     async (req: Request, res: Response) => {
+//       try {
+//         const { characterType } = req.params;
+
+//         if (!["main", "side"].includes(characterType)) {
+//           return res.status(400).json({
+//             message: "Invalid character_type. Must be 'main' or 'side'",
+//           });
+//         }
+
+//         let characters;
+//         if (characterType === "main") {
+//           // For main characters, require authentication and filter by user
+//           if (!req.session || !req.session.userId) {
+//             return res.status(401).json({ message: "Unauthorized" });
+//           }
+//           const userId = req.session.userId.toString();
+//           characters = await storage.getMainCharacters(userId);
+//         } else {
+//           // For side characters, get both predefined characters and user's custom side characters
+//           const predefinedChars = await storage.getPredefinedCharacters();
+
+//           let userSideChars = [];
+//           if (req.session && req.session.userId) {
+//             const userId = req.session.userId.toString();
+//             userSideChars = await storage.getSideCharacters(userId);
+//           }
+
+//           characters = [...predefinedChars, ...userSideChars];
+//         }
+
+//         res.status(200).json(characters);
+//       } catch (error: any) {
+//         console.error("[/api/characters/by-character-type] Error:", error);
+//         res.status(500).json({
+//           message: "Failed to fetch characters by character_type",
+//           error: error.message || {},
+//         });
+//       }
+//     },
+//   );
 
 //   // Story routes with authentication middleware
 //   app.post(
@@ -1677,6 +1721,15 @@
 //       console.log("[routes] prepareSplit hit:", req.params.bookId);
 //       const bookId = req.params.bookId;
 
+//       // TIMING CONFIGURATION - Modify these values as needed
+//       const TIMING_CONFIG = {
+//         COVER_EXPANSION_TIME: 3000, // 3 seconds for cover expansion
+//         IMAGE_EXPANSION_TIME: 20000, // 20 seconds for all image expansions
+//         TEXT_OVERLAY_BATCH_TIME: 9000, // 9 seconds per text overlay batch
+//         MESSAGE_ROTATION_INTERVAL: 1000, // 1 seconds between message updates
+//         FINAL_POLISH_TIME: 2000, // 2 seconds for final touches
+//       };
+
 //       const book = await storage.getBookById(bookId);
 //       const pages = book.pages;
 //       if (!Array.isArray(pages)) {
@@ -1699,13 +1752,65 @@
 
 //       (async () => {
 //         try {
-//           // 1) Expand back cover if needed
+//           // MESSAGE POOLS
+//           const coverMessages = [
+//             "🎨 Designing the perfect book cover...",
+//             "📚 Creating that special first impression...",
+//             "✨ Adding cover magic...",
+//           ];
 
-//           jobTracker.set(jobId, {
-//             phase: "expandingCover",
-//             pct: 5,
-//             message: "Creating back cover…",
-//           });
+//           const expansionMessages = [
+//             "🎨 Stretching scenes into wide cinematic views...",
+//             "✨ Adding magical details to every corner...",
+//             "🖼️ Creating those perfect panoramic moments...",
+//             "🌟 Making your world come alive...",
+//             "🎭 Bringing out the best in every scene...",
+//             "💫 Crafting visual magic...",
+//             "🎪 Setting the stage for your story...",
+//             "🌈 Painting broader horizons...",
+//             "🎬 Directing the perfect shots...",
+//           ];
+
+//           const textOverlayMessages = [
+//             "📝 Finding the perfect spots for your words...",
+//             "🎭 Making sure every word fits just right...",
+//             "✨ Arranging text like poetry on canvas...",
+//             "🎨 Balancing words and images perfectly...",
+//             "📖 Creating that perfect reading flow...",
+//             "🌟 Adding literary sparkle...",
+//             "💫 Weaving words into the scenes...",
+//           ];
+
+//           // Helper function to start message rotation
+//           const startMessageRotation = (
+//             messages,
+//             phase,
+//             basePct,
+//             interval = TIMING_CONFIG.MESSAGE_ROTATION_INTERVAL,
+//           ) => {
+//             let messageIndex = 0;
+//             jobTracker.set(jobId, {
+//               phase: phase,
+//               pct: basePct,
+//               message: messages[0],
+//             });
+
+//             return setInterval(() => {
+//               messageIndex = (messageIndex + 1) % messages.length;
+//               jobTracker.set(jobId, {
+//                 phase: phase,
+//                 pct: basePct,
+//                 message: messages[messageIndex],
+//               });
+//             }, interval);
+//           };
+
+//           // 1) Expand back cover if needed
+//           let coverInterval = startMessageRotation(
+//             coverMessages,
+//             "expandingCover",
+//             5,
+//           );
 
 //           console.log(`url: ${book.cover.base_cover_url}`);
 
@@ -1716,15 +1821,18 @@
 //             });
 //           }
 
+//           clearInterval(coverInterval);
+
 //           // 2) PHASE 1: Expand all page images in parallel
 //           console.log(
 //             `[prepareSplit] Starting image expansion for ${pages.length} pages`,
 //           );
-//           jobTracker.set(jobId, {
-//             phase: "expandingImages",
-//             pct: 15,
-//             message: "Expanding page images…",
-//           });
+
+//           const expansionInterval = startMessageRotation(
+//             expansionMessages,
+//             "expandingImages",
+//             20,
+//           );
 
 //           const isRhyming = Boolean(book.isStoryRhyming);
 //           const storedPages = book.pages; // contains pre-assigned side
@@ -1750,14 +1858,14 @@
 //               console.log(
 //                 `[prepareSplit] Page ${idx + 1} expanded: ${expandedUrl}`,
 //               );
-//               // const expandedUrl =
-//               //   "https://v3.fal.media/files/tiger/LfKPl6vdMmKXuAF2X_OjI_67831c38bc95428793087c8908604d19.png";
 //               return {
 //                 ...page,
 //                 expanded_scene_url: expandedUrl, // Store expanded URL
 //               };
 //             }),
 //           );
+
+//           clearInterval(expansionInterval);
 
 //           console.log(
 //             `[prepareSplit] All ${expandedPages.length} images expanded successfully`,
@@ -1783,15 +1891,12 @@
 //           jobTracker.set(jobId, {
 //             phase: "expandingComplete",
 //             pct: 35,
-//             message: "Image expansion complete. Starting text overlay…",
+//             message:
+//               "🖼️ Your scenes look amazing! Now let's add the perfect words...",
 //           });
-//           console.log(
-//             `[prepareSplit] Progress updated to expandingComplete phase`,
-//           );
 
-//           // 3) PHASE 2: Process text overlay in batches of 3
-
-//           const batchSize = 3;
+//           // 3) PHASE 2: Process text overlay in batches
+//           const batchSize = 9;
 //           const processedPages = [];
 //           let completed = 0;
 
@@ -1801,15 +1906,21 @@
 
 //           for (let i = 0; i < expandedPages.length; i += batchSize) {
 //             const batch = expandedPages.slice(i, i + batchSize);
+//             const currentBatch = Math.floor(i / batchSize) + 1;
+//             const totalBatches = Math.ceil(expandedPages.length / batchSize);
+//             const batchStartPct =
+//               35 + Math.round((i / expandedPages.length) * 55);
+
 //             console.log(
-//               `[prepareSplit] Processing batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(expandedPages.length / batchSize)}`,
+//               `[prepareSplit] Processing batch ${currentBatch}/${totalBatches}`,
 //             );
 
-//             jobTracker.set(jobId, {
-//               phase: "processingBatch",
-//               pct: 35 + Math.round((i / expandedPages.length) * 50),
-//               message: `Processing text overlay batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(expandedPages.length / batchSize)}…`,
-//             });
+//             // Start message rotation for this batch
+//             const batchInterval = startMessageRotation(
+//               textOverlayMessages,
+//               "processingBatch",
+//               batchStartPct,
+//             );
 
 //             // Process current batch in parallel
 //             const batchResults = await Promise.all(
@@ -1824,7 +1935,7 @@
 //                       page.side,
 //                       isRhyming,
 //                       {
-//                         fontSize: DEFAULT_FONT_SIZE,
+//                         fontSize: DEFAULT_FONT_ENLARGED_SIZE,
 //                         fontFamily: DEFAULT_FONT_FAMILY,
 //                         debugMode: false,
 //                       },
@@ -1847,7 +1958,7 @@
 //                           : [page.content],
 //                       imageWidth: FULL_W,
 //                       imageHeight: FULL_H,
-//                       fontSize: DEFAULT_FONT_SIZE,
+//                       fontSize: DEFAULT_FONT_ENLARGED_SIZE,
 //                       fontFamily: DEFAULT_FONT_FAMILY,
 //                     };
 //                   }
@@ -1860,7 +1971,7 @@
 //                     lines: [],
 //                     imageWidth: FULL_W,
 //                     imageHeight: FULL_H,
-//                     fontSize: DEFAULT_FONT_SIZE,
+//                     fontSize: DEFAULT_FONT_ENLARGED_SIZE,
 //                     fontFamily: DEFAULT_FONT_FAMILY,
 //                   };
 //                 }
@@ -1888,21 +1999,39 @@
 //                   out.rightText = hint.lines;
 //                 }
 
-//                 // Progress update
-//                 completed++;
-//                 jobTracker.set(jobId, {
-//                   phase: "generating",
-//                   pct: 35 + Math.round((completed / expandedPages.length) * 55),
-//                   message: `Page ${completed}/${expandedPages.length}`,
-//                 });
-
 //                 return out;
 //               }),
 //             );
 
+//             clearInterval(batchInterval);
 //             processedPages.push(...batchResults);
 
-//             // Small delay between batches to be gentle on the text overlay API
+//             // Update progress after each batch completion
+//             const batchCompletePct =
+//               35 + Math.round(((i + batchSize) / expandedPages.length) * 55);
+//             let batchCompleteMessage;
+
+//             if (currentBatch < totalBatches) {
+//               const pagesCompleted = Math.min(
+//                 i + batchSize,
+//                 expandedPages.length,
+//               );
+//               if (batchCompletePct < 60) {
+//                 batchCompleteMessage = `📚 ${pagesCompleted} of ${expandedPages.length} pages looking fantastic!`;
+//               } else if (batchCompletePct < 80) {
+//                 batchCompleteMessage = `🎨 Your story is coming together beautifully... ${pagesCompleted}/${expandedPages.length} done!`;
+//               } else {
+//                 batchCompleteMessage = `✨ Almost ready to turn the pages... ${pagesCompleted}/${expandedPages.length} complete!`;
+//               }
+
+//               jobTracker.set(jobId, {
+//                 phase: "batchComplete",
+//                 pct: Math.min(batchCompletePct, 90),
+//                 message: batchCompleteMessage,
+//               });
+//             }
+
+//             // Small delay between batches
 //             if (i + batchSize < expandedPages.length) {
 //               await new Promise((resolve) => setTimeout(resolve, 100));
 //             }
@@ -1912,13 +2041,32 @@
 //           console.log(
 //             `[prepareSplit] About to update book with final processed pages...`,
 //           );
+
+//           const finalInterval = startMessageRotation(
+//             [
+//               "🎉 Adding the final sparkle to your book...",
+//               "✨ Putting everything together perfectly...",
+//               "🌟 Making sure it's absolutely perfect...",
+//             ],
+//             "finalizing",
+//             95,
+//             1000,
+//           );
+
 //           await storage.updateBook(bookId, { pages: processedPages });
+
+//           // Give a moment for the final polish feeling
+//           await new Promise((resolve) =>
+//             setTimeout(resolve, TIMING_CONFIG.FINAL_POLISH_TIME),
+//           );
+
+//           clearInterval(finalInterval);
 //           console.log(`[prepareSplit] Final book update completed`);
 
 //           jobTracker.set(jobId, {
 //             phase: "complete",
 //             pct: 100,
-//             message: "Pages ready",
+//             message: "📖 Ta-da! Your amazing book is ready to read!",
 //           });
 //           console.log(`[prepareSplit] Job marked as complete`);
 
@@ -1932,15 +2080,146 @@
 //           jobTracker.set(jobId, {
 //             phase: "error",
 //             pct: 100,
-//             error: String(error),
+//             error:
+//               "Oops! Something went wrong while creating your book. Let's try again!",
 //           });
 //         }
 //       })();
 //     },
 //   );
 
+//   // Payment routes for Razorpay integration
+
+//   // Get Razorpay config for frontend
+//   app.get("/api/payments/config", (req, res) => {
+//     res.json({
+//       keyId: process.env.RAZORPAY_KEY_ID,
+//     });
+//   });
+
+//   // Get user's order history to check if first-time user
+//   app.get("/api/user/orders", authenticate, async (req, res) => {
+//     try {
+//       const userId = req.userId;
+//       console.log("Getting orders for userId:", userId);
+//       const orders = await storage.getOrdersByUserId(userId);
+//       res.json(orders);
+//     } catch (error) {
+//       console.error("Failed to get user orders:", error);
+//       res.status(500).json({ error: "Failed to get user orders" });
+//     }
+//   });
+
+//   const razorpay = new Razorpay({
+//     key_id: process.env.RAZORPAY_KEY_ID,
+//     key_secret: process.env.RAZORPAY_KEY_SECRET,
+//   });
+
+//   // Create Razorpay order
+//   app.post("/api/payments/create-order", async (req, res) => {
+//     try {
+//       const { orderId, amount, currency = "INR" } = req.body;
+
+//       if (!orderId || !amount) {
+//         return res.status(400).json({ error: "Missing required fields" });
+//       }
+
+//       // Create order in Razorpay
+//       const options = {
+//         amount: amount, // amount in paise
+//         currency,
+//         receipt: orderId,
+//         payment_capture: 1,
+//       };
+
+//       const razorpayOrder = await razorpay.orders.create(options);
+
+//       // Update order with Razorpay order ID
+//       await storage.updateOrder(orderId, {
+//         razorpayOrderId: razorpayOrder.id,
+//         amount: amount / 100, // store in dollars
+//         currency,
+//         status: "payment_pending",
+//       });
+
+//       res.json({
+//         razorpayOrderId: razorpayOrder.id,
+//         amount: razorpayOrder.amount,
+//         currency: razorpayOrder.currency,
+//       });
+//     } catch (error) {
+//       console.error("Error creating Razorpay order:", error);
+//       res.status(500).json({ error: "Failed to create payment order" });
+//     }
+//   });
+
+//   // Verify payment
+//   app.post("/api/payments/verify", async (req, res) => {
+//     try {
+//       const { orderId, razorpayOrderId, razorpayPaymentId, razorpaySignature } =
+//         req.body;
+
+//       if (
+//         !orderId ||
+//         !razorpayOrderId ||
+//         !razorpayPaymentId ||
+//         !razorpaySignature
+//       ) {
+//         return res.status(400).json({ error: "Missing required fields" });
+//       }
+
+//       // Verify signature
+//       const { createHmac } = await import("crypto");
+//       const expectedSignature = createHmac(
+//         "sha256",
+//         process.env.RAZORPAY_KEY_SECRET,
+//       )
+//         .update(`${razorpayOrderId}|${razorpayPaymentId}`)
+//         .digest("hex");
+
+//       if (expectedSignature !== razorpaySignature) {
+//         await storage.updateOrder(orderId, {
+//           paymentStatus: "failed",
+//           status: "cancelled",
+//         });
+//         return res.status(400).json({ error: "Invalid signature" });
+//       }
+
+//       // Update order with payment details
+//       await storage.updateOrder(orderId, {
+//         razorpayPaymentId,
+//         razorpaySignature,
+//         paymentStatus: "success",
+//         status: "paid",
+//       });
+
+//       res.json({ success: true });
+//     } catch (error) {
+//       console.error("Error verifying payment:", error);
+//       res.status(500).json({ error: "Payment verification failed" });
+//     }
+//   });
+
+//   // Get single order by ID
+//   app.get("/api/orders/:id", async (req, res) => {
+//     try {
+//       const { id } = req.params;
+//       const order = await storage.getOrder(id);
+
+//       if (!order) {
+//         return res.status(404).json({ error: "Order not found" });
+//       }
+
+//       res.json(order);
+//     } catch (error) {
+//       console.error("Error fetching order:", error);
+//       res.status(500).json({ error: "Failed to fetch order" });
+//     }
+//   });
 //   return httpServer;
 // }
+
+
 
 import type { Express, Request, Response, NextFunction } from "express";
 import {
@@ -2606,20 +2885,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     (async () => {
       let reasoningTimer: NodeJS.Timeout | null = null;
-      const REASON_START_PCT = 10;
-      const REASON_END_PCT = 38; // cap for reasoning phase
-      const DURATION_MS = 120_000; // ~2 minutes
-      const INTERVAL_MS = 1_000; // tick every second
-      // how much to bump each tick so we reach MAX over DURATION
-      const INCREMENT =
-        (REASON_END_PCT - REASON_START_PCT) / (DURATION_MS / INTERVAL_MS);
+      let progressBoostTimer: NodeJS.Timeout | null = null;
+      let currentPhaseStartTime = Date.now();
+
+      // Enhanced timing configuration for smoother progress
+      const TIMING_CONFIG = {
+        REASON_START_PCT: 5,
+        REASON_END_PCT: 35,
+        REASONING_INCREMENT: 0.2, // Slower, smoother increments
+        REASONING_INTERVAL_MS: 1500, // Slightly longer intervals
+        PROGRESS_BOOST_INTERVAL: 3000, // Time-based progress boost every 3 seconds
+        MIN_PROGRESS_INCREMENT: 0.1, // Minimum progress per boost
+      };
+
+      // Function to provide time-based progress boost
+      const startProgressBoosting = (currentPhase: string, basePct: number, maxPct: number) => {
+        if (progressBoostTimer) {
+          clearInterval(progressBoostTimer);
+        }
+
+        progressBoostTimer = setInterval(() => {
+          const currentJob = jobTracker.get(jobId);
+          if (!currentJob || currentJob.phase !== currentPhase) return;
+
+          const timeElapsed = Date.now() - currentPhaseStartTime;
+          const timeBasedIncrement = Math.min(
+            (timeElapsed / 90000) * 8, // 8% per 90 seconds
+            maxPct - basePct
+          );
+
+          const newPct = Math.min(
+            basePct + timeBasedIncrement + TIMING_CONFIG.MIN_PROGRESS_INCREMENT,
+            maxPct - 3 // Leave some room for actual completion
+          );
+
+          if (newPct > currentJob.pct) {
+            jobTracker.set(jobId, {
+              ...currentJob,
+              pct: newPct,
+            });
+          }
+        }, TIMING_CONFIG.PROGRESS_BOOST_INTERVAL);
+      };
 
       try {
         jobTracker.set(jobId, {
           phase: "initializing",
-          pct: 0,
+          pct: 2,
           message: "Starting story generation...",
         });
+
+        // Start progress boosting for initialization phase
+        currentPhaseStartTime = Date.now();
+        startProgressBoosting("initializing", 2, TIMING_CONFIG.REASON_START_PCT);
 
         const { scenes, cover } = await generateCompleteStory(
           {
@@ -2634,36 +2952,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
           },
           characterImageMap,
           (phase, pct, msg) => {
+            // Clear previous timers when phase changes
+            if (phase !== "reasoning" && reasoningTimer) {
+              clearInterval(reasoningTimer);
+              reasoningTimer = null;
+            }
+            if (progressBoostTimer) {
+              clearInterval(progressBoostTimer);
+              progressBoostTimer = null;
+            }
+
             if (phase === "reasoning") {
-              // always append the token log
+              // Always append the token log
               jobTracker.set(jobId, {
                 ...jobTracker.get(jobId)!,
                 log: (jobTracker.get(jobId)!.log || "") + msg,
               });
 
-              // start the timer once
+              // Start the reasoning timer once
               if (!reasoningTimer) {
+                currentPhaseStartTime = Date.now();
+                const reasoningDuration = 45000; // 45 seconds for reasoning
+                const totalTicks = reasoningDuration / TIMING_CONFIG.REASONING_INTERVAL_MS;
+                const tickIncrement = (TIMING_CONFIG.REASON_END_PCT - TIMING_CONFIG.REASON_START_PCT) / totalTicks;
+
                 reasoningTimer = setInterval(() => {
-                  const curr = jobTracker.get(jobId)!.pct ?? REASON_START_PCT;
-                  const next = Math.min(curr + INCREMENT, REASON_END_PCT);
-                  jobTracker.set(jobId, { phase: "reasoning", pct: next });
-                  if (next >= REASON_END_PCT && reasoningTimer) {
+                  const curr = jobTracker.get(jobId)!.pct ?? TIMING_CONFIG.REASON_START_PCT;
+                  const next = Math.min(curr + tickIncrement, TIMING_CONFIG.REASON_END_PCT);
+                  jobTracker.set(jobId, { 
+                    phase: "reasoning", 
+                    pct: next,
+                    log: jobTracker.get(jobId)!.log 
+                  });
+                  if (next >= TIMING_CONFIG.REASON_END_PCT && reasoningTimer) {
                     clearInterval(reasoningTimer);
+                    reasoningTimer = null;
                   }
-                }, INTERVAL_MS);
+                }, TIMING_CONFIG.REASONING_INTERVAL_MS);
               }
             } else {
-              if (reasoningTimer) {
-                clearInterval(reasoningTimer);
-                reasoningTimer = null;
-              }
+              // For other phases, update immediately and start progress boosting
+              currentPhaseStartTime = Date.now();
               jobTracker.set(jobId, { phase, pct, message: msg });
+
+              // Start time-based progress boosting for long phases
+              if (phase === "prompting" && pct < 30) {
+                startProgressBoosting(phase, pct, 40);
+              } else if (phase === "generating") {
+                startProgressBoosting(phase, pct, 95);
+              }
             }
           },
           bookId,
         );
 
-        // persist & maybe enqueue PDF generation, etc…
+        // Clear all timers before completion
+        if (reasoningTimer) {
+          clearInterval(reasoningTimer);
+          reasoningTimer = null;
+        }
+        if (progressBoostTimer) {
+          clearInterval(progressBoostTimer);
+          progressBoostTimer = null;
+        }
+
+        // Persist & maybe enqueue PDF generation, etc…
         await storage.updateBook(bookId, {
           pages: scenes,
           cover: cover,
@@ -2671,10 +3024,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
           imagesJobId: null,
           isStoryRhyming: storyRhyming,
         });
-        jobTracker.set(jobId, { phase: "complete", pct: 100 });
+
+        jobTracker.set(jobId, { 
+          phase: "complete", 
+          pct: 100,
+          message: "Story generation complete!" 
+        });
       } catch (err: any) {
         console.error("[/api/generateFullStory] error", err);
-        jobTracker.set(jobId, { phase: "error", pct: 100, error: err.message });
+
+        // Clear timers on error
+        if (reasoningTimer) {
+          clearInterval(reasoningTimer);
+        }
+        if (progressBoostTimer) {
+          clearInterval(progressBoostTimer);
+        }
+
+        jobTracker.set(jobId, { 
+          phase: "error", 
+          pct: 100, 
+          error: err.message,
+          message: "Story generation failed" 
+        });
       }
     })();
   });
