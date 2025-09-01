@@ -336,6 +336,7 @@ export interface IStorage {
   getOrder(id: string): Promise<Order | undefined>;
   getOrdersByUserId(userId: string): Promise<Order[]>;
   createOrder(order: InsertOrder): Promise<Order>;
+  updateOrder(id: string, updatedData: any): Promise<Order | null>;
 }
 
 export class FirestoreStorage implements IStorage {

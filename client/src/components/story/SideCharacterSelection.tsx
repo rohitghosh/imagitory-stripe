@@ -582,6 +582,17 @@ export function SideCharacterSelection({
         type: "side",
       });
 
+      const createdChar: Character = {
+        id: response.id,                // if your API already returns these,
+        name: customName,               
+        imageUrls: [tempAvatar],
+        toonUrl: cartoonUrl,
+        description: customRelation || customDescription,
+        character_type: "side",
+        type: "custom",
+      };
+      setSideCharacters(prev => [...prev, createdChar]);
+
       const newCharacter: SelectedCharacter = {
         id: response.id,
         name: customName,
@@ -589,6 +600,7 @@ export function SideCharacterSelection({
         toonUrl: cartoonUrl,
         description: customRelation || customDescription,
       };
+
 
       if (selectedChars.length < maxCharacters) {
         setSelectedChars((prev) => [...prev, newCharacter]);
@@ -872,14 +884,16 @@ export function SideCharacterSelection({
           )}
 
           {/* Confirm Button restored */}
-          <div className="flex justify-center md:justify-end mt-4">
-            <Button
-              onClick={() => onSubmit(selectedChars)}
-              className="bg-yellow-500 hover:bg-yellow-600 w-full md:w-auto"
-            >
-              Continue to Choose Theme
-            </Button>
-          </div>
+          {!(showUploadForm || uploading || cartoonPending) && (
+            <div className="flex justify-center md:justify-end mt-4">
+              <Button
+                onClick={() => onSubmit(selectedChars)}
+                className="bg-yellow-500 hover:bg-yellow-600 w-full md:w-auto"
+              >
+                Continue to Choose Theme
+              </Button>
+            </div>
+          )}
         </div>
       </CardContent>
 

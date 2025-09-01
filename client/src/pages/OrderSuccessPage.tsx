@@ -40,7 +40,7 @@ export default function OrderSuccessPage() {
         }
 
         // If this is a story generation order, redirect to story creation page
-        if (order.type === "story_generation" && order.bookId) {
+        if (order.bookId) {
           toast({
             title: "Payment successful!",
             description: "Redirecting to story generation...",
@@ -123,9 +123,12 @@ export default function OrderSuccessPage() {
           <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <CheckCircle className="w-8 h-8 text-green-600" />
           </div>
-          <h1 className="text-3xl font-bold text-green-800 mb-2">Order Confirmed!</h1>
+          <h1 className="text-3xl font-bold text-green-800 mb-2">
+            Order Confirmed!
+          </h1>
           <p className="text-muted-foreground">
-            Thank you for your purchase. Your custom story book is being prepared.
+            Thank you for your purchase. Your custom story book is being
+            prepared.
           </p>
         </div>
 
@@ -140,19 +143,25 @@ export default function OrderSuccessPage() {
             <div className="space-y-4">
               <div className="flex justify-between items-center">
                 <span className="font-medium">Order ID</span>
-                <span className="text-sm text-muted-foreground font-mono">#{orderData.id.slice(-8)}</span>
+                <span className="text-sm text-muted-foreground font-mono">
+                  #{orderData.id.slice(-8)}
+                </span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="font-medium">Status</span>
                 <Badge className={getStatusColor(orderData.status || "paid")}>
                   {getStatusIcon(orderData.status || "paid")}
-                  <span className="ml-1 capitalize">{orderData.status || "Paid"}</span>
+                  <span className="ml-1 capitalize">
+                    {orderData.status || "Paid"}
+                  </span>
                 </Badge>
               </div>
               {bookData && (
                 <div className="flex justify-between items-center">
                   <span className="font-medium">Book Title</span>
-                  <span className="text-right max-w-xs truncate">{bookData.title}</span>
+                  <span className="text-right max-w-xs truncate">
+                    {bookData.title}
+                  </span>
                 </div>
               )}
               <div className="flex justify-between items-center">
@@ -180,17 +189,23 @@ export default function OrderSuccessPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              <p className="font-medium">{orderData.firstName} {orderData.lastName}</p>
-              <p className="text-sm text-muted-foreground">{orderData.address}</p>
+              <p className="font-medium">
+                {orderData.firstName} {orderData.lastName}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                {orderData.address}
+              </p>
               <p className="text-sm text-muted-foreground">
                 {orderData.city}, {orderData.state} {orderData.zip}
               </p>
-              <p className="text-sm text-muted-foreground">{orderData.country}</p>
+              <p className="text-sm text-muted-foreground">
+                {orderData.country}
+              </p>
             </div>
             <div className="mt-4 p-3 bg-blue-50 rounded-lg">
               <p className="text-sm text-blue-800">
-                📦 Your book will be printed and shipped within 3-5 business days.
-                You'll receive a tracking number via email once it ships.
+                📦 Your book will be printed and shipped within 3-5 business
+                days. You'll receive a tracking number via email once it ships.
               </p>
             </div>
           </CardContent>

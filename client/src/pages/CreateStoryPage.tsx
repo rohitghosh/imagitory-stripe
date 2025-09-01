@@ -762,26 +762,39 @@ export default function CreateStoryPage() {
     // Check if we're returning from payment and need to generate story
     const urlParams = new URLSearchParams(window.location.search);
     const paymentCompleted = urlParams.get('payment_completed');
-    
-    if (paymentCompleted === 'true') {
+
+    if (paymentCompleted === 'true' && bookId) {
+      console.log("Payment completed, checking for stored payload...");
+
       // Get payload from localStorage or current state
       const storedPayload = localStorage.getItem('pendingStoryPayload');
       const payload = storedPayload ? JSON.parse(storedPayload) : pendingStoryPayload;
-      
+
       if (payload) {
-        console.log("Payment completed, generating story...");
+        console.log("Payment completed, generating story...", payload);
+
+        // Set the current step to the progress step (4 for returning users)
+        setCurrentStep(4);
+
+        // Generate the story
         generateStory(payload);
-        
+
         // Clean up
         localStorage.removeItem('pendingStoryPayload');
         setPendingStoryPayload(null);
+      } else {
+        console.log("No stored payload found, user may need to recreate the story");
+        toast({
+          title: "Story generation ready",
+          description: "Please complete the story creation steps.",
+        });
       }
-      
+
       // Clean up URL params
       const newUrl = window.location.pathname;
       window.history.replaceState({}, '', newUrl);
     }
-  }, []);
+  }, [bookId, pendingStoryPayload, toast]); // Add dependencies
 
   /* ─────────────────────────── character pick (main character) ──────────────────── */
   async function handleSelectCharacter(character: any) {
@@ -916,6 +929,7 @@ export default function CreateStoryPage() {
     if (isFirstTime) {
       // First-time users: Generate story immediately (skip payment)
       log("First-time user: generating story directly", payload);
+      setCurrentStep(3); // Step 3 for first-time users (no payment step)
       generateStory(payload);
     } else {
       // Returning users: Show payment step first
@@ -934,9 +948,16 @@ export default function CreateStoryPage() {
       .then((r) => {
         setImagesJobId(r.jobId);
         patchBookM.mutate({ id: bookId!, payload: { imagesJobId: r.jobId } });
-        setCurrentStep(isFirstTimeUser ? 3 : 4); // Step 3 for first-time, step 4 for returning users
+        // Don't change step here - it should already be set by caller
       })
-      .catch((err) => log("Full-story kickoff error", err));
+      .catch((err) => {
+        log("Full-story kickoff error", err);
+        toast({
+          title: "Story generation failed",
+          description: "There was an error starting your story generation. Please try again.",
+          variant: "destructive",
+        });
+      });
   }
 
   /* ─────────────────────────── payment handling ──────────────────── */
@@ -948,9 +969,8 @@ export default function CreateStoryPage() {
           ...formData,
           bookId,
           userId: user.uid,
-          type: "story_generation", // Different from print orders
         });
-        
+
         console.log("✅ Order created, redirecting to payment:", orderResponse);
         // Redirect to payment page
         setLocation(`/payment/${orderResponse.id}`);
@@ -979,7 +999,11 @@ export default function CreateStoryPage() {
 
     /* existing jobs / pages */
     if (book?.imagesJobId && !imagesJobId) setImagesJobId(book.imagesJobId);
-    if (book.pages?.length) setCurrentStep(3);
+    if (book.pages?.length) {
+      // If book already has pages, redirect to book view instead of staying on create page
+      setLocation(`/book/${bookId}`);
+      return;
+    }
   }, [book]);
 
   useEffect(() => {
@@ -1008,12 +1032,7 @@ export default function CreateStoryPage() {
     }
   }, [imagesProg]);
 
-  // B. or the book already contains pages
-  useEffect(() => {
-    if (book?.pages?.length) {
-      setLocation(`/book/${bookId}`);
-    }
-  }, [book]);
+  // Note: Book page redirect is handled in the hydration effect above
 
   const appendToken = React.useCallback((raw: string) => {
     // Keep spaces; convert lone newline → real paragraph break
@@ -1132,7 +1151,7 @@ export default function CreateStoryPage() {
                   {STORY_SUB_STEPS.map((subStep) => {
                     const isActive = currentSubStep === subStep.id;
                     const isCompleted =
-                      (subStep.id === "characters" &&
+                      (subStep.id === "charactes" &&
                         selectedSideChars.length >= 0) ||
                       (subStep.id === "theme" && selectedTheme !== "") ||
                       (subStep.id === "subject" &&
