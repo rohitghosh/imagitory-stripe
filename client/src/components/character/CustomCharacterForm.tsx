@@ -486,7 +486,9 @@ import { Progress } from "@/components/ui/progress";
 export const formSchema = z.object({
   name: z.string().min(1, "Name is required"),
   age: z.coerce.number().min(1, "Min age is 1").max(16, "Max age is 16"),
-  gender: z.enum(["boy", "girl", "other"], { required_error: "Select gender" }),
+  gender: z.enum(["boy", "girl", "other"], {
+    required_error: "Select pronoun",
+  }),
 });
 export type FormValues = z.infer<typeof formSchema>;
 
@@ -902,7 +904,7 @@ export function CustomCharacterForm({
                   name="gender"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Gender</FormLabel>
+                      <FormLabel>Pronoun</FormLabel>
                       <FormControl>
                         <RadioGroup
                           onValueChange={field.onChange}
@@ -913,19 +915,19 @@ export function CustomCharacterForm({
                             <FormControl>
                               <RadioGroupItem value="boy" />
                             </FormControl>
-                            <FormLabel>Boy</FormLabel>
+                            <FormLabel>He/Him</FormLabel>
                           </FormItem>
                           <FormItem className="flex items-center space-x-2">
                             <FormControl>
                               <RadioGroupItem value="girl" />
                             </FormControl>
-                            <FormLabel>Girl</FormLabel>
+                            <FormLabel>She/Her</FormLabel>
                           </FormItem>
                           <FormItem className="flex items-center space-x-2">
                             <FormControl>
                               <RadioGroupItem value="other" />
                             </FormControl>
-                            <FormLabel>Other</FormLabel>
+                            <FormLabel>They/Them</FormLabel>
                           </FormItem>
                         </RadioGroup>
                       </FormControl>
