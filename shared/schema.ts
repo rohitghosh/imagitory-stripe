@@ -192,7 +192,6 @@
 //   .partial() // make every key optional
 //   .passthrough();
 
-
 import { z } from "zod";
 
 const INTEREST_OPTIONS = [
@@ -271,9 +270,18 @@ export const bookSchema = z.object({
         imageUrl: z.string().nullable().optional(),
         imageUrls: z.array(z.string()).optional(), // NEW
         currentImageIndex: z.number().optional(), // NEW;
-        content: z.union([z.string(), z.array(z.string())]).nullable().optional(),
-        leftText: z.union([z.string(), z.array(z.string())]).nullable().optional(),
-        rightText: z.union([z.string(), z.array(z.string())]).nullable().optional(),
+        content: z
+          .union([z.string(), z.array(z.string())])
+          .nullable()
+          .optional(),
+        leftText: z
+          .union([z.string(), z.array(z.string())])
+          .nullable()
+          .optional(),
+        rightText: z
+          .union([z.string(), z.array(z.string())])
+          .nullable()
+          .optional(),
         prompt: z.string().optional(),
         loraScale: z.number().optional(),
         controlLoraStrength: z.number().optional(),
@@ -295,6 +303,7 @@ export const bookSchema = z.object({
   avatarUrl: z.string().nullable().optional(),
   skeletonJobId: z.string().optional(),
   imagesJobId: z.string().nullable().optional(), // Allow null
+  imageJobs: z.record(z.string(), z.any()).optional(), // New image generation jobs
 });
 export type Book = z.infer<typeof bookSchema>;
 
@@ -377,9 +386,18 @@ export const updateBookSchema = z
             id: z.number().optional(),
             imageUrl: z.string().nullable().optional(),
             // Accept both string and array for content and text fields
-            content: z.union([z.string(), z.array(z.string())]).nullable().optional(),
-            leftText: z.union([z.string(), z.array(z.string())]).nullable().optional(),
-            rightText: z.union([z.string(), z.array(z.string())]).nullable().optional(),
+            content: z
+              .union([z.string(), z.array(z.string())])
+              .nullable()
+              .optional(),
+            leftText: z
+              .union([z.string(), z.array(z.string())])
+              .nullable()
+              .optional(),
+            rightText: z
+              .union([z.string(), z.array(z.string())])
+              .nullable()
+              .optional(),
             prompt: z.string().optional(),
             loraScale: z.number().optional(),
             controlLoraStrength: z.number().optional(),

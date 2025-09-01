@@ -1,6 +1,6 @@
 /**
  * Story Generation V2 with flexible image generation backends
- * 
+ *
  * This file provides a drop-in replacement for the story generation system
  * that uses the new flexible image generation architecture while maintaining
  * full compatibility with the existing API.
@@ -12,8 +12,8 @@ import {
   generateImageForFrontCover,
   generateFinalCoverWithTitle,
   regenerateBaseCoverImage,
-  regenerateSceneImage
-} from "../imageGenerationV2";
+  regenerateSceneImage,
+} from "./imageGenerationV2";
 
 // Re-export the image generation functions with the new backend
 export {
@@ -21,13 +21,11 @@ export {
   generateImageForFrontCover,
   generateFinalCoverWithTitle,
   regenerateBaseCoverImage,
-  regenerateSceneImage
-} from "../imageGenerationV2";
+  regenerateSceneImage,
+} from "./imageGenerationV2";
 
 // Re-export other unchanged functions
-export {
-  generateCompleteStory
-} from "./storyGeneration";
+export { generateCompleteStory } from "./storyGeneration";
 
 /**
  * Generate a complete story with the new image generation backend
@@ -36,12 +34,16 @@ export {
 export async function generateCompleteStoryV2(
   storyParams: any,
   characterImageMap: any,
-  onProgress?: (phase: string, pct: number, message: string) => void
+  onProgress?: (phase: string, pct: number, message: string) => void,
 ) {
   // For now, this just delegates to the original implementation
   // The V2 image generation functions are automatically used via imageGenerationV2.ts
   // when imported by the story generation system
-  return originalGenerateCompleteStory(storyParams, characterImageMap, onProgress);
+  return originalGenerateCompleteStory(
+    storyParams,
+    characterImageMap,
+    onProgress,
+  );
 }
 
 /**
@@ -49,7 +51,7 @@ export async function generateCompleteStoryV2(
  */
 export const IMAGE_GENERATION_CONFIG = {
   provider: (process.env.IMAGE_PROVIDER || "openai") as "openai" | "gemini",
-  fallbackProvider: "openai" as "openai" | "gemini"
+  fallbackProvider: "openai" as "openai" | "gemini",
 };
 
 /**

@@ -1,13 +1,8 @@
 // API Request/Response types
-import {
-  SceneDescription,
-  ScenewocharDescription,
-  FrontCover,
-  FrontCoverWoChar,
-} from "../types";
+import { UnifiedSceneDescription, UnifiedFrontCover } from "./story";
 
 export interface SceneRegenerationInput {
-  scene_description: SceneDescription | ScenewocharDescription;
+  scene_description: UnifiedSceneDescription;
   characterImageMap: Record<string, CharacterVariables>;
   previousImageUrl?: string | null;
   seed?: number;
@@ -21,7 +16,7 @@ export interface FinalCoverRegenerationInput {
 
 // Update existing CoverRegenerationInput to be more specific
 export interface BaseCoverRegenerationInput {
-  front_cover: FrontCover | FrontCoverWoChar;
+  front_cover: UnifiedFrontCover;
   characterImageMap: Record<string, CharacterVariables>;
   seed?: number;
 }

@@ -329,6 +329,9 @@ export interface IStorage {
   getBooksByUserId(userId: string): Promise<Book[]>;
   createBook(book: InsertBook): Promise<Book>;
 
+  // Atomic nested field updates for books (safe under parallel writes)
+  updateBookFields(id: string, fields: Record<string, any>): Promise<void>;
+
   // Order operations
   getOrder(id: string): Promise<Order | undefined>;
   getOrdersByUserId(userId: string): Promise<Order[]>;
@@ -528,6 +531,14 @@ export class FirestoreStorage implements IStorage {
     };
     const docRef = await db.collection("books").add(data);
     return { id: docRef.id, ...data } as Book;
+  }
+  async updateBookFields(
+    id: string,
+    fields: Record<string, any>,
+  ): Promise<void> {
+    const bookRef = db.collection("books").doc(id);
+    // Use set with merge to create the doc if missing and apply atomic nested updates
+    await bookRef.set(fields, { merge: true });
   }
   async getBookById(id: string): Promise<Book | null> {
     console.log("storage.ts - getBookById called with id:", id);
