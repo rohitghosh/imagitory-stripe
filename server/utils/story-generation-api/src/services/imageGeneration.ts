@@ -72,7 +72,7 @@ async function toDataUrl(url: string) {
  * but will *not* collapse across punctuation (e.g. "looking. looking" stays).
  */
 /* --------------------------------- Utils --------------------------------- */
-function removeDuplicateAdjacentWords(text: string): string {
+export function removeDuplicateAdjacentWords(text: string): string {
   const regex = /\b(\w+)\s+\1\b/gi;
   let result = text;
   while (regex.test(result)) result = result.replace(regex, "$1");

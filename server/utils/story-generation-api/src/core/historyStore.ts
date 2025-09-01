@@ -14,25 +14,22 @@ function generateJobId(): string {
  */
 export async function createJob(
   conversationId: string,
-  payload: Omit<ImageJob, 'createdAt' | 'updatedAt'>
+  payload: Omit<ImageJob, "createdAt" | "updatedAt">,
 ): Promise<string> {
   const jobId = generateJobId();
   const now = new Date();
-  
+
   const job: ImageJob = {
     ...payload,
     createdAt: now,
-    updatedAt: now
+    updatedAt: now,
   };
-  
-  // For now, we'll store the job in the book's imageJobs field
-  // In a full implementation, you'd create a separate imageJobs collection
-  const existingBook = await storage.getBook(conversationId);
-  const imageJobs = existingBook?.imageJobs || {};
-  imageJobs[jobId] = job;
-  
-  await storage.updateBook(conversationId, { imageJobs });
-  
+
+  // Atomic nested-field write to avoid read-modify-write races
+  await storage.updateBookFields(conversationId, {
+    [`imageJobs.${jobId}`]: job,
+  });
+
   return jobId;
 }
 
@@ -43,24 +40,29 @@ export async function markJobStatus(
   conversationId: string,
   jobId: string,
   status: JobStatus,
-  updates: Partial<Pick<ImageJob, 'output_summary' | 'provider_meta'>> = {}
+  updates: Partial<Pick<ImageJob, "output_summary" | "provider_meta">> = {},
 ): Promise<void> {
-  const book = await storage.getBook(conversationId);
-  if (!book || !book.imageJobs?.[jobId]) {
-    throw new Error(`Job ${jobId} not found`);
-  }
-  
-  const updatedJob = {
-    ...book.imageJobs[jobId],
-    status,
-    updatedAt: new Date(),
-    ...updates
+  // Atomic upsert of job status and optional fields
+  const now = new Date();
+  const updatePayload: Record<string, any> = {
+    [`imageJobs.${jobId}.status`]: status,
+    [`imageJobs.${jobId}.updatedAt`]: now,
   };
-  
-  const imageJobs = { ...book.imageJobs };
-  imageJobs[jobId] = updatedJob;
-  
-  await storage.updateBook(conversationId, { imageJobs });
+  if (updates.output_summary) {
+    if (updates.output_summary.images) {
+      updatePayload[`imageJobs.${jobId}.output_summary.images`] =
+        updates.output_summary.images;
+    }
+    if (typeof updates.output_summary.text !== "undefined") {
+      // Only set when provided to avoid undefined writes; if empty string allowed, it will set
+      updatePayload[`imageJobs.${jobId}.output_summary.text`] =
+        updates.output_summary.text;
+    }
+  }
+  if (updates.provider_meta) {
+    updatePayload[`imageJobs.${jobId}.provider_meta`] = updates.provider_meta;
+  }
+  await storage.updateBookFields(conversationId, updatePayload);
 }
 
 /**
@@ -69,29 +71,17 @@ export async function markJobStatus(
 export async function appendArtifact(
   conversationId: string,
   jobId: string,
-  artifact: ImageArtifact & { type: "image" }
+  artifact: ImageArtifact & { type: "image" },
 ): Promise<string> {
   const artifactId = `artifact_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  
-  const book = await storage.getBook(conversationId);
-  if (!book || !book.imageJobs?.[jobId]) {
-    throw new Error(`Job ${jobId} not found`);
-  }
-  
-  const artifactData = {
-    ...artifact,
-    createdAt: new Date()
-  };
-  
-  // Store artifacts in the job data
-  const imageJobs = { ...book.imageJobs };
-  const job = { ...imageJobs[jobId] };
-  job.artifacts = job.artifacts || {};
-  job.artifacts[artifactId] = artifactData;
-  imageJobs[jobId] = job;
-  
-  await storage.updateBook(conversationId, { imageJobs });
-  
+
+  // Append artifact atomically without reading the whole object
+  const artifactData = { ...artifact, createdAt: new Date() };
+  await storage.updateBookFields(conversationId, {
+    // Initialize artifacts map for this job if missing, then set child
+    // Firestore update will create the nested path if imageJobs/jobId exists.
+    [`imageJobs.${jobId}.artifacts.${artifactId}`]: artifactData,
+  });
   return artifactId;
 }
 
@@ -100,10 +90,10 @@ export async function appendArtifact(
  */
 export async function loadJob(
   conversationId: string,
-  jobId: string
+  jobId: string,
 ): Promise<ImageJob | null> {
   const book = await storage.getBook(conversationId);
-  return book?.imageJobs?.[jobId] || null;
+  return (book as any)?.imageJobs?.[jobId] || null;
 }
 
 /**
@@ -111,7 +101,7 @@ export async function loadJob(
  */
 export async function findDuplicateByHash(
   conversationId: string,
-  requestHash: string
+  requestHash: string,
 ): Promise<ImageJob | null> {
   // Note: This would require a Firestore query by request_hash
   // For now, we'll skip this optimization and just create new jobs
@@ -125,17 +115,17 @@ export async function findDuplicateByHash(
  */
 export async function getJobArtifacts(
   conversationId: string,
-  jobId: string
+  jobId: string,
 ): Promise<(ImageArtifact & { id: string })[]> {
   const book = await storage.getBook(conversationId);
-  const job = book?.imageJobs?.[jobId];
-  
+  const job = (book as any)?.imageJobs?.[jobId];
+
   if (!job || !job.artifacts) {
     return [];
   }
-  
+
   return Object.entries(job.artifacts).map(([id, artifact]) => ({
     id,
-    ...artifact
+    ...(artifact as any),
   })) as (ImageArtifact & { id: string })[];
 }

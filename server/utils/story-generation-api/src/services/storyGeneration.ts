@@ -332,7 +332,7 @@ import {
   generateImageForScene,
   generateImageForFrontCover,
   generateFinalCoverWithTitle,
-} from "../imageGenerationV2";
+} from "./imageGeneration";
 import { DEFAULT_CHARACTER_IMAGES } from "../utils/constants";
 
 const openai = new OpenAI();
