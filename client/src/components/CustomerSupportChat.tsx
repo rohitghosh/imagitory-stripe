@@ -326,7 +326,7 @@ export const CustomerSupportChat: React.FC<CustomerSupportChatProps> = ({
       onImageUpdate?.();
       queryClient.invalidateQueries([`book-${bookId}`]);
       onNavigateToImage?.(pageIndex + 1);
-
+      setCurrentState("ask_more_help");
       const successMessage: ChatMessage = {
         id: Date.now().toString(),
         type: "bot",
@@ -449,6 +449,7 @@ export const CustomerSupportChat: React.FC<CustomerSupportChatProps> = ({
       onNavigateToImage?.(0);
 
       queryClient.invalidateQueries([`book-${bookId}`]);
+      setCurrentState("ask_more_help");
       const successMessage: ChatMessage = {
         id: Date.now().toString(),
         type: "bot",
@@ -484,7 +485,7 @@ export const CustomerSupportChat: React.FC<CustomerSupportChatProps> = ({
       onImageUpdate?.();
       queryClient.invalidateQueries([`book-${bookId}`]);
       onNavigateToImage?.(0);
-
+      setCurrentState("ask_more_help");
       const successMessage: ChatMessage = {
         id: Date.now().toString(),
         type: "bot",
@@ -522,7 +523,8 @@ export const CustomerSupportChat: React.FC<CustomerSupportChatProps> = ({
       // onImageUpdate?.();
 
       onNavigateToImage?.(pageIndex + 1);
-
+      
+      setCurrentState("ask_more_help");
       const successMessage: ChatMessage = {
         id: Date.now().toString(),
         type: "bot",

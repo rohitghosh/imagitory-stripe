@@ -1,4 +1,4 @@
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "../contexts/AuthContext";
 import {
@@ -15,6 +15,7 @@ import imagitoryLogo from "/src/assets/imagitory-logo.png";
 
 export function Header() {
   const { user, signOut } = useAuth();
+  const [location] = useLocation();
 
   const handleSignOut = async () => {
     await signOut();
@@ -30,6 +31,11 @@ export function Header() {
       .toUpperCase()
       .slice(0, 2);
   };
+
+  // Determine if we should show the Create Story button and what text to use
+  const shouldShowCreateButton = location === "/" || location.startsWith("/edit-pdf");
+  const isEditPdfPage = location.startsWith("/edit-pdf");
+  const createButtonText = isEditPdfPage ? "Create Another Story" : "Create Story";
 
   return (
     <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 shadow-sm">
@@ -57,11 +63,13 @@ export function Header() {
               Home
             </Button>
           </Link> */}
-          <Link href="/create">
-            <Button className="imaginory-button px-2.5 py-1 text-[10px] leading-none hover:scale-100 sm:px-8 sm:py-4 sm:text-lg sm:hover:scale-105">
-              Create Story
-            </Button>
-          </Link>
+          {shouldShowCreateButton && (
+            <Link href="/create">
+              <Button className="imaginory-button px-2.5 py-1 text-[10px] leading-none hover:scale-100 sm:px-8 sm:py-4 sm:text-lg sm:hover:scale-105">
+                {createButtonText}
+              </Button>
+            </Link>
+          )}
 
           {user ? (
             <DropdownMenu>

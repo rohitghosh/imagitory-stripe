@@ -90,8 +90,7 @@ export default function LoginPage() {
             </div>
           </div>
           
-          <div className="mt-8 text-center">
-            <p className="text-gray-600">Don't want to sign in?</p>
+          {/* <div className="mt-8 text-center">
             <Button 
               variant="link" 
               className="text-primary"
@@ -99,7 +98,7 @@ export default function LoginPage() {
             >
               Continue as guest
             </Button>
-          </div>
+          </div> */}
         </div>
       </main>
       

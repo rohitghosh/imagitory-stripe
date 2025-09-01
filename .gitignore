@@ -8,3 +8,7 @@ vite.config.ts.*
 outputs/*
 .env
 .local
+*.md
+*.png
+*.webp
+__pycache__/
