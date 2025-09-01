@@ -38,7 +38,7 @@ interface ShippingFormProps {
 
 export function ShippingForm({ onSubmit }: ShippingFormProps) {
   const { toast } = useToast();
-  
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -61,7 +61,7 @@ export function ShippingForm({ onSubmit }: ShippingFormProps) {
       <Card className="max-w-2xl mx-auto">
         <CardContent className="p-6">
           <h3 className="text-xl font-heading font-bold mb-4">Shipping Information</h3>
-          
+
           <Form {...form}>
             <form onSubmit={form.handleSubmit(handleSubmitForm)} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -78,7 +78,7 @@ export function ShippingForm({ onSubmit }: ShippingFormProps) {
                     </FormItem>
                   )}
                 />
-                
+
                 <FormField
                   control={form.control}
                   name="lastName"
@@ -93,7 +93,7 @@ export function ShippingForm({ onSubmit }: ShippingFormProps) {
                   )}
                 />
               </div>
-              
+
               <FormField
                 control={form.control}
                 name="address"
@@ -107,7 +107,7 @@ export function ShippingForm({ onSubmit }: ShippingFormProps) {
                   </FormItem>
                 )}
               />
-              
+
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <FormField
                   control={form.control}
@@ -122,7 +122,7 @@ export function ShippingForm({ onSubmit }: ShippingFormProps) {
                     </FormItem>
                   )}
                 />
-                
+
                 <FormField
                   control={form.control}
                   name="state"
@@ -136,7 +136,7 @@ export function ShippingForm({ onSubmit }: ShippingFormProps) {
                     </FormItem>
                   )}
                 />
-                
+
                 <FormField
                   control={form.control}
                   name="zip"
@@ -151,7 +151,7 @@ export function ShippingForm({ onSubmit }: ShippingFormProps) {
                   )}
                 />
               </div>
-              
+
               <FormField
                 control={form.control}
                 name="country"
@@ -178,10 +178,10 @@ export function ShippingForm({ onSubmit }: ShippingFormProps) {
                   </FormItem>
                 )}
               />
-              
+
               <div className="flex justify-center mt-4">
                 <Button type="submit" className="bg-primary hover:bg-primary/90 text-white font-bold py-3 px-8 rounded-full text-lg shadow-lg hover:shadow-xl transition-all">
-                  Confirm Order
+                  Pay & Confirm
                 </Button>
               </div>
             </form>

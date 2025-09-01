@@ -198,6 +198,7 @@ export default function ProfilePage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {customCharacters
                     .slice()
+                    .filter((c) => c.name !== "__DRAFT__")
                     .sort(
                       (a, b) =>
                         new Date(b.createdAt).getTime() -
@@ -209,9 +210,10 @@ export default function ProfilePage() {
                           <img
                             src={
                               character.imageUrls &&
-                              character.imageUrls.length > 0
-                                ? character.imageUrls[0]
-                                : "https://via.placeholder.com/300"
+                              character.imageUrls.length > 0 &&
+                              character.toonUrl
+                                ? character.toonUrl
+                                : character.imageUrls[0]
                             }
                             alt={character.name}
                             className="w-full h-full object-cover"
@@ -239,58 +241,6 @@ export default function ProfilePage() {
                 </div>
               )}
             </TabsContent>
-
-            {/* Custom Stories Tab */}
-            {/* <TabsContent value="stories">
-              <div className="mb-4 flex justify-between items-center">
-                <h3 className="text-xl font-semibold">My Custom Story Line</h3>
-                <Link href="/create">
-                  <Button>Create New Story</Button>
-                </Link>
-              </div>
-              {loadingCustomStories ? (
-                <div className="text-center py-12">Loading stories...</div>
-              ) : customStories.length === 0 ? (
-                <div className="text-center py-12 bg-gray-50 rounded-lg">
-                  <p className="text-gray-500 mb-4">
-                    You haven't created any custom story lines yet.
-                  </p>
-                  <Link href="/create">
-                    <Button>Create Your First Story</Button>
-                  </Link>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {customStories.map((story) => (
-                    <Card key={story.id} className="overflow-hidden">
-                      <CardContent className="p-4">
-                        <h4 className="font-semibold text-lg mb-1">
-                          {story.title}
-                        </h4>
-                        <p className="text-sm text-gray-500 mb-2">
-                          {new Date(story.createdAt).toLocaleDateString()}
-                        </p>
-                        <div className="flex space-x-2 mt-4">
-                          <Link href={`/story/${story.id}`}>
-                            <Button variant="outline" size="sm">
-                              View
-                            </Button>
-                          </Link>
-                          <Link href={`/story/${story.id}/edit`}>
-                            <Button variant="outline" size="sm">
-                              Edit
-                            </Button>
-                          </Link>
-                          <Button variant="outline" size="sm">
-                            Download
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              )}
-            </TabsContent> */}
 
             {/* Books Tab */}
             <TabsContent value="books">
@@ -344,9 +294,9 @@ export default function ProfilePage() {
                         .map((book) => (
                           <tr key={book.id}>
                             <td className="px-6 py-4 whitespace-nowrap">
-                              {book.coverUrl ? (
+                              {book.cover.final_cover_urls ? (
                                 <img
-                                  src={book.coverUrl}
+                                  src={book.cover.final_cover_urls[0]}
                                   alt={book.title}
                                   className="w-16 h-16 object-cover rounded"
                                 />
@@ -368,7 +318,7 @@ export default function ProfilePage() {
                               }
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
-                              <Link href={`/book/${book.id}`}>
+                              <Link href={`/edit-pdf/${book.id}`}>
                                 <Button variant="outline" size="sm">
                                   View Book
                                 </Button>
@@ -387,52 +337,61 @@ export default function ProfilePage() {
               <div className="mb-4">
                 <h3 className="text-xl font-semibold">My Orders</h3>
               </div>
-              {loadingOrders ? (
-                <div className="text-center py-12">Loading orders...</div>
-              ) : orders.length === 0 ? (
-                <div className="text-center py-12 bg-gray-50 rounded-lg">
-                  <p className="text-gray-500 mb-4">
-                    You haven't placed any orders yet.
-                  </p>
-                </div>
-              ) : (
-                <div className="divide-y">
-                  {orders.map((order) => (
-                    <div key={order.id} className="py-4">
-                      <div className="flex flex-col md:flex-row justify-between">
-                        <div>
-                          <h4 className="font-semibold text-lg">
-                            Order #{order.id}
-                          </h4>
-                          <p className="text-sm text-gray-500">
-                            Placed on{" "}
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Order #
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Placed On
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Status
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Book Title
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Shipping Address
+                      </th>
+                    </tr>
+                  </thead>
+
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {orders
+                      .slice() // make a copy
+                      .sort(
+                        (a, b) =>
+                          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(), // newest first
+                      )
+                      .map((order) => (
+                        <tr key={order.id}>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            #{order.id}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                             {new Date(order.createdAt).toLocaleDateString()}
-                          </p>
-                          <p className="text-sm mt-1">
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
                             <span className="inline-block px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
                               {order.status}
                             </span>
-                          </p>
-                        </div>
-                        <div className="mt-2 md:mt-0">
-                          <p className="text-gray-600">
-                            Ship to: {order.firstName} {order.lastName}
-                          </p>
-                          <p className="text-sm text-gray-500">
-                            {order.address}, {order.city}, {order.state}{" "}
-                            {order.zip}
-                          </p>
-                        </div>
-                        <div className="mt-2 md:mt-0">
-                          <Button variant="outline" size="sm">
-                            View Details
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {order.bookTitle ??
+                              books.find((b) => b.id === order.bookId)?.title ??
+                              "Untitled Book"}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {order.address}, {order.city}, {order.state} {order.zip}
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
             </TabsContent>
           </Tabs>
         </div>
