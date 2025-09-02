@@ -11,7 +11,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { 
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -60,10 +60,15 @@ export function ShippingForm({ onSubmit }: ShippingFormProps) {
     <div className="mt-8">
       <Card className="max-w-2xl mx-auto">
         <CardContent className="p-6">
-          <h3 className="text-xl font-heading font-bold mb-4">Shipping Information</h3>
+          <h3 className="text-xl font-heading font-bold mb-4">
+            Shipping Information
+          </h3>
 
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(handleSubmitForm)} className="space-y-6">
+            <form
+              onSubmit={form.handleSubmit(handleSubmitForm)}
+              className="space-y-6"
+            >
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <FormField
                   control={form.control}
@@ -158,8 +163,8 @@ export function ShippingForm({ onSubmit }: ShippingFormProps) {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Country</FormLabel>
-                    <Select 
-                      onValueChange={field.onChange} 
+                    <Select
+                      onValueChange={field.onChange}
                       defaultValue={field.value}
                     >
                       <FormControl>
@@ -180,7 +185,10 @@ export function ShippingForm({ onSubmit }: ShippingFormProps) {
               />
 
               <div className="flex justify-center mt-4">
-                <Button type="submit" className="bg-primary hover:bg-primary/90 text-white font-bold py-3 px-8 rounded-full text-lg shadow-lg hover:shadow-xl transition-all">
+                <Button
+                  type="submit"
+                  className="bg-primary hover:bg-primary/90 text-black font-bold py-3 px-8 rounded-full text-lg shadow-lg hover:shadow-xl transition-all"
+                >
                   Pay & Confirm
                 </Button>
               </div>

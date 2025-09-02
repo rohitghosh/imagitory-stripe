@@ -92,10 +92,10 @@ export default function OrderSuccessPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-50 flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="flex flex-col items-center gap-2">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-          <p className="text-muted-foreground">Loading order details...</p>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-imaginory-yellow"></div>
+          <p className="text-muted-foreground font-body">Loading order details...</p>
         </div>
       </div>
     );
@@ -103,11 +103,14 @@ export default function OrderSuccessPage() {
 
   if (!orderData) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-50 flex items-center justify-center">
-        <Card className="max-w-md">
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Card className="max-w-md border border-imaginory-yellow/20 shadow-lg">
           <CardContent className="p-6 text-center">
-            <p className="text-muted-foreground">Order not found</p>
-            <Button onClick={() => setLocation("/")} className="mt-4">
+            <p className="text-muted-foreground font-body">Order not found</p>
+            <Button 
+              onClick={() => setLocation("/")} 
+              className="imaginory-button mt-4"
+            >
               Go Home
             </Button>
           </CardContent>
@@ -117,122 +120,124 @@ export default function OrderSuccessPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-50 py-8">
-      <div className="container mx-auto px-4 max-w-2xl">
-        <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <CheckCircle className="w-8 h-8 text-green-600" />
+    <div className="min-h-screen bg-background">
+      <main className="py-8">
+        <div className="imaginory-container max-w-2xl">
+          <div className="text-center mb-8">
+            <div className="w-16 h-16 bg-imaginory-yellow/20 rounded-full flex items-center justify-center mx-auto mb-4">
+              <CheckCircle className="w-8 h-8 text-imaginory-yellow" />
+            </div>
+            <h1 className="text-3xl font-bold font-heading text-imaginory-black mb-2">
+              Order Confirmed!
+            </h1>
+            <p className="text-muted-foreground font-body">
+              Thank you for your purchase. Your custom story book is being
+              prepared.
+            </p>
           </div>
-          <h1 className="text-3xl font-bold text-green-800 mb-2">
-            Order Confirmed!
-          </h1>
-          <p className="text-muted-foreground">
-            Thank you for your purchase. Your custom story book is being
-            prepared.
-          </p>
-        </div>
 
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Package className="w-5 h-5" />
-              Order Details
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <span className="font-medium">Order ID</span>
-                <span className="text-sm text-muted-foreground font-mono">
-                  #{orderData.id.slice(-8)}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="font-medium">Status</span>
-                <Badge className={getStatusColor(orderData.status || "paid")}>
-                  {getStatusIcon(orderData.status || "paid")}
-                  <span className="ml-1 capitalize">
-                    {orderData.status || "Paid"}
-                  </span>
-                </Badge>
-              </div>
-              {bookData && (
+          <Card className="mb-6 border border-imaginory-yellow/20 shadow-lg">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-imaginory-black font-heading">
+                <Package className="w-5 h-5 text-imaginory-yellow" />
+                Order Details
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
                 <div className="flex justify-between items-center">
-                  <span className="font-medium">Book Title</span>
-                  <span className="text-right max-w-xs truncate">
-                    {bookData.title}
-                  </span>
-                </div>
-              )}
-              <div className="flex justify-between items-center">
-                <span className="font-medium">Amount Paid</span>
-                <span className="font-bold">$29.99</span>
-              </div>
-              {orderData.razorpayPaymentId && (
-                <div className="flex justify-between items-center">
-                  <span className="font-medium">Payment ID</span>
+                  <span className="font-medium font-body text-imaginory-black">Order ID</span>
                   <span className="text-sm text-muted-foreground font-mono">
-                    {orderData.razorpayPaymentId.slice(-10)}
+                    #{orderData.id.slice(-8)}
                   </span>
                 </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+                <div className="flex justify-between items-center">
+                  <span className="font-medium font-body text-imaginory-black">Status</span>
+                  <Badge className={getStatusColor(orderData.status || "paid")}>
+                    {getStatusIcon(orderData.status || "paid")}
+                    <span className="ml-1 capitalize">
+                      {orderData.status || "Paid"}
+                    </span>
+                  </Badge>
+                </div>
+                {bookData && (
+                  <div className="flex justify-between items-center">
+                    <span className="font-medium font-body text-imaginory-black">Book Title</span>
+                    <span className="text-right max-w-xs truncate font-body">
+                      {bookData.title}
+                    </span>
+                  </div>
+                )}
+                <div className="flex justify-between items-center">
+                  <span className="font-medium font-body text-imaginory-black">Amount Paid</span>
+                  <span className="font-bold font-body text-imaginory-black">$29.99</span>
+                </div>
+                {orderData.razorpayPaymentId && (
+                  <div className="flex justify-between items-center">
+                    <span className="font-medium font-body text-imaginory-black">Payment ID</span>
+                    <span className="text-sm text-muted-foreground font-mono">
+                      {orderData.razorpayPaymentId.slice(-10)}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
 
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Truck className="w-5 h-5" />
-              Shipping Information
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              <p className="font-medium">
-                {orderData.firstName} {orderData.lastName}
-              </p>
-              <p className="text-sm text-muted-foreground">
-                {orderData.address}
-              </p>
-              <p className="text-sm text-muted-foreground">
-                {orderData.city}, {orderData.state} {orderData.zip}
-              </p>
-              <p className="text-sm text-muted-foreground">
-                {orderData.country}
-              </p>
-            </div>
-            <div className="mt-4 p-3 bg-blue-50 rounded-lg">
-              <p className="text-sm text-blue-800">
-                📦 Your book will be printed and shipped within 3-5 business
-                days. You'll receive a tracking number via email once it ships.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+          <Card className="mb-6 border border-imaginory-yellow/20 shadow-lg">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-imaginory-black font-heading">
+                <Truck className="w-5 h-5 text-imaginory-yellow" />
+                Shipping Information
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                <p className="font-medium font-body text-imaginory-black">
+                  {orderData.firstName} {orderData.lastName}
+                </p>
+                <p className="text-sm text-muted-foreground font-body">
+                  {orderData.address}
+                </p>
+                <p className="text-sm text-muted-foreground font-body">
+                  {orderData.city}, {orderData.state} {orderData.zip}
+                </p>
+                <p className="text-sm text-muted-foreground font-body">
+                  {orderData.country}
+                </p>
+              </div>
+              <div className="mt-4 p-3 bg-imaginory-yellow/10 border border-imaginory-yellow/30 rounded-lg">
+                <p className="text-sm text-imaginory-black font-body">
+                  📦 Your book will be printed and shipped within 3-5 business
+                  days. You'll receive a tracking number via email once it ships.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Button
-            onClick={() => setLocation("/")}
-            variant="outline"
-            className="flex items-center gap-2"
-          >
-            <Home className="w-4 h-4" />
-            Go Home
-          </Button>
-          <Button
-            onClick={() => setLocation("/profile")}
-            className="flex items-center gap-2"
-          >
-            <BookOpen className="w-4 h-4" />
-            View My Books
-          </Button>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Button
+              onClick={() => setLocation("/")}
+              variant="outline"
+              className="imaginory-button-secondary flex items-center gap-2"
+            >
+              <Home className="w-4 h-4" />
+              Go Home
+            </Button>
+            <Button
+              onClick={() => setLocation("/profile")}
+              className="imaginory-button flex items-center gap-2"
+            >
+              <BookOpen className="w-4 h-4" />
+              View My Books
+            </Button>
+          </div>
+
+          <div className="mt-8 text-center text-sm text-muted-foreground font-body">
+            <p>Need help? Contact us at support@storypals.com</p>
+          </div>
         </div>
-
-        <div className="mt-8 text-center text-sm text-muted-foreground">
-          <p>Need help? Contact us at support@storypals.com</p>
-        </div>
-      </div>
+      </main>
     </div>
   );
 }

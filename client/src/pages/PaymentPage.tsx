@@ -178,10 +178,10 @@ export default function PaymentPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-50 flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="flex flex-col items-center gap-2">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-          <p className="text-muted-foreground">Loading order details...</p>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-imaginory-yellow"></div>
+          <p className="text-muted-foreground font-body">Loading order details...</p>
         </div>
       </div>
     );
@@ -189,11 +189,14 @@ export default function PaymentPage() {
 
   if (!orderData) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-50 flex items-center justify-center">
-        <Card className="max-w-md">
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Card className="max-w-md border border-imaginory-yellow/20 shadow-lg">
           <CardContent className="p-6 text-center">
-            <p className="text-muted-foreground">Order not found</p>
-            <Button onClick={() => setLocation("/")} className="mt-4">
+            <p className="text-muted-foreground font-body">Order not found</p>
+            <Button 
+              onClick={() => setLocation("/")} 
+              className="imaginory-button mt-4"
+            >
               Go Home
             </Button>
           </CardContent>
@@ -203,88 +206,89 @@ export default function PaymentPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-50 py-8">
-      <div className="container mx-auto px-4 max-w-2xl">
-        <div className="mb-6">
-          <Button
-            variant="ghost"
-            onClick={handleBackToOrder}
-            className="mb-4"
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Order
-          </Button>
-        </div>
-
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CreditCard className="w-5 h-5" />
-              Payment Details
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex justify-between">
-                <span className="font-medium">Custom Story Book</span>
-                <span className="font-bold">₹1.00</span>
-              </div>
-              <div className="flex justify-between text-sm text-muted-foreground">
-                <span>Shipping</span>
-                <span>Free</span>
-              </div>
-              <hr />
-              <div className="flex justify-between text-lg font-bold">
-                <span>Total</span>
-                <span>₹1.00</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Truck className="w-5 h-5" />
-              Shipping Information
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              <p className="font-medium">{orderData.firstName} {orderData.lastName}</p>
-              <p className="text-sm text-muted-foreground">{orderData.address}</p>
-              <p className="text-sm text-muted-foreground">
-                {orderData.city}, {orderData.state} {orderData.zip}
-              </p>
-              <p className="text-sm text-muted-foreground">{orderData.country}</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="mb-6">
-          <CardContent className="p-6">
-            <div className="flex items-center gap-3 text-sm text-muted-foreground mb-4">
-              <Shield className="w-4 h-4" />
-              <span>Secure payment powered by Razorpay</span>
-            </div>
+    <div className="min-h-screen bg-background">
+      <main className="py-8">
+        <div className="imaginory-container max-w-2xl">
+          <div className="mb-6">
             <Button
-              onClick={handlePayment}
-              disabled={isProcessing}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg text-lg shadow-lg hover:shadow-xl transition-all"
+              variant="ghost"
+              onClick={handleBackToOrder}
+              className="mb-4 text-imaginory-black hover:text-imaginory-yellow"
             >
-              {isProcessing ? "Processing..." : "Pay & Confirm Order"}
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to Order
             </Button>
-          </CardContent>
-        </Card>
+          </div>
 
-        {/* Policies Section */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Shield className="w-5 h-5" />
-              Shipping & Policies
-            </CardTitle>
-          </CardHeader>
+          <Card className="mb-6 border border-imaginory-yellow/20 shadow-lg">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-imaginory-black font-heading">
+                <CreditCard className="w-5 h-5 text-imaginory-yellow" />
+                Payment Details
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex justify-between">
+                  <span className="font-medium font-body text-imaginory-black">Custom Story Book</span>
+                  <span className="font-bold font-heading text-imaginory-black">₹1.00</span>
+                </div>
+                <div className="flex justify-between text-sm text-muted-foreground font-body">
+                  <span>Shipping</span>
+                  <span>Free</span>
+                </div>
+                <hr className="border-imaginory-yellow/30" />
+                <div className="flex justify-between text-lg font-bold font-heading text-imaginory-black">
+                  <span>Total</span>
+                  <span>₹1.00</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="mb-6 border border-imaginory-yellow/20 shadow-lg">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-imaginory-black font-heading">
+                <Truck className="w-5 h-5 text-imaginory-yellow" />
+                Shipping Information
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                <p className="font-medium font-body text-imaginory-black">{orderData.firstName} {orderData.lastName}</p>
+                <p className="text-sm text-muted-foreground font-body">{orderData.address}</p>
+                <p className="text-sm text-muted-foreground font-body">
+                  {orderData.city}, {orderData.state} {orderData.zip}
+                </p>
+                <p className="text-sm text-muted-foreground font-body">{orderData.country}</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="mb-6 border border-imaginory-yellow/20 shadow-lg">
+            <CardContent className="p-6">
+              <div className="flex items-center gap-3 text-sm text-muted-foreground mb-4 font-body">
+                <Shield className="w-4 h-4 text-imaginory-yellow" />
+                <span>Secure payment powered by Razorpay</span>
+              </div>
+              <Button
+                onClick={handlePayment}
+                disabled={isProcessing}
+                className="imaginory-button w-full py-3 px-8 text-lg shadow-lg hover:shadow-xl transition-all"
+              >
+                {isProcessing ? "Processing..." : "Pay & Confirm Order"}
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Policies Section */}
+          <Card className="mb-6 border border-imaginory-yellow/20 shadow-lg">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg text-imaginory-black font-heading">
+                <Shield className="w-5 h-5 text-imaginory-yellow" />
+                Shipping & Policies
+              </CardTitle>
+            </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid md:grid-cols-2 gap-6">
               <div>
@@ -328,12 +332,12 @@ export default function PaymentPage() {
               </div>
             </div>
             
-            <div className="border-t pt-4 mt-6">
-              <p className="text-xs text-gray-500 text-center">
+            <div className="border-t border-imaginory-yellow/30 pt-4 mt-6">
+              <p className="text-xs text-gray-500 text-center font-body">
                 By placing this order, you agree to our{" "}
                 <button 
                   onClick={() => setLocation("/terms-privacy")}
-                  className="text-blue-600 hover:underline font-medium"
+                  className="text-imaginory-yellow hover:text-imaginory-black hover:underline font-medium transition-colors"
                 >
                   Terms & Conditions and Privacy Policy
                 </button>
@@ -342,10 +346,11 @@ export default function PaymentPage() {
           </CardContent>
         </Card>
 
-        <div className="text-center text-sm text-muted-foreground">
-          <p>Your payment is secured with 256-bit SSL encryption</p>
+          <div className="text-center text-sm text-muted-foreground font-body">
+            <p>Your payment is secured with 256-bit SSL encryption</p>
+          </div>
         </div>
-      </div>
+      </main>
     </div>
   );
 }
