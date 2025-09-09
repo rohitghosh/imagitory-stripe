@@ -332,7 +332,7 @@ import {
   generateImageForScene,
   generateImageForFrontCover,
   generateFinalCoverWithTitle,
-} from "./imageGeneration";
+} from "./imageGenerationV2";
 import { DEFAULT_CHARACTER_IMAGES } from "../utils/constants";
 
 const openai = new OpenAI();
@@ -532,6 +532,7 @@ export async function generateCompleteStory(
     string,
     CharacterVariables
   > = DEFAULT_CHARACTER_IMAGES,
+  animationStyle: string = "pixar",
   onProgress?: ProgressCallback,
   bookId?: string,
   seed = 3,
@@ -563,6 +564,7 @@ export async function generateCompleteStory(
       scene,
       null,
       characterImageMap,
+      animationStyle,
       (phase, pct, msg) => {
         const overall = 40 + index * share + (pct / 100) * share;
         onProgress?.(phase, overall, msg);
@@ -602,6 +604,7 @@ export async function generateCompleteStory(
       finalBookId, // Use the consistent bookId
       story.front_cover,
       characterImageMap,
+      animationStyle,
       (phase, pct, msg) =>
         onProgress?.("generating_cover", 92 + (pct / 100) * 4, msg),
       seed,

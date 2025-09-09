@@ -1,12 +1,12 @@
-export type TextPart = { 
-  type: "text"; 
-  text: string; 
+export type TextPart = {
+  type: "text";
+  text: string;
 };
 
-export type ImageUrlPart = { 
-  type: "image_url"; 
-  url: string; 
-  mimeType?: string; 
+export type ImageUrlPart = {
+  type: "image_url";
+  url: string;
+  mimeType?: string;
 };
 
 export type Part = TextPart | ImageUrlPart;
@@ -14,7 +14,7 @@ export type Part = TextPart | ImageUrlPart;
 export type ImageGenConfig = {
   size?: "1024x1024" | "512x512" | string;
   quality?: "high" | "medium" | "low";
-  input_fidelity?: "high" | "medium" | "low";  // OpenAI tool param
+  input_fidelity?: "high" | "medium" | "low"; // OpenAI tool param
   seed?: number;
   output_format?: "png" | "webp" | "jpeg";
   n?: number;
@@ -29,7 +29,7 @@ export type ProviderMeta = {
   request_id?: string;
   usage?: any;
   raw_refs?: {
-    response_id?: string;  // OpenAI Responses API id for stateful regen
+    response_id?: string; // OpenAI Responses API id for stateful regen
   };
 };
 
@@ -43,6 +43,7 @@ export type ImageEngineInput = {
   model?: string;
   prompt_parts: Part[];
   previous_provider_ref?: { response_id?: string };
+  conversation_history?: ConversationTurn[]; // For multi-turn conversations
 };
 
 export interface ImageEngine {
@@ -66,6 +67,11 @@ export type ImageArtifact = {
   bytes?: number;
 };
 
+export type ConversationTurn = {
+  role: "user" | "model";
+  parts: Part[];
+};
+
 export type ImageJob = {
   provider: "openai" | "gemini";
   model: string;
@@ -77,6 +83,10 @@ export type ImageJob = {
   };
   provider_meta?: ProviderMeta;
   request_hash: string;
+  // New fields for job chaining
+  parent_job_id?: string; // Link to parent job for regenerations
+  regeneration_index?: number; // 0=original, 1=first regen, etc.
+  conversation_history?: ConversationTurn[]; // Full conversation for multi-turn
   createdAt: Date;
   updatedAt: Date;
 };
@@ -112,4 +122,8 @@ export type GenerationResult = {
 };
 
 // Progress callback type
-export type ProgressCallback = (phase: string, pct: number, message: string) => void;
+export type ProgressCallback = (
+  phase: string,
+  pct: number,
+  message: string,
+) => void;

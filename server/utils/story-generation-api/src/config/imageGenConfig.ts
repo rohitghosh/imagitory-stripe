@@ -1,8 +1,8 @@
 /**
  * Image Generation Configuration
  * Source of truth for all image generation settings
- * 
- * IMPORTANT: 
+ *
+ * IMPORTANT:
  * - OpenAI supports many configuration options (quality, input_fidelity, size, etc.)
  * - Gemini API has minimal config options per docs (only model selection)
  * - TEST_MODE env variable controls OpenAI quality settings for faster testing
@@ -29,44 +29,42 @@ export type GeminiImageConfig = {
 export const IMAGE_GEN_CONFIG = {
   // Current provider selection
   provider: (process.env.IMAGE_PROVIDER || "openai") as "openai" | "gemini",
-  
+
   // OpenAI configuration for different use cases
   openai: {
     // Scene generation settings
     scene: {
       size: "1024x1024",
       quality: "medium",
-      input_fidelity: "high", 
+      input_fidelity: "high",
       output_format: "png",
-      n: 1
     } as OpenAIImageConfig,
-    
+
     // Cover generation settings (higher quality)
     cover: {
       size: "1024x1024",
-      quality: "high",
+      quality: "medium",
       input_fidelity: "high",
-      output_format: "png", 
-      n: 1
+      output_format: "png",
     } as OpenAIImageConfig,
-    
+
     // Test mode overrides (uses TEST_MODE env variable)
     testMode: {
       quality: "low",
-      input_fidelity: "low"
-    } as Partial<OpenAIImageConfig>
+      input_fidelity: "low",
+    } as Partial<OpenAIImageConfig>,
   },
-  
+
   // Gemini configuration (minimal options available)
   gemini: {
     scene: {
-      model: "gemini-2.5-flash-image-preview"
+      model: "gemini-2.5-flash-image-preview",
     } as GeminiImageConfig,
-    
+
     cover: {
-      model: "gemini-2.5-flash-image-preview" 
-    } as GeminiImageConfig
-  }
+      model: "gemini-2.5-flash-image-preview",
+    } as GeminiImageConfig,
+  },
 };
 
 /**
@@ -74,15 +72,15 @@ export const IMAGE_GEN_CONFIG = {
  */
 export function getOpenAIConfig(type: "scene" | "cover"): OpenAIImageConfig {
   const baseConfig = { ...IMAGE_GEN_CONFIG.openai[type] };
-  
+
   // Apply test mode overrides if TEST_MODE env variable is set
   if (process.env.TEST_MODE === "true") {
     return {
       ...baseConfig,
-      ...IMAGE_GEN_CONFIG.openai.testMode
+      ...IMAGE_GEN_CONFIG.openai.testMode,
     };
   }
-  
+
   return baseConfig;
 }
 
@@ -112,10 +110,10 @@ export function setProvider(provider: "openai" | "gemini"): void {
  */
 export function updateOpenAIConfig(
   type: "scene" | "cover",
-  settings: Partial<OpenAIImageConfig>
+  settings: Partial<OpenAIImageConfig>,
 ): void {
   IMAGE_GEN_CONFIG.openai[type] = {
     ...IMAGE_GEN_CONFIG.openai[type],
-    ...settings
+    ...settings,
   };
 }

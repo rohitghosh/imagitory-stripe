@@ -17,6 +17,7 @@ import {
   BaseCoverRegenerationInput,
 } from "../types";
 import { DEFAULT_CHARACTER_IMAGES } from "../utils/constants";
+import { getStylePrompt } from "../config/animationStyles";
 
 type CharacterImageMap = Record<string, CharacterVariables>;
 
@@ -93,22 +94,7 @@ function ordinal(idx: number): string {
 }
 
 function styleLine(animationStyle?: string): string | null {
-  if (!animationStyle) return null;
-  const s = animationStyle.toLowerCase();
-  if (s === "pixar") {
-    return "Render in a **Pixar-style**: cinematic 3D look, soft global illumination, friendly proportions, expressive eyes, clean surfaces. Avoid studio logos or any text.";
-  }
-  if (s === "storybook-watercolor") {
-    return "Render in a **storybook watercolor** style: soft edges, gentle washes, visible paper texture, cozy palette, no outlines on backgrounds.";
-  }
-  if (s === "flat-vector") {
-    return "Render in a **flat vector** style: clean geometric shapes, minimal gradients, crisp edges, solid colors.";
-  }
-  if (s === "ghibli") {
-    return "Render with a **Ghibli-like** warmth: painterly backgrounds, natural light, gentle expressions, subtle texture.";
-  }
-  // default catch-all
-  return `Render in **${animationStyle}** style.`;
+  return getStylePrompt(animationStyle);
 }
 
 function fmtCharacterLine(c: any): string {

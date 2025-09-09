@@ -201,7 +201,7 @@
 //   const toolWith = buildImageGenTool({ hasInputImage: true });
 
 //   // const respWith = await client.responses.create({
-//   //   model: "gpt-4o-mini", // wrapper model
+//   //   model: "gpt-5-mini", // wrapper model
 //   //   input: inputsWith,
 //   //   tools: [toolWith],
 //   // });
@@ -231,7 +231,7 @@
 //   const toolText = buildImageGenTool({ hasInputImage: false });
 
 //   const respText = await client.responses.create({
-//     model: "gpt-4o-mini",
+//     model: "gpt-5-mini",
 //     input: inputsText,
 //     tools: [toolText],
 //   });
@@ -294,7 +294,6 @@ import util from "util";
 import { fileURLToPath } from "url";
 import { GoogleGenAI, Modality } from "@google/genai";
 import "dotenv/config";
-import https from "https";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

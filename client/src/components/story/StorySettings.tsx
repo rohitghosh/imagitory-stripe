@@ -73,17 +73,45 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { AnimationStyleSelection } from "./AnimationStyleSelection";
 
 interface StorySettingsProps {
-  onSubmit: (rhyming: boolean) => void;
+  onSubmit: (
+    rhyming: boolean,
+    animationStyle: string,
+    characterToonUrls?: Record<string, string>,
+  ) => void;
   onBack: () => void;
+  characterIds: string[]; // Main character + side characters
 }
 
-export function StorySettings({ onSubmit, onBack }: StorySettingsProps) {
+export function StorySettings({
+  onSubmit,
+  onBack,
+  characterIds,
+}: StorySettingsProps) {
   const [rhyming, setRhyming] = useState<boolean>(false);
+  const [animationStyle, setAnimationStyle] = useState<string>("pixar");
+  const [characterToonUrls, setCharacterToonUrls] = useState<
+    Record<string, string>
+  >({});
+  const [canGenerate, setCanGenerate] = useState<boolean>(true);
 
   const handleNext = () => {
-    onSubmit(rhyming);
+    onSubmit(rhyming, animationStyle, characterToonUrls);
+  };
+
+  const handleCartoonifyComplete = (results: Record<string, string>) => {
+    setCharacterToonUrls(results);
+    setCanGenerate(true);
+  };
+
+  const handleStyleChange = (styleId: string) => {
+    setAnimationStyle(styleId);
+    // Disable generate button until cartoonify completes
+    if (characterIds.length > 0) {
+      setCanGenerate(false);
+    }
   };
 
   return (
@@ -96,6 +124,15 @@ export function StorySettings({ onSubmit, onBack }: StorySettingsProps) {
               Configure your story preferences before generation.
             </p>
           </div>
+
+          {/* Animation Style Selection */}
+          <AnimationStyleSelection
+            selectedStyle={animationStyle}
+            onStyleChange={handleStyleChange}
+            characterIds={characterIds}
+            onCartoonifyComplete={handleCartoonifyComplete}
+            disabled={!canGenerate}
+          />
 
           {/* Rhyming Option */}
           <div className="bg-gray-50 rounded-lg p-4 md:p-6">
@@ -134,7 +171,8 @@ export function StorySettings({ onSubmit, onBack }: StorySettingsProps) {
 
             <Button
               onClick={handleNext}
-              className="bg-yellow-500 hover:bg-yellow-600 w-full md:w-auto"
+              disabled={!canGenerate}
+              className="bg-yellow-500 hover:bg-yellow-600 w-full md:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Generate Story
             </Button>

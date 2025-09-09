@@ -10,6 +10,7 @@ import { URL } from "url";
 import { expandImageToLeft, splitImageInHalf } from "./elementGeneration";
 import { uploadBase64ToFirebase } from "./uploadImage";
 import { jobTracker } from "../lib/jobTracker";
+
 // import {
 //   generateStoryScenesFromInputs,
 //   generateImageForScene,
@@ -1202,6 +1203,7 @@ export async function cartoonifyImage(imageUrl: string): Promise<string> {
   // const result = await fal.subscribe("fal-ai/image-editing/cartoonify", {
   //   input: { image_url: imageUrl },
   // });
+
   if (TEST_MODE) {
     return "https://v3.fal.media/files/penguin/D9g2chjiCZrFkDps_y9Zd.png"; // dummy cartoonified image
   } else {

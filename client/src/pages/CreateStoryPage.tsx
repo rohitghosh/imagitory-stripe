@@ -578,7 +578,6 @@
 // src/pages/CreateStoryPage.tsx
 // src/pages/CreateStoryPage.tsx
 
-
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import { useLocation, useParams } from "wouter";
@@ -810,7 +809,11 @@ export default function CreateStoryPage() {
   }
 
   /* ─────────────────────────── story settings and generation ──────────────────── */
-  function handleStorySettings(rhymingEnabled: boolean) {
+  function handleStorySettings(
+    rhymingEnabled: boolean,
+    animationStyle: string,
+    characterToonUrls?: Record<string, string>,
+  ) {
     setRhyming(rhymingEnabled);
 
     // Prepare character data for story generation
@@ -818,16 +821,23 @@ export default function CreateStoryPage() {
     const characterDescriptions = selectedSideChars.map(
       (char) => char.description || "",
     );
+
+    // Use cartoonified URLs if available, otherwise fallback to original images
     const characterImageMap = {
       [kidName]: {
-        image_url: activeChar.toonUrl || activeChar.imageUrls?.[0] || "",
+        image_url:
+          characterToonUrls?.[activeChar.id] ||
+          activeChar.toonUrl ||
+          activeChar.imageUrls?.[0] ||
+          "",
         description: `a ${activeChar.age} year old human kid`,
       },
       ...Object.fromEntries(
         selectedSideChars.map((char) => [
           char.name,
           {
-            image_url: char.toonUrl || char.avatar,
+            image_url:
+              characterToonUrls?.[char.id] || char.toonUrl || char.avatar,
             description: char.description || "",
           },
         ]),
@@ -851,6 +861,7 @@ export default function CreateStoryPage() {
       theme: finalTheme,
       subject: finalSubject,
       storyRhyming: rhymingEnabled,
+      animationStyle, // Add animation style to payload
       characters,
       characterDescriptions,
       characterImageMap,
@@ -1174,6 +1185,10 @@ export default function CreateStoryPage() {
                   <StorySettings
                     onSubmit={handleStorySettings}
                     onBack={() => setCurrentSubStep("subject")}
+                    characterIds={[
+                      activeChar?.id,
+                      ...selectedSideChars.map((char) => char.id),
+                    ].filter(Boolean)}
                   />
                 )}
               </div>
