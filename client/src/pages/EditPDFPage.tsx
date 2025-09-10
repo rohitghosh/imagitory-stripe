@@ -12,6 +12,16 @@
 // import { useIsMobile } from "@/hooks/use-mobile";
 // import { ProgressDisplay } from "@/components/ui/progress-display";
 // import { useJobProgress } from "@/hooks/use-job-progress";
+// // EditPDFPage.tsx (top of the file, with your other shadcn imports)
+// import {
+//   Dialog,
+//   DialogTrigger,
+//   DialogContent,
+//   DialogHeader,
+//   DialogTitle,
+//   DialogFooter,
+//   DialogClose,
+// } from "@/components/ui/dialog";
 
 // const FULL_W = 2048;
 // const FULL_H = 1024;
@@ -82,7 +92,7 @@
 //   }, []);
 
 //   // collect all unique urls from the book and pre-decode them
-//   React.useEffect(() => {
+//   useEffect(() => {
 //     if (!book) return;
 
 //     const urls = new Set<string>();
@@ -230,6 +240,7 @@
 //   setGlobalIsEditing,
 //   initialSide,
 //   isRhyming,
+//   setGlobalIsInteracting,
 // }) => {
 //   // Maintain local (internal) position state.
 //   const [localX, setLocalX] = useState(x);
@@ -249,102 +260,11 @@
 //   const didBootstrapRef = useRef(false);
 //   const [reflowMode, setReflowMode] = useState(false);
 //   const measureCanvasRef = useRef(null);
+//   const [operationInProgress, setOperationInProgress] = useState(false);
 
 //   if (!measureCanvasRef.current) {
 //     measureCanvasRef.current = document.createElement("canvas");
 //   }
-
-//   // Auto-resize to fit content
-//   const adjustSizeToContent = useCallback(() => {
-//     if (!textBoxRef.current || isEditingMode) return;
-
-//     // Create a temporary element to measure text dimensions
-//     const temp = document.createElement("div");
-//     temp.style.position = "absolute";
-//     temp.style.visibility = "hidden";
-//     temp.style.whiteSpace = "pre";
-//     temp.style.fontSize = fontSize + "px";
-//     temp.style.fontFamily = fontFamily;
-//     temp.style.fontWeight = fontWeight;
-//     temp.style.padding = "10px";
-//     temp.style.boxSizing = "border-box";
-//     temp.style.width = "auto";
-//     temp.style.height = "auto";
-//     temp.style.maxWidth = "400px"; // Reasonable max width
-//     temp.textContent = lines.join("\n") || " "; // Ensure at least some content
-
-//     document.body.appendChild(temp);
-
-//     const contentWidth = Math.max(temp.scrollWidth, 100); // Minimum width
-//     const contentHeight = Math.max(temp.scrollHeight, 40); // Minimum height
-
-//     document.body.removeChild(temp);
-
-//     // Only update if size changed significantly
-//     const threshold = 5;
-//     if (
-//       Math.abs(contentWidth - localWidth) > threshold ||
-//       Math.abs(contentHeight - localHeight) > threshold
-//     ) {
-//       setLocalWidth(contentWidth);
-//       setLocalHeight(contentHeight);
-//       if (didBootstrapRef.current) {
-//         onUpdate(
-//           {
-//             x: localX,
-//             y: localY,
-//             width: contentWidth,
-//             height: contentHeight,
-//             side: currentSide,
-//           },
-//           "auto",
-//         );
-//       }
-//     }
-//   }, [
-//     fontSize,
-//     fontFamily,
-//     fontWeight,
-//     lines,
-//     localX,
-//     localY,
-//     localWidth,
-//     localHeight,
-//     currentSide,
-//     onUpdate,
-//     isEditingMode,
-//   ]);
-
-//   // Sync internal position and size if parent's values change.
-//   useEffect(() => {
-//     setLocalX(x);
-//     setLocalY(y);
-//     setLocalWidth(width);
-//     setLocalHeight(height);
-//     setCurrentSide(initialSide);
-//   }, [x, y, width, height, initialSide]);
-
-//   // Auto-resize when content changes
-//   useEffect(() => {
-//     adjustSizeToContent();
-//   }, [adjustSizeToContent]);
-
-//   useEffect(() => {
-//     const id = Math.random().toString(36).slice(2, 7);
-//     setTimeout(() => {
-//       const box = textBoxRef.current?.closest(".rnd");
-//       if (box) {
-//         const r = box.getBoundingClientRect();
-//         // console.log(`📦 Box[${id}] mount`, {
-//         //   initX: x,
-//         //   initY: y,
-//         //   scaledX: r.left,
-//         //   scaledY: r.top,
-//         //   scale,
-//         // });
-//       }
-//     }, 0);
-//   }, []);
 
 //   const wrapText = useCallback(
 //     (text, maxWidthPx) => {
@@ -404,6 +324,144 @@
 //     [fontFamily, fontSize, fontWeight],
 //   );
 
+//   // Auto-resize to fit content
+//   const adjustSizeToContent = useCallback(() => {
+//     if (
+//       !textBoxRef.current ||
+//       isEditingMode ||
+//       reflowMode ||
+//       operationInProgress
+//     )
+//       return;
+
+//     // Create a temporary element to measure text dimensions
+//     const temp = document.createElement("div");
+//     temp.style.position = "absolute";
+//     temp.style.visibility = "hidden";
+//     temp.style.whiteSpace = "pre";
+//     temp.style.fontSize = fontSize + "px";
+//     temp.style.fontFamily = fontFamily;
+//     temp.style.fontWeight = fontWeight;
+//     temp.style.padding = "10px";
+//     temp.style.boxSizing = "border-box";
+//     temp.style.width = "auto";
+//     temp.style.height = "auto";
+//     temp.style.maxWidth = "400px"; // Reasonable max width
+//     temp.textContent = lines.join("\n") || " "; // Ensure at least some content
+
+//     document.body.appendChild(temp);
+
+//     const contentWidth = Math.max(temp.scrollWidth, 100); // Minimum width
+//     const contentHeight = Math.max(temp.scrollHeight, 40); // Minimum height
+
+//     document.body.removeChild(temp);
+
+//     // Only update if size changed significantly
+//     const threshold = 5;
+//     if (
+//       Math.abs(contentWidth - localWidth) > threshold ||
+//       Math.abs(contentHeight - localHeight) > threshold
+//     ) {
+//       setLocalWidth(contentWidth);
+//       setLocalHeight(contentHeight);
+//       if (didBootstrapRef.current) {
+//         onUpdate(
+//           {
+//             x: localX,
+//             y: localY,
+//             width: contentWidth,
+//             height: contentHeight,
+//             side: currentSide,
+//           },
+//           "auto",
+//         );
+//       }
+//     }
+//   }, [
+//     fontSize,
+//     fontFamily,
+//     fontWeight,
+//     lines,
+//     localX,
+//     localY,
+//     localWidth,
+//     localHeight,
+//     currentSide,
+//     onUpdate,
+//     isEditingMode,
+//     reflowMode,
+//     operationInProgress,
+//   ]);
+
+//   const reflowText = useCallback(
+//     (newWidth) => {
+//       if (isEditingMode || isRhyming || !lines.length) return;
+
+//       console.log("🔄 Starting text reflow:", {
+//         newWidth,
+//         currentLines: lines.length,
+//       });
+
+//       setReflowMode(true);
+
+//       // Join all text into a single paragraph
+//       const paragraph = lines.join(" ").replace(/\s+/g, " ").trim();
+
+//       // Calculate available text width (subtract padding)
+//       const maxTextWidth = Math.max(50, newWidth - 20); // 10px padding each side, min 50px
+
+//       // Wrap the text to fit the new width
+//       const wrappedLines = wrapText(paragraph, maxTextWidth);
+
+//       // console.log("🔄 Text reflow result:", {
+//       //   originalLines: lines.length,
+//       //   newLines: wrappedLines.length,
+//       //   maxTextWidth,
+//       //   paragraph: paragraph.substring(0, 50) + "..."
+//       // });
+
+//       // Only update if the lines actually changed
+//       if (wrappedLines.join("\n") !== lines.join("\n")) {
+//         onTextChange(wrappedLines, "text");
+//       }
+
+//       // Reset reflow mode after a short delay
+//       setTimeout(() => setReflowMode(false), 100);
+//     },
+//     [lines, wrapText, onTextChange, isEditingMode, isRhyming],
+//   );
+
+//   // Sync internal position and size if parent's values change.
+//   useEffect(() => {
+//     setLocalX(x);
+//     setLocalY(y);
+//     setLocalWidth(width);
+//     setLocalHeight(height);
+//     setCurrentSide(initialSide);
+//   }, [x, y, width, height, initialSide]);
+
+//   // Auto-resize when content changes
+//   useEffect(() => {
+//     adjustSizeToContent();
+//   }, [adjustSizeToContent]);
+
+//   useEffect(() => {
+//     const id = Math.random().toString(36).slice(2, 7);
+//     setTimeout(() => {
+//       const box = textBoxRef.current?.closest(".rnd");
+//       if (box) {
+//         const r = box.getBoundingClientRect();
+//         // console.log(`📦 Box[${id}] mount`, {
+//         //   initX: x,
+//         //   initY: y,
+//         //   scaledX: r.left,
+//         //   scaledY: r.top,
+//         //   scale,
+//         // });
+//       }
+//     }, 0);
+//   }, []);
+
 //   return (
 //     <Rnd
 //       scale={scale}
@@ -415,6 +473,8 @@
 //       onDragStart={() => {
 //         setIsDragging(true);
 //         setIsHovered(true); // Hide handles during drag
+
+//         setOperationInProgress(true);
 //       }}
 //       onDrag={(e, d) => {
 //         const newX = d.x;
@@ -466,31 +526,36 @@
 //         });
 //       }}
 //       onDragStop={(e, d) => {
-//         const finalX = d.x;
-//         const finalY = d.y;
-//         setLocalX(finalX);
-//         setLocalY(finalY);
-//         setIsDragging(false); // Reset dragging state
-//         onUpdate(
-//           {
-//             x: finalX,
-//             y: finalY,
-//             width: localWidth,
-//             height: localHeight,
+//         setTimeout(() => {
+//           const finalX = d.x;
+//           const finalY = d.y;
+//           setLocalX(finalX);
+//           setLocalY(finalY);
+//           setIsDragging(false); // Reset dragging state
+//           onUpdate(
+//             {
+//               x: finalX,
+//               y: finalY,
+//               width: localWidth,
+//               height: localHeight,
+//               side: currentSide,
+//             },
+//             "drag",
+//           );
+//           setOperationInProgress(false);
+
+//           console.log("📦 Box drag/resize", {
 //             side: currentSide,
-//           },
-//           "drag",
-//         );
-//         console.log("📦 Box drag/resize", {
-//           side: currentSide,
-//           x: localX,
-//           y: localY,
-//           scale,
-//         });
+//             x: localX,
+//             y: localY,
+//             scale,
+//           });
+//         }, 0);
 //       }}
 //       onResizeStart={() => {
 //         setIsDragging(true);
 //         setIsHovered(true); // Hide handles during resize
+//         setOperationInProgress(true);
 //       }}
 //       onResize={(e, direction, ref, delta, position) => {
 //         // Live-update size while resizing for smoother UX
@@ -504,43 +569,43 @@
 //         setLocalY(updatedY);
 //       }}
 //       onResizeStop={(e, direction, ref, delta, position) => {
-//         const updatedX = position.x;
-//         const updatedY = position.y;
-//         const newW = ref.offsetWidth;
-//         const newH = ref.offsetHeight;
-//         setLocalX(updatedX);
-//         setLocalY(updatedY);
-//         setLocalWidth(newW);
-//         setLocalHeight(newH);
-//         setIsDragging(false); // Reset dragging state
-//         onUpdate(
-//           {
-//             x: updatedX,
-//             y: updatedY,
-//             width: newW,
-//             height: newH,
-//             side: currentSide,
-//           },
-//           "resize",
-//         );
+//         setTimeout(() => {
+//           const updatedX = position.x;
+//           const updatedY = position.y;
+//           const newW = ref.offsetWidth;
+//           const newH = ref.offsetHeight;
+//           setLocalX(updatedX);
+//           setLocalY(updatedY);
+//           setLocalWidth(newW);
+//           setLocalHeight(newH);
+//           setIsDragging(false); // Reset dragging state
 
-//         if (!isRhyming) {
-//           setReflowMode(true);
-//           const paragraph = (lines || []).join(" ").replace(/\s+/g, " ").trim();
-//           const maxTextWidth = Math.max(0, newW - 20); // 10px padding each side
-//           const wrapped = wrapText(paragraph, maxTextWidth);
-//           if (wrapped.join("\n") !== (lines || []).join("\n")) {
-//             onTextChange(wrapped, "text");
-//             setTimeout(() => adjustSizeToContent(), 0);
+//           onUpdate(
+//             {
+//               x: updatedX,
+//               y: updatedY,
+//               width: newW,
+//               height: newH,
+//               side: currentSide,
+//             },
+//             "resize",
+//           );
+
+//           if (lines.length > 0) {
+//             setTimeout(() => {
+//               reflowText(newW);
+//             }, 50); // Small delay to ensure state is updated
 //           }
-//         }
 
-//         console.log("📦 Box drag/resize", {
-//           side: currentSide,
-//           x: localX,
-//           y: localY,
-//           scale,
-//         });
+//           setOperationInProgress(false);
+
+//           console.log("📦 Box drag/resize", {
+//             side: currentSide,
+//             x: localX,
+//             y: localY,
+//             scale,
+//           });
+//         }, 0);
 //       }}
 //       onMouseDown={(e) => e.stopPropagation()}
 //       onMouseEnter={() => {
@@ -692,6 +757,8 @@
 //   const [showShippingForm, setShowShippingForm] = useState(false);
 //   const [orderCompleted, setOrderCompleted] = useState(false);
 //   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+//   const [isInteracting, setIsInteracting] = useState(false);
+//   const [showSaveConfirm, setShowSaveConfirm] = useState(false);
 
 //   // Track changes for save functionality - start as false, only enable on actual changes
 //   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -1063,6 +1130,7 @@
 //     const targetUrls = target.map((p: any) => p.imageUrl).filter(Boolean);
 //     if (targetUrls.some((u: string) => !readyUrls.has(u))) {
 //       setNavLoading(true);
+
 //       await ensureReady(targetUrls);
 //       setNavLoading(false);
 //     }
@@ -1074,6 +1142,7 @@
 //     const targetUrl = fp?.imageUrl;
 //     if (targetUrl && !readyUrls.has(targetUrl)) {
 //       setNavLoading(true);
+
 //       await ensureReady([targetUrl]);
 //       setNavLoading(false);
 //     }
@@ -1103,7 +1172,7 @@
 //   const swipeHandlers = useSwipeable({
 //     onSwipedLeft: next,
 //     onSwipedRight: prev,
-//     disabled: !singlePageMode,
+//     disabled: !singlePageMode || isInteracting || isEditing,
 //     trackMouse: true,
 //   });
 
@@ -1335,7 +1404,8 @@
 
 //   // Save changes function using existing PUT endpoint
 //   const handleSaveChanges = async () => {
-//     if (!book || !hasUnsavedChanges) return;
+//     if (!book) return false;
+//     if (!hasUnsavedChanges) return true;
 
 //     setIsSaving(true);
 //     try {
@@ -1366,27 +1436,27 @@
 //             // Keep content, leftText, rightText as arrays - schema now supports both
 //           };
 
-//           console.log(`📊 Page ${page.scene_number} transformed for save:`, {
-//             original: {
-//               leftX: page.leftX,
-//               leftY: page.leftY,
-//               rightX: page.rightX,
-//               rightY: page.rightY,
-//             },
-//             scaled: {
-//               leftX: scaledLeftCoords.x,
-//               leftY: scaledLeftCoords.y,
-//               rightX: scaledRightCoords.x,
-//               rightY: scaledRightCoords.y,
-//             },
-//           });
+//           // console.log(`📊 Page ${page.scene_number} transformed for save:`, {
+//           //   original: {
+//           //     leftX: page.leftX,
+//           //     leftY: page.leftY,
+//           //     rightX: page.rightX,
+//           //     rightY: page.rightY,
+//           //   },
+//           //   scaled: {
+//           //     leftX: scaledLeftCoords.x,
+//           //     leftY: scaledLeftCoords.y,
+//           //     rightX: scaledRightCoords.x,
+//           //     rightY: scaledRightCoords.y,
+//           //   },
+//           // });
 
 //           return transformedPage;
 //         }),
 //       };
 
-//       console.log("Original book data:", book);
-//       console.log("Saving transformed book data:", transformedBook);
+//       // console.log("Original book data:", book);
+//       // console.log("Saving transformed book data:", transformedBook);
 
 //       const saveResp = await fetch(`/api/books/${bookId}`, {
 //         method: "PUT",
@@ -1410,6 +1480,7 @@
 //         title: "Success",
 //         description: "Book changes saved successfully.",
 //       });
+//       return true;
 //     } catch (error: any) {
 //       console.error("Save error:", error);
 //       toast({
@@ -1417,13 +1488,15 @@
 //         description: `Failed to save book changes: ${error.message}`,
 //         variant: "destructive",
 //       });
+//       return false;
 //     } finally {
 //       setIsSaving(false);
 //     }
 //   };
 
 //   const handlePrint = () => {
-//     setShowShippingForm(true);
+//     if (hasUnsavedChanges) setShowSaveConfirm(true);
+//     else setShowShippingForm(true);
 //   };
 
 //   const handleShippingSubmit = async (formData) => {
@@ -1730,6 +1803,7 @@
 //                               }
 //                               setGlobalIsEditing={setIsEditing}
 //                               isRhyming={!!book?.isStoryRhyming}
+//                               setGlobalIsInteracting={setIsInteracting}
 //                             />
 //                           )}
 //                         </ScalablePreview>
@@ -1836,7 +1910,7 @@
 //                 size="lg"
 //                 className={`w-full md:w-auto flex items-center justify-center shadow-lg font-semibold ${
 //                   hasUnsavedChanges
-//                     ? "bg-blue-600 hover:bg-blue-700 text-white border-2 border-blue-600"
+//                     ? "bg-imaginory-yellow hover:bg-imaginory-yellow text-imaginory-black border-2 border-imaginory-yellow"
 //                     : "bg-gray-100 border-2 border-gray-300 text-gray-400 cursor-not-allowed"
 //                 }`}
 //                 onClick={handleSaveChanges}
@@ -1886,17 +1960,75 @@
 //               </Button>
 //             </div>
 
-//             {showShippingForm && !orderCompleted && (
-//               <ShippingForm onSubmit={handleShippingSubmit} />
-//             )}
-//             {orderCompleted && (
-//               <div className="flex items-center justify-center bg-green-100 text-green-800 p-4 rounded-lg mb-8 max-w-md mx-auto mt-8">
-//                 <i className="fas fa-check-circle text-green-500 mr-2 text-xl"></i>
-//                 <span>
-//                   Order successfully placed! Your book will be delivered soon.
-//                 </span>
+//             {showSaveConfirm && (
+//               <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50">
+//                 <div className="bg-white rounded-xl shadow-2xl w-[min(92vw,420px)] p-6">
+//                   <h3 className="text-lg font-semibold">
+//                     Save changes before printing?
+//                   </h3>
+//                   <p className="text-sm text-gray-600 mt-2">
+//                     You have unsaved edits. Would you like to save them first?
+//                   </p>
+
+//                   <div className="mt-6 flex gap-3 justify-end">
+//                     <Button
+//                       variant="outline"
+//                       disabled={isSaving}
+//                       onClick={() => {
+//                         setShowSaveConfirm(false);
+//                         setShowShippingForm(true); // continue without saving
+//                       }}
+//                     >
+//                       No, continue
+//                     </Button>
+//                     <Button
+//                       disabled={isSaving}
+//                       onClick={async () => {
+//                         const ok = await handleSaveChanges();
+//                         if (ok) {
+//                           setShowSaveConfirm(false);
+//                           setShowShippingForm(true);
+//                         }
+//                       }}
+//                     >
+//                       {isSaving ? "Saving…" : "Yes, save & continue"}
+//                     </Button>
+//                   </div>
+//                 </div>
 //               </div>
 //             )}
+
+//             {/* ==========  PRINT & SHIP dialog ========== */}
+//             <Dialog open={showShippingForm} onOpenChange={setShowShippingForm}>
+//               {/* trigger is *already* your Print button; keep it as-is */}
+//               <DialogContent
+//                 className="max-w-screen-sm max-h-[90vh] overflow-y-auto"   // make form scroll inside modal
+//               >
+//                 <DialogHeader>
+//                   <DialogTitle>Shipping information</DialogTitle>
+//                 </DialogHeader>
+
+//                 {/*  A. show either the form or the success message  */}
+//                 {orderCompleted ? (
+//                   <div className="flex items-center justify-center bg-green-100 text-green-800 p-4 rounded-lg">
+//                     <i className="fas fa-check-circle mr-2 text-xl" />
+//                     Order successfully placed! Your book will be delivered soon.
+//                   </div>
+//                 ) : (
+//                   <ShippingForm onSubmit={handleShippingSubmit} />
+//                 )}
+
+//                 {/*  B. extra footer buttons if you need them  */}
+//                 {!orderCompleted && (
+//                   <DialogFooter>
+//                     <DialogClose asChild>
+//                       <button className="text-sm underline text-gray-500">Cancel</button>
+//                     </DialogClose>
+//                   </DialogFooter>
+//                 )}
+//               </DialogContent>
+//             </Dialog>
+
 //           </>
 //         )}
 //       </main>
@@ -1930,7 +2062,6 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 
-
 const FULL_W = 2048;
 const FULL_H = 1024;
 const HALF_W = FULL_W / 2;
@@ -1940,12 +2071,22 @@ const DEFAULT_FONT_SIZE = 22;
 const DEFAULT_FONT_FAMILY = "Cormorant Garamond";
 const DEFAULT_FONT_WEIGHT = 700;
 
+const INTRO_LEFT_ID = -100; // new blank page after cover (left)
+const INTRO_RIGHT_ID = -101; // new message page after cover (right)
+
 // Configuration for the pages:
 const MOBILE_BREAKPOINT = 768;
 const pageConfig = {
   finalWidth: LOGICAL_W,
   finalHeight: LOGICAL_H,
   idealMinContainerWidth: 2 * LOGICAL_W + 32,
+};
+
+const DEFAULT_MESSAGE_LAYOUT = {
+  x: pageConfig.finalWidth/2 - 20,
+  y: pageConfig.finalHeight/2 - 20 ,
+  width: pageConfig.finalWidth - 50, // leave a nice margin inside the border
+  height: pageConfig.finalHeight - 192,
 };
 
 function normalize(rawX: number, rawY: number) {
@@ -2149,6 +2290,7 @@ const ResizableTextBox = ({
   initialSide,
   isRhyming,
   setGlobalIsInteracting,
+  alwaysShowBorderWhenEmpty = false,
 }) => {
   // Maintain local (internal) position state.
   const [localX, setLocalX] = useState(x);
@@ -2169,6 +2311,8 @@ const ResizableTextBox = ({
   const [reflowMode, setReflowMode] = useState(false);
   const measureCanvasRef = useRef(null);
   const [operationInProgress, setOperationInProgress] = useState(false);
+
+  const isEmpty = !lines || lines.join("").trim() === "";
 
   if (!measureCanvasRef.current) {
     measureCanvasRef.current = document.createElement("canvas");
@@ -2529,9 +2673,11 @@ const ResizableTextBox = ({
       style={{
         border: isEditingMode
           ? "2px solid #3b82f6"
-          : isHovered && lines.join("").trim() !== ""
-            ? `2px solid ${color === "#ffffff" || color === "white" ? "#000000" : "#ffffff"}`
-            : "2px solid transparent",
+          : isEmpty && alwaysShowBorderWhenEmpty
+            ? "1px dashed #000"
+            : isHovered
+              ? `2px solid ${color === "#ffffff" || color === "white" ? "#000000" : "#000000"}`
+              : "2px solid transparent",
         cursor: isEditingMode ? "text" : "move",
         background: "transparent",
         boxSizing: "border-box",
@@ -2899,6 +3045,29 @@ export default function EditPDFPage() {
         fontFamily: DEFAULT_FONT_FAMILY,
         fontWeight: DEFAULT_FONT_WEIGHT,
       });
+
+      result.push({
+        id: INTRO_LEFT_ID,
+        side: "left",
+        custom: "blank", // tells renderer to draw a white page
+        content: [],
+      });
+      result.push({
+        id: INTRO_RIGHT_ID,
+        side: "right",
+        custom: "message", // tells renderer to use DecorativeMessageFrame + text box
+        content: book?.personalMessageLines ?? [],
+        x: book?.personalMessageLayout?.x ?? DEFAULT_MESSAGE_LAYOUT.x,
+        y: book?.personalMessageLayout?.y ?? DEFAULT_MESSAGE_LAYOUT.y,
+        width:
+          book?.personalMessageLayout?.width ?? DEFAULT_MESSAGE_LAYOUT.width,
+        height:
+          book?.personalMessageLayout?.height ?? DEFAULT_MESSAGE_LAYOUT.height,
+        fontSize: book?.personalMessageFontSize ?? DEFAULT_FONT_SIZE,
+        color: book?.personalMessageColor ?? "#000000",
+        fontFamily: book?.personalMessageFontFamily ?? DEFAULT_FONT_FAMILY,
+        fontWeight: DEFAULT_FONT_WEIGHT,
+      });
     }
     book.pages.forEach((p) => {
       if (!p.isCover && !p.isBackCover) {
@@ -3086,6 +3255,25 @@ export default function EditPDFPage() {
 
   function updatePageLayout(fp, newLayout, cause = "drag") {
     console.log("🔄 updatePageLayout called:", { fpId: fp.id, newLayout });
+
+    if (fp.id === INTRO_RIGHT_ID) {
+      setBook((prev: any) =>
+        !prev
+          ? prev
+          : {
+              ...prev,
+              personalMessageLayout: {
+                x: newLayout.x,
+                y: newLayout.y,
+                width: newLayout.width,
+                height: newLayout.height,
+              },
+            },
+      );
+      if (cause !== "auto") setHasUnsavedChanges(true);
+      return;
+    }
+
     const origPageId = Math.floor(fp.id / 1000);
     setBook((prev) => {
       if (!prev) return prev;
@@ -3118,6 +3306,17 @@ export default function EditPDFPage() {
   }
 
   function updatePageText(fp, newValue, cause = "text") {
+    if (fp.id === INTRO_RIGHT_ID) {
+      const newLines = Array.isArray(newValue)
+        ? newValue
+        : (newValue.right ?? newValue.left ?? []);
+      setBook((prev: any) =>
+        !prev ? prev : { ...prev, personalMessageLines: newLines },
+      );
+      if (cause !== "auto") setHasUnsavedChanges(true);
+      return;
+    }
+
     const origPageId = Math.floor(fp.id / 1000);
     setBook((prev) => {
       if (!prev) return prev;
@@ -3603,24 +3802,16 @@ export default function EditPDFPage() {
                 )}
                 <div className="flex gap-0.5 justify-center w-full">
                   {pagesToRender.map((fp) => {
+                    const isCustomBlank = fp.custom === "blank";
+                    const isCustomMessage = fp.custom === "message";
+                    const isCustom = isCustomBlank || isCustomMessage;
+
                     const isPreloaded = readyUrls.has(fp.imageUrl);
                     const isImageLoaded = loadedImages.has(fp.imageUrl);
-                    const isFullyReady = isPreloaded && isImageLoaded;
+                    const isFullyReady = isCustom
+                      ? true
+                      : isPreloaded && isImageLoaded;
 
-                    // ── Log 4: show every frame's key props before rendering
-                    // console.log("🖼️ Render FP", {
-                    //   id: fp.id,
-                    //   x: fp.x,
-                    //   y: fp.y,
-                    //   width: fp.width,
-                    //   height: fp.height,
-                    //   scale: currentScale,
-                    //   isPreloaded,
-                    //   isImageLoaded,
-                    //   isFullyReady,
-                    // });
-
-                    // Resolve latest color from book state to reflect immediate updates
                     let resolvedColor = fp.color ?? "#000000";
                     if (book && typeof fp.id === "number" && fp.id >= 0) {
                       const originalId = Math.floor(fp.id / 1000);
@@ -3649,7 +3840,7 @@ export default function EditPDFPage() {
                             ? "100%"
                             : pageConfig.finalWidth,
                           height: singlePageMode
-                            ? pageConfig.finalHeight / 2
+                            ? pageConfig.finalHeight
                             : pageConfig.finalHeight,
                           maxWidth: singlePageMode
                             ? "100%"
@@ -3662,6 +3853,10 @@ export default function EditPDFPage() {
                           handleSelectPage(fp.id);
                         }}
                       >
+                        {isCustom && (
+                          <div className="pointer-events-none absolute inset-0.5 border border-black z-10" />
+                        )}
+                        
                         <ScalablePreview onScaleChange={setCurrentScale}>
                           {/* {console.log(
                             "🎨 Image slice",
@@ -3677,8 +3872,79 @@ export default function EditPDFPage() {
                             </div>
                           )}
 
+                          {isCustom && (
+                            <>
+                              {/* Left intro page: clean white */}
+                              {isCustomBlank && (
+                                <div className="absolute inset-0 bg-white" />
+                              )}
+
+                              {/* Right intro page: decorative frame + message area */}
+                              {isCustomMessage && (
+                                <>
+                                  <img
+                                    src="/frame_imagitory.png"
+                                    alt=""
+                                    draggable={false}
+                                    className="absolute inset-0 w-full h-full pointer-events-none select-none"
+                                    style={{ objectFit: "fill" }}
+                                  />
+                                  {/* Optional helper hint if empty */}
+                                  {(!fp.content ||
+                                    fp.content.join("").trim() === "") && (
+                                      <div
+                                        className="absolute left-1/2 -translate-x-1/2 top-[26%] w-[52%] text-center text-sm text-gray-600 select-none pointer-events-none z-10"
+                                        style={{ lineHeight: 1.35 }}
+                                      >
+                                      Type your personal message here, or leave
+                                      this page blank to handwrite it later.
+                                    </div>
+                                  )}
+
+                                  <ResizableTextBox
+                                    x={fp.x ?? DEFAULT_MESSAGE_LAYOUT.x}
+                                    y={fp.y ?? DEFAULT_MESSAGE_LAYOUT.y}
+                                    width={
+                                      fp.width ?? DEFAULT_MESSAGE_LAYOUT.width
+                                    }
+                                    height={
+                                      fp.height ?? DEFAULT_MESSAGE_LAYOUT.height
+                                    }
+                                    fontSize={
+                                      book?.personalMessageFontSize ??
+                                      fp.fontSize ??
+                                      DEFAULT_FONT_SIZE
+                                    }
+                                    color={resolvedColor}
+                                    fontFamily={
+                                      book?.personalMessageFontFamily ??
+                                      fp.fontFamily ??
+                                      DEFAULT_FONT_FAMILY
+                                    }
+                                    fontWeight={
+                                      fp.fontWeight ?? DEFAULT_FONT_WEIGHT
+                                    }
+                                    lines={fp.content ?? []}
+                                    scale={currentScale}
+                                    initialSide="right"
+                                    onUpdate={(newLayout) =>
+                                      updatePageLayout(fp, newLayout)
+                                    }
+                                    onTextChange={(newValue) =>
+                                      updatePageText(fp, newValue)
+                                    }
+                                    setGlobalIsEditing={setIsEditing}
+                                    isRhyming={!!book?.isStoryRhyming}
+                                    setGlobalIsInteracting={setIsInteracting}
+                                    alwaysShowBorderWhenEmpty
+                                  />
+                                </>
+                              )}
+                            </>
+                          )}
+
                           {/* Image - render as soon as preloaded, but may still be loading visually */}
-                          {isPreloaded && (
+                          {!isCustom && isPreloaded && (
                             <PageImage
                               url={fp.imageUrl}
                               side={fp.side ?? (fp.id % 2 ? "right" : "left")}
@@ -3688,7 +3954,7 @@ export default function EditPDFPage() {
                           )}
 
                           {/* Text box - only show after image is completely loaded */}
-                          {isFullyReady && (
+                          {!isCustom && isFullyReady && (
                             <ResizableTextBox
                               x={fp.x ?? 50}
                               y={fp.y ?? 50}
@@ -3910,7 +4176,7 @@ export default function EditPDFPage() {
             <Dialog open={showShippingForm} onOpenChange={setShowShippingForm}>
               {/* trigger is *already* your Print button; keep it as-is */}
               <DialogContent
-                className="max-w-screen-sm max-h-[90vh] overflow-y-auto"   // make form scroll inside modal
+                className="max-w-screen-sm max-h-[90vh] overflow-y-auto" // make form scroll inside modal
               >
                 <DialogHeader>
                   <DialogTitle>Shipping information</DialogTitle>
@@ -3930,13 +4196,14 @@ export default function EditPDFPage() {
                 {!orderCompleted && (
                   <DialogFooter>
                     <DialogClose asChild>
-                      <button className="text-sm underline text-gray-500">Cancel</button>
+                      <button className="text-sm underline text-gray-500">
+                        Cancel
+                      </button>
                     </DialogClose>
                   </DialogFooter>
                 )}
               </DialogContent>
             </Dialog>
-
           </>
         )}
       </main>
