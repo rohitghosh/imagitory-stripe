@@ -929,15 +929,17 @@ export default function CreateStoryPage() {
     if (isFirstTime) {
       // First-time users: Generate story immediately (skip payment)
       log("First-time user: generating story directly", payload);
-      setCurrentStep(3); // Step 3 for first-time users (no payment step)
+      setCurrentStep(4); // Step 4 for "Preview & Download" (skipping payment step)
       generateStory(payload);
     } else {
-      // Returning users: Show payment step first
-      log("Returning user: requiring payment before story generation");
+      // Returning users: Skip shipping form and go directly to payment
+      log("Returning user: creating order and redirecting to payment");
       setPendingStoryPayload(payload);
       // Store payload in localStorage so it survives payment redirect
       localStorage.setItem('pendingStoryPayload', JSON.stringify(payload));
-      setCurrentStep(3); // Go to payment step
+      
+      // Create order and redirect to payment directly, passing payload to avoid race condition
+      handleDirectPayment(payload);
     }
   }
 
@@ -961,6 +963,57 @@ export default function CreateStoryPage() {
   }
 
   /* ─────────────────────────── payment handling ──────────────────── */
+  async function handleDirectPayment(payload: any) {
+    try {
+      if (!user) {
+        toast({
+          title: "Authentication required",
+          description: "Please log in to continue with payment.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (!bookId) {
+        toast({
+          title: "Missing book",
+          description: "Book ID is required to create an order.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      console.log("🚀 Creating order for direct payment (no shipping form)");
+      // Create order with minimal required data, shipping can be collected later if needed
+      const orderResponse = await apiRequest("POST", "/api/orders", {
+        bookId,
+        userId: user.uid,
+        // Provide default values for shipping fields (can be updated later if needed)
+        firstName: user.displayName?.split(' ')[0] || 'Customer',
+        lastName: user.displayName?.split(' ')[1] || '',
+        address: 'TBD', // To Be Determined - can be updated later
+        city: 'TBD',
+        state: 'TBD',
+        zip: '00000',
+        country: 'US',
+      });
+
+      console.log("✅ Order created, redirecting to payment:", orderResponse);
+      // Redirect to payment page
+      setLocation(`/payment/${orderResponse.id}`);
+    } catch (error) {
+      console.error("❌ Order creation failed:", error);
+      toast({
+        title: "Order failed",
+        description: "There was a problem creating your order. Please try again.",
+        variant: "destructive",
+      });
+      
+      // Reset to settings step on failure to allow retry
+      setCurrentSubStep("settings");
+    }
+  }
+
   async function handlePaymentSubmit(formData: any) {
     try {
       if (user && pendingStoryPayload) {
