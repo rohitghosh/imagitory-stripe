@@ -1,5 +1,11 @@
 import { storage } from "../../../../storage";
-import { ImageJob, ImageArtifact, JobStatus, ProviderMeta } from "./types";
+import {
+  ImageJob,
+  ImageArtifact,
+  JobStatus,
+  ProviderMeta,
+  ConversationTurn,
+} from "./types";
 
 /**
  * Generate a unique job ID
@@ -25,9 +31,11 @@ export async function createJob(
     updatedAt: now,
   };
 
-  // Atomic nested-field write to avoid read-modify-write races
+  // Use read-modify-write to ensure proper nested structure for imageJobs
   await storage.updateBookFields(conversationId, {
-    [`imageJobs.${jobId}`]: job,
+    imageJobs: {
+      [jobId]: job,
+    },
   });
 
   return jobId;
@@ -42,27 +50,20 @@ export async function markJobStatus(
   status: JobStatus,
   updates: Partial<Pick<ImageJob, "output_summary" | "provider_meta">> = {},
 ): Promise<void> {
-  // Atomic upsert of job status and optional fields
+  // Build the job update object with proper nested structure
   const now = new Date();
-  const updatePayload: Record<string, any> = {
-    [`imageJobs.${jobId}.status`]: status,
-    [`imageJobs.${jobId}.updatedAt`]: now,
+  const jobUpdate: Partial<ImageJob> = {
+    status,
+    updatedAt: now,
+    ...updates,
   };
-  if (updates.output_summary) {
-    if (updates.output_summary.images) {
-      updatePayload[`imageJobs.${jobId}.output_summary.images`] =
-        updates.output_summary.images;
-    }
-    if (typeof updates.output_summary.text !== "undefined") {
-      // Only set when provided to avoid undefined writes; if empty string allowed, it will set
-      updatePayload[`imageJobs.${jobId}.output_summary.text`] =
-        updates.output_summary.text;
-    }
-  }
-  if (updates.provider_meta) {
-    updatePayload[`imageJobs.${jobId}.provider_meta`] = updates.provider_meta;
-  }
-  await storage.updateBookFields(conversationId, updatePayload);
+
+  // Use nested structure instead of dot notation
+  await storage.updateBookFields(conversationId, {
+    imageJobs: {
+      [jobId]: jobUpdate,
+    },
+  });
 }
 
 /**
@@ -75,13 +76,28 @@ export async function appendArtifact(
 ): Promise<string> {
   const artifactId = `artifact_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-  // Append artifact atomically without reading the whole object
+  // Get current job to preserve existing artifacts
+  const currentJob = await loadJob(conversationId, jobId);
+  if (!currentJob) {
+    throw new Error(`Job ${jobId} not found when trying to append artifact`);
+  }
+
   const artifactData = { ...artifact, createdAt: new Date() };
+  const currentArtifacts = currentJob.artifacts || {};
+
+  // Use nested structure to update artifacts
   await storage.updateBookFields(conversationId, {
-    // Initialize artifacts map for this job if missing, then set child
-    // Firestore update will create the nested path if imageJobs/jobId exists.
-    [`imageJobs.${jobId}.artifacts.${artifactId}`]: artifactData,
+    imageJobs: {
+      [jobId]: {
+        ...currentJob,
+        artifacts: {
+          ...currentArtifacts,
+          [artifactId]: artifactData,
+        },
+      },
+    },
   });
+
   return artifactId;
 }
 
@@ -92,7 +108,22 @@ export async function loadJob(
   conversationId: string,
   jobId: string,
 ): Promise<ImageJob | null> {
-  const book = await storage.getBook(conversationId);
+  // Use getBookById to match what the regenerateImage route uses
+  const book = await storage.getBookById(conversationId);
+  console.log(
+    `[DEBUG] loadJob: Looking for jobId=${jobId} in conversationId=${conversationId}`,
+  );
+  console.log(`[DEBUG] loadJob: book exists? ${!!book}`);
+  console.log(
+    `[DEBUG] loadJob: book.imageJobs exists? ${!!(book as any)?.imageJobs}`,
+  );
+  console.log(
+    `[DEBUG] loadJob: book.imageJobs keys: ${book && (book as any).imageJobs ? Object.keys((book as any).imageJobs).join(",") : "none"}`,
+  );
+  console.log(
+    `[DEBUG] loadJob: direct job lookup is null? ${(book as any)?.imageJobs?.[jobId] ? "no" : "yes"}`,
+  );
+
   return (book as any)?.imageJobs?.[jobId] || null;
 }
 
@@ -117,7 +148,7 @@ export async function getJobArtifacts(
   conversationId: string,
   jobId: string,
 ): Promise<(ImageArtifact & { id: string })[]> {
-  const book = await storage.getBook(conversationId);
+  const book = await storage.getBookById(conversationId);
   const job = (book as any)?.imageJobs?.[jobId];
 
   if (!job || !job.artifacts) {
@@ -128,4 +159,32 @@ export async function getJobArtifacts(
     id,
     ...(artifact as any),
   })) as (ImageArtifact & { id: string })[];
+}
+
+/**
+ * Update conversation history for a job
+ */
+export async function updateJobConversationHistory(
+  conversationId: string,
+  jobId: string,
+  conversationHistory: ConversationTurn[],
+): Promise<void> {
+  // Get current job to preserve other fields
+  const currentJob = await loadJob(conversationId, jobId);
+  if (!currentJob) {
+    throw new Error(
+      `Job ${jobId} not found when trying to update conversation history`,
+    );
+  }
+
+  // Use nested structure to update conversation history
+  await storage.updateBookFields(conversationId, {
+    imageJobs: {
+      [jobId]: {
+        ...currentJob,
+        conversation_history: conversationHistory,
+        updatedAt: new Date(),
+      },
+    },
+  });
 }

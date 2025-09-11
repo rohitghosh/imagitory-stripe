@@ -238,7 +238,8 @@ export const characterSchema = z.object({
     .optional(),
   createdAt: z.date(),
   modelId: z.string().optional(),
-  toonUrl: z.string().url().optional(),
+  toonUrl: z.string().url().optional(), // Legacy field for backwards compatibility
+  toonUrls: z.record(z.string(), z.string().url()).optional(), // New field: animationStyle -> toonUrl mapping
 });
 export type Character = z.infer<typeof characterSchema>;
 

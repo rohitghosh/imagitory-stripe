@@ -1,10 +1,4 @@
 // import type { Express, Request, Response, NextFunction } from "express";
-// import {
-//   DEFAULT_FONT_SIZE,
-//   DEFAULT_FONT_FAMILY,
-//   FULL_W,
-//   FULL_H,
-// } from "./constants";
 // import express from "express";
 // import { useLocation } from "wouter";
 // import { createServer, type Server } from "http";
@@ -30,16 +24,16 @@
 // import path from "path";
 // import {
 //   trainCustomModel,
-//   generateStoryImages,
 //   generateImage,
-//   buildFullPrompt,
-//   generateBackCoverImage,
 //   generateGuidedImage,
-//   generateAvatarImage,
-//   generateSceneData,
-//   generateStoryImagesWithAvatar,
+//   buildFullPrompt,
 //   cartoonifyImage,
-//   generateStoryPackage,
+//   // generateStoryImages, // Not found
+//   // generateBackCoverImage, // Not found
+//   // generateAvatarImage, // Not found
+//   // generateSceneData, // Not found
+//   // generateStoryImagesWithAvatar, // Not found
+//   // generateStoryPackage, // Not found
 // } from "./utils/trainAndGenerate";
 // import { generateCompleteStory } from "./utils/story-generation-api/src/services/storyGeneration";
 // import admin from "./firebaseAdmin";
@@ -49,11 +43,18 @@
 //   expandImageToRight,
 //   splitImageInHalf,
 // } from "./utils/elementGeneration";
-// import { pickContrastingTextColor } from "./utils/textColorUtils";
-// import { loadBase64Image } from "./utils/layouts";
+// // import { pickContrastingTextColor } from "./utils/textColorUtils"; // Not found
+// // import { loadBase64Image } from "./utils/layouts"; // Not found
 // import { uploadBase64ToFirebase } from "./utils/uploadImage";
 // import { jobTracker } from "./lib/jobTracker";
 // import Razorpay from "razorpay";
+
+// import { jobTracker, type JobState } from "./lib/jobTracker";
+// import { ANIMATION_STYLES } from "./utils/story-generation-api/src/config/animationStyles";
+// import {
+//   getOrGenerateCartoonifiedImage,
+//   getOrGenerateMultipleCartoonifiedImages,
+// } from "./utils/story-generation-api/src/services/animationStyleService";
 
 // import { validateStoryInputs } from "./utils/story-generation-api/src/routes/validation";
 // import { validateCharacterArrays } from "./utils/story-generation-api/src/utils/helpers";
@@ -67,10 +68,9 @@
 
 // import {
 //   regenerateSceneImage,
-//   regenerateCoverImage,
 //   regenerateBaseCoverImage,
 //   generateFinalCoverWithTitle,
-// } from "./utils/story-generation-api/src/services/imageGeneration";
+// } from "./utils/story-generation-api/src/services/imageGenerationV2";
 
 // type StoryResult = {
 //   pages: string[];
@@ -597,6 +597,8 @@
 //       theme,
 //       subject,
 //       storyRhyming,
+
+//       animationStyle = "pixar", // Default to pixar if not provided
 //       characters,
 //       characterDescriptions,
 //       characterImageMap,
@@ -689,6 +691,7 @@
 //             characterDescriptions,
 //           },
 //           characterImageMap,
+//           animationStyle,
 //           (phase, pct, msg) => {
 //             if (phase === "reasoning") {
 //               // always append the token log
@@ -735,41 +738,6 @@
 //     })();
 //   });
 
-//   // app.post("/api/regenerateImage", async (req: Request, res: Response) => {
-//   //   try {
-//   //     const { bookId, pageId, sceneResponseId, revisedPrompt } = req.body;
-
-//   //     const book = await storage.getBookById(bookId);
-//   //     if (!book) return res.status(404).json({ error: "Book not found" });
-
-//   //     /* 1️⃣   identify the page by scene_number */
-//   //     const oldPage = book.pages?.find((p: any) => p.scene_number === pageId);
-//   //     if (!oldPage) {
-//   //       return res.status(400).json({ error: "Page not found" });
-//   //     }
-
-//   //     /* 3️⃣   call your image service */
-//   //     const { firebaseUrl: newUrl, responseId: newResponseId } =
-//   //       await regenerateSceneImage(bookId, sceneResponseId, revisedPrompt);
-
-//   //     /* 4️⃣   build the updated list */
-//   //     const updatedPages = book.pages.map((p: any) =>
-//   //       p.scene_number === pageId
-//   //         ? { ...p, imageUrl: newUrl, scene_response_id: newResponseId }
-//   //         : p,
-//   //     );
-
-//   //     /* 5️⃣   persist */
-//   //     await storage.updateBook(bookId, { pages: updatedPages });
-
-//   //     res.status(200).json({ newUrl });
-//   //   } catch (error: any) {
-//   //     if (DEBUG_LOGGING) console.error("[/api/regenerateImage] error:", error);
-//   //     res.status(500).json({
-//   //       error: error.message || "Image regeneration failed",
-//   //     });
-//   //   }
-//   // });
 //   app.post("/api/regenerateImage", async (req: Request, res: Response) => {
 //     try {
 //       const { bookId, pageId, sceneResponseId, revisedPrompt } = req.body;
@@ -786,12 +754,17 @@
 //       const currentIndex = oldPage.current_scene_index || 0;
 
 //       // Use the last response ID if not provided
+//       // For regeneration, we should ALWAYS use the LATEST response ID, not the currently displayed one
 //       const responseId =
 //         sceneResponseId ||
-//         getCurrentFromArray(
-//           oldPage.sceneResponseIds || oldPage.sceneResponseId,
-//           currentIndex,
-//         );
+//         (() => {
+//           const responseIds = ensureArray(
+//             oldPage.sceneResponseIds || oldPage.sceneResponseId,
+//           );
+//           return responseIds.length > 0
+//             ? responseIds[responseIds.length - 1]
+//             : null;
+//         })();
 
 //       const { firebaseUrl: newUrl, responseId: newResponseId } =
 //         await regenerateSceneImage(bookId, responseId, revisedPrompt);
@@ -833,58 +806,6 @@
 //     }
 //   });
 
-//   // app.post("/api/regenerateCover", async (req: Request, res: Response) => {
-//   //   try {
-//   //     const { bookId, coverInputs, title, coverResponseId, revisedPrompt } =
-//   //       req.body;
-
-//   //     const book = await storage.getBookById(bookId);
-//   //     if (!book) return res.status(404).json({ error: "Book not found" });
-
-//   //     const prevSeed =
-//   //       book.cover?.base_cover_inputs?.seed ??
-//   //       book.cover?.final_cover_inputs?.seed ??
-//   //       3;
-
-//   //     const seed = Math.floor(Math.random() * 1_000_000);
-
-//   //     // const newBaseCoverUrl = await regenerateBaseCoverImage(coverInputs, seed);
-//   //     const { firebaseUrl: newBaseCoverUrl, responseId: newResponseId } =
-//   //       await regenerateBaseCoverImage(bookId, coverResponseId, revisedPrompt);
-
-//   //     // Then add title to create final cover
-//   //     const newFinalCoverUrl = await generateFinalCoverWithTitle(
-//   //       bookId,
-//   //       newBaseCoverUrl,
-//   //       title,
-//   //       seed,
-//   //     );
-
-//   //     const updatedCover = {
-//   //       ...book.cover,
-//   //       base_cover_inputs: { ...coverInputs, seed },
-//   //       final_cover_inputs: { ...(book.cover?.final_cover_inputs ?? {}), seed },
-//   //       base_cover_url: newBaseCoverUrl,
-//   //       final_cover_url: newFinalCoverUrl,
-//   //       base_cover_response_id: newResponseId,
-//   //     };
-
-//   //     console.log("updatedCover:", updatedCover);
-//   //     await storage.updateBook(bookId, { cover: updatedCover });
-
-//   //     res.status(200).json({ newUrl: newFinalCoverUrl });
-//   //   } catch (error: any) {
-//   //     if (DEBUG_LOGGING)
-//   //       console.error(
-//   //         "[/api/regenerateImage] Image regeneration error:",
-//   //         error,
-//   //       );
-//   //     res
-//   //       .status(500)
-//   //       .json({ error: error.message || "Image regeneration failed" });
-//   //   }
-//   // });
-
 //   app.post("/api/regenerateCover", async (req: Request, res: Response) => {
 //     try {
 //       const { bookId, coverInputs, title, coverResponseId, revisedPrompt } =
@@ -897,13 +818,18 @@
 //       const currentIndex = book.cover?.current_base_cover_index || 0;
 
 //       // Use the last response ID if not provided
+//       // For regeneration, we should ALWAYS use the LATEST response ID, not the currently displayed one
 //       const responseId =
 //         coverResponseId ||
-//         getCurrentFromArray(
-//           book.cover?.base_cover_response_ids ||
-//             book.cover?.base_cover_response_id,
-//           currentIndex,
-//         );
+//         (() => {
+//           const responseIds = ensureArray(
+//             book.cover?.base_cover_response_ids ||
+//               book.cover?.base_cover_response_id,
+//           );
+//           return responseIds.length > 0
+//             ? responseIds[responseIds.length - 1]
+//             : null;
+//         })();
 
 //       const seed = Math.floor(Math.random() * 1_000_000);
 
@@ -961,6 +887,34 @@
 //         .json({ error: error.message || "Image regeneration failed" });
 //     }
 //   });
+
+//   // Get artifacts for a specific job ID
+//   app.get(
+//     "/api/jobs/:bookId/:jobId/artifacts",
+//     async (req: Request, res: Response) => {
+//       try {
+//         const { bookId, jobId } = req.params;
+
+//         // Import the historyStore function
+//         const { getJobArtifacts } = await import(
+//           "./utils/story-generation-api/src/core/historyStore"
+//         );
+
+//         const artifacts = await getJobArtifacts(bookId, jobId);
+
+//         res.status(200).json({
+//           jobId,
+//           artifacts,
+//           totalArtifacts: artifacts.length,
+//         });
+//       } catch (error: any) {
+//         console.error(`[GET /api/jobs/:bookId/:jobId/artifacts] error:`, error);
+//         res.status(500).json({
+//           error: error.message || "Failed to retrieve job artifacts",
+//         });
+//       }
+//     },
+//   );
 
 //   app.post("/api/toggleImageVersion", async (req: Request, res: Response) => {
 //     try {
@@ -1293,6 +1247,58 @@
 //     },
 //   );
 
+//   // Animation style endpoints
+//   app.get("/api/animation-styles", async (req: Request, res: Response) => {
+//     try {
+//       res.status(200).json(ANIMATION_STYLES);
+//     } catch (error: any) {
+//       console.error("Error fetching animation styles:", error);
+//       res.status(500).json({ message: "Server error", error: error.message });
+//     }
+//   });
+
+//   app.post(
+//     "/api/cartoonify-batch",
+//     authenticate,
+//     async (req: Request, res: Response) => {
+//       try {
+//         const { characterIds, animationStyle } = req.body;
+
+//         if (!characterIds || !Array.isArray(characterIds)) {
+//           return res
+//             .status(400)
+//             .json({ message: "characterIds array is required" });
+//         }
+
+//         if (!animationStyle) {
+//           return res
+//             .status(400)
+//             .json({ message: "animationStyle is required" });
+//         }
+
+//         if (DEBUG_LOGGING) {
+//           console.log(
+//             `[/api/cartoonify-batch] Processing ${characterIds.length} characters with style: ${animationStyle}`,
+//           );
+//         }
+
+//         const results = await getOrGenerateMultipleCartoonifiedImages(
+//           characterIds,
+//           animationStyle,
+//         );
+
+//         res.status(200).json({ results });
+//       } catch (error: any) {
+//         console.error("Error in batch cartoonify:", error);
+//         res
+//           .status(500)
+//           .json({
+//             message: "Failed to cartoonify characters",
+//             error: error.message,
+//           });
+//       }
+//     },
+//   );
 //   // Story routes with authentication middleware
 //   app.post(
 //     "/api/stories",
@@ -2219,15 +2225,7 @@
 //   return httpServer;
 // }
 
-
-
 import type { Express, Request, Response, NextFunction } from "express";
-import {
-  DEFAULT_FONT_SIZE,
-  DEFAULT_FONT_FAMILY,
-  FULL_W,
-  FULL_H,
-} from "./constants";
 import express from "express";
 import { useLocation } from "wouter";
 import { createServer, type Server } from "http";
@@ -2253,16 +2251,16 @@ import { v4 as uuidv4 } from "uuid";
 import path from "path";
 import {
   trainCustomModel,
-  generateStoryImages,
   generateImage,
-  buildFullPrompt,
-  generateBackCoverImage,
   generateGuidedImage,
-  generateAvatarImage,
-  generateSceneData,
-  generateStoryImagesWithAvatar,
+  buildFullPrompt,
   cartoonifyImage,
-  generateStoryPackage,
+  // generateStoryImages, // Not found
+  // generateBackCoverImage, // Not found
+  // generateAvatarImage, // Not found
+  // generateSceneData, // Not found
+  // generateStoryImagesWithAvatar, // Not found
+  // generateStoryPackage, // Not found
 } from "./utils/trainAndGenerate";
 import { generateCompleteStory } from "./utils/story-generation-api/src/services/storyGeneration";
 import admin from "./firebaseAdmin";
@@ -2272,11 +2270,19 @@ import {
   expandImageToRight,
   splitImageInHalf,
 } from "./utils/elementGeneration";
-import { pickContrastingTextColor } from "./utils/textColorUtils";
-import { loadBase64Image } from "./utils/layouts";
+// import { pickContrastingTextColor } from "./utils/textColorUtils"; // Not found
+// import { loadBase64Image } from "./utils/layouts"; // Not found
 import { uploadBase64ToFirebase } from "./utils/uploadImage";
+
 import { jobTracker } from "./lib/jobTracker";
 import Razorpay from "razorpay";
+
+import { jobTracker, type JobState } from "./lib/jobTracker";
+import { ANIMATION_STYLES } from "./utils/story-generation-api/src/config/animationStyles";
+import {
+  getOrGenerateCartoonifiedImage,
+  getOrGenerateMultipleCartoonifiedImages,
+} from "./utils/story-generation-api/src/services/animationStyleService";
 
 import { validateStoryInputs } from "./utils/story-generation-api/src/routes/validation";
 import { validateCharacterArrays } from "./utils/story-generation-api/src/utils/helpers";
@@ -2290,10 +2296,12 @@ import { OverlayHint, getOverlayHint } from "./utils/overlayText";
 
 import {
   regenerateSceneImage,
-  regenerateCoverImage,
   regenerateBaseCoverImage,
   generateFinalCoverWithTitle,
-} from "./utils/story-generation-api/src/services/imageGeneration";
+  generateImageForScene,
+  generateImageForFrontCover,
+} from "./utils/story-generation-api/src/services/imageGenerationV2";
+import { generateStoryScenesFromInputs } from "./utils/story-generation-api/src/services/storyGeneration";
 
 type StoryResult = {
   pages: string[];
@@ -2426,6 +2434,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       next();
     });
   }
+
+  // In-memory guard to prevent concurrent image generations per book
+  const imageGenerationLocks = new Set<string>();
 
   // TEMPORARY TEST ROUTE: Auto-login endpoint to bypass Firebase auth while testing
   app.get("/api/auto-login", (req, res) => {
@@ -2811,7 +2822,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // app.post("/api/regenerateFullCover", regenerateFullCover);
 
   app.post("/api/generateFullStory", authenticate, async (req, res) => {
-    console.log("Received request to generate full story with:", req);
+    console.log("Received request to generate full story with:", req.body);
     const {
       bookId,
       kidName,
@@ -2820,6 +2831,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       theme,
       subject,
       storyRhyming,
+      animationStyle = "pixar", // Default to pixar if not provided
       characters,
       characterDescriptions,
       characterImageMap,
@@ -2888,44 +2900,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let progressBoostTimer: NodeJS.Timeout | null = null;
       let currentPhaseStartTime = Date.now();
 
-      // Enhanced timing configuration for smoother progress
-      const TIMING_CONFIG = {
-        REASON_START_PCT: 5,
-        REASON_END_PCT: 35,
-        REASONING_INCREMENT: 0.2, // Slower, smoother increments
-        REASONING_INTERVAL_MS: 1500, // Slightly longer intervals
-        PROGRESS_BOOST_INTERVAL: 3000, // Time-based progress boost every 3 seconds
-        MIN_PROGRESS_INCREMENT: 0.1, // Minimum progress per boost
-      };
+      const REASON_START_PCT = 10;
+      const REASON_END_PCT = 38; // cap for reasoning phase
+      const DURATION_MS = 120_000; // ~2 minutes
+      const INTERVAL_MS = 1_000; // tick every second
+      // how much to bump each tick so we reach MAX over DURATION
+      const INCREMENT =
+        (REASON_END_PCT - REASON_START_PCT) / (DURATION_MS / INTERVAL_MS);
 
-      // Function to provide time-based progress boost
-      const startProgressBoosting = (currentPhase: string, basePct: number, maxPct: number) => {
-        if (progressBoostTimer) {
-          clearInterval(progressBoostTimer);
-        }
-
+      // Time-based progress boost helper for smoother perceived progress
+      const startProgressBoosting = (
+        currentPhase: string,
+        basePct: number,
+        maxPct: number,
+      ) => {
+        if (progressBoostTimer) clearInterval(progressBoostTimer);
+        currentPhaseStartTime = Date.now();
+        const BOOST_INTERVAL_MS = 3000; // every 3s
+        const MIN_INCREMENT = 0.1; // ensure a tiny nudge
         progressBoostTimer = setInterval(() => {
           const currentJob = jobTracker.get(jobId);
           if (!currentJob || currentJob.phase !== currentPhase) return;
-
-          const timeElapsed = Date.now() - currentPhaseStartTime;
-          const timeBasedIncrement = Math.min(
-            (timeElapsed / 90000) * 8, // 8% per 90 seconds
-            maxPct - basePct
+          const elapsed = Date.now() - currentPhaseStartTime;
+          const timeBased = Math.min((elapsed / 90_000) * 8, maxPct - basePct); // up to +8% per 90s
+          const target = Math.min(
+            basePct + timeBased + MIN_INCREMENT,
+            maxPct - 3,
           );
-
-          const newPct = Math.min(
-            basePct + timeBasedIncrement + TIMING_CONFIG.MIN_PROGRESS_INCREMENT,
-            maxPct - 3 // Leave some room for actual completion
-          );
-
-          if (newPct > currentJob.pct) {
-            jobTracker.set(jobId, {
-              ...currentJob,
-              pct: newPct,
-            });
+          if ((currentJob.pct ?? 0) < target) {
+            jobTracker.set(jobId, { ...currentJob, pct: target });
           }
-        }, TIMING_CONFIG.PROGRESS_BOOST_INTERVAL);
+        }, BOOST_INTERVAL_MS);
       };
 
       try {
@@ -2935,11 +2940,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
           message: "Starting story generation...",
         });
 
-        // Start progress boosting for initialization phase
-        currentPhaseStartTime = Date.now();
-        startProgressBoosting("initializing", 2, TIMING_CONFIG.REASON_START_PCT);
+        // Start gentle boost during initialization up to reasoning start threshold
+        startProgressBoosting("initializing", 0, REASON_START_PCT);
 
-        const { scenes, cover } = await generateCompleteStory(
+        // 1) Generate story outline only
+        jobTracker.set(jobId, {
+          phase: "prompting",
+          pct: 0,
+          message: "Generating story outline…",
+        });
+
+        const story = await generateStoryScenesFromInputs(
           {
             kidName,
             pronoun,
@@ -2950,7 +2961,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
             characters,
             characterDescriptions,
           },
-          characterImageMap,
           (phase, pct, msg) => {
             // Clear previous timers when phase changes
             if (phase !== "reasoning" && reasoningTimer) {
@@ -2963,26 +2973,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
 
             if (phase === "reasoning") {
-              // Always append the token log
               jobTracker.set(jobId, {
                 ...jobTracker.get(jobId)!,
-                log: (jobTracker.get(jobId)!.log || "") + msg,
+                log: (jobTracker.get(jobId)!.log || "") + (msg || ""),
               });
-
-              // Start the reasoning timer once
               if (!reasoningTimer) {
-                currentPhaseStartTime = Date.now();
-                const reasoningDuration = 45000; // 45 seconds for reasoning
-                const totalTicks = reasoningDuration / TIMING_CONFIG.REASONING_INTERVAL_MS;
-                const tickIncrement = (TIMING_CONFIG.REASON_END_PCT - TIMING_CONFIG.REASON_START_PCT) / totalTicks;
-
+                if (progressBoostTimer) {
+                  clearInterval(progressBoostTimer);
+                  progressBoostTimer = null;
+                }
                 reasoningTimer = setInterval(() => {
-                  const curr = jobTracker.get(jobId)!.pct ?? TIMING_CONFIG.REASON_START_PCT;
-                  const next = Math.min(curr + tickIncrement, TIMING_CONFIG.REASON_END_PCT);
-                  jobTracker.set(jobId, { 
-                    phase: "reasoning", 
+                  const curr =
+                    jobTracker.get(jobId)!.pct ??
+                    TIMING_CONFIG.REASON_START_PCT;
+                  const next = Math.min(
+                    curr + tickIncrement,
+                    TIMING_CONFIG.REASON_END_PCT,
+                  );
+                  jobTracker.set(jobId, {
+                    phase: "reasoning",
                     pct: next,
-                    log: jobTracker.get(jobId)!.log 
+                    log: jobTracker.get(jobId)!.log,
                   });
                   if (next >= TIMING_CONFIG.REASON_END_PCT && reasoningTimer) {
                     clearInterval(reasoningTimer);
@@ -2991,101 +3002,307 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 }, TIMING_CONFIG.REASONING_INTERVAL_MS);
               }
             } else {
-              // For other phases, update immediately and start progress boosting
-              currentPhaseStartTime = Date.now();
+              if (reasoningTimer) {
+                clearInterval(reasoningTimer);
+                reasoningTimer = null;
+              }
+              if (progressBoostTimer) {
+                clearInterval(progressBoostTimer);
+                progressBoostTimer = null;
+              }
               jobTracker.set(jobId, { phase, pct, message: msg });
 
               // Start time-based progress boosting for long phases
               if (phase === "prompting" && pct < 30) {
                 startProgressBoosting(phase, pct, 40);
-              } else if (phase === "generating") {
-                startProgressBoosting(phase, pct, 95);
               }
             }
           },
-          bookId,
+          (chunk) => {
+            jobTracker.set(jobId, {
+              ...jobTracker.get(jobId)!,
+              log: (jobTracker.get(jobId)!.log || "") + chunk,
+            });
+          },
         );
 
-        // Clear all timers before completion
-        if (reasoningTimer) {
-          clearInterval(reasoningTimer);
-          reasoningTimer = null;
-        }
+        // Persist outline (including scene_description) and mark generation paused awaiting avatar selection
+        await storage.updateBook(bookId, {
+          title: story.story_title,
+          pages: story.scenes.map((scene: any, i: number) => ({
+            id: i + 1,
+            content: scene.scene_text,
+            scene_inputs: {
+              scene_description: scene.scene_description,
+            },
+          })),
+          // Persist the front_cover inputs from the outline for later cover generation
+          cover: {
+            base_cover_inputs: {
+              front_cover: (story as any).front_cover,
+            },
+          },
+          imagesJobId: jobId,
+          isStoryRhyming: storyRhyming,
+        });
         if (progressBoostTimer) {
           clearInterval(progressBoostTimer);
           progressBoostTimer = null;
         }
-
-        // Persist & maybe enqueue PDF generation, etc…
-        await storage.updateBook(bookId, {
-          pages: scenes,
-          cover: cover,
-          title: cover.story_title,
-          imagesJobId: null,
-          isStoryRhyming: storyRhyming,
-        });
-
-        jobTracker.set(jobId, { 
-          phase: "complete", 
-          pct: 100,
-          message: "Story generation complete!" 
+        jobTracker.set(jobId, {
+          phase: "awaiting_avatar",
+          pct: REASON_END_PCT, // ~38%
+          message: "Waiting for avatar selection…",
         });
       } catch (err: any) {
         console.error("[/api/generateFullStory] error", err);
-
-        // Clear timers on error
-        if (reasoningTimer) {
-          clearInterval(reasoningTimer);
-        }
-        if (progressBoostTimer) {
-          clearInterval(progressBoostTimer);
-        }
-
-        jobTracker.set(jobId, { 
-          phase: "error", 
-          pct: 100, 
-          error: err.message,
-          message: "Story generation failed" 
-        });
+        if (reasoningTimer) clearInterval(reasoningTimer);
+        if (progressBoostTimer) clearInterval(progressBoostTimer);
+        jobTracker.set(jobId, { phase: "error", pct: 100, error: err.message });
       }
     })();
   });
 
-  // app.post("/api/regenerateImage", async (req: Request, res: Response) => {
-  //   try {
-  //     const { bookId, pageId, sceneResponseId, revisedPrompt } = req.body;
+  // Endpoint to start image generation once avatar(s) are finalized
+  app.post("/api/startImageGeneration", authenticate, async (req, res) => {
+    try {
+      const { bookId, characterImageMap, animationStyle = "pixar" } = req.body;
+      if (!bookId) return res.status(400).json({ error: "bookId is required" });
 
-  //     const book = await storage.getBookById(bookId);
-  //     if (!book) return res.status(404).json({ error: "Book not found" });
+      const book = await storage.getBookById(bookId);
+      if (!book) return res.status(404).json({ error: "Book not found" });
+      if (book.userId !== req.session!.userId)
+        return res.status(403).json({ error: "Access denied" });
 
-  //     /* 1️⃣   identify the page by scene_number */
-  //     const oldPage = book.pages?.find((p: any) => p.scene_number === pageId);
-  //     if (!oldPage) {
-  //       return res.status(400).json({ error: "Page not found" });
-  //     }
+      // Concurrency guard: if a generation is already running for this book, return existing jobId
+      if (imageGenerationLocks.has(bookId)) {
+        console.warn(
+          "[/api/startImageGeneration] Generation already in progress for book:",
+          bookId,
+        );
+        return res.status(202).json({ jobId: book.imagesJobId });
+      }
+      imageGenerationLocks.add(bookId);
 
-  //     /* 3️⃣   call your image service */
-  //     const { firebaseUrl: newUrl, responseId: newResponseId } =
-  //       await regenerateSceneImage(bookId, sceneResponseId, revisedPrompt);
+      // Reuse existing imagesJobId or create a new one
+      const jobId = book.imagesJobId ?? jobTracker.newJob();
+      await storage.updateBook(bookId, { imagesJobId: jobId });
 
-  //     /* 4️⃣   build the updated list */
-  //     const updatedPages = book.pages.map((p: any) =>
-  //       p.scene_number === pageId
-  //         ? { ...p, imageUrl: newUrl, scene_response_id: newResponseId }
-  //         : p,
-  //     );
+      console.log(
+        "[/api/startImageGeneration] Starting with style:",
+        animationStyle,
+      );
+      console.log(
+        "[/api/startImageGeneration] characterImageMap keys:",
+        Object.keys(characterImageMap || {}),
+      );
+      res.status(202).json({ jobId });
 
-  //     /* 5️⃣   persist */
-  //     await storage.updateBook(bookId, { pages: updatedPages });
+      (async () => {
+        try {
+          jobTracker.set(jobId, {
+            phase: "generating",
+            pct: 40,
+            message: "Starting scene images…",
+          });
 
-  //     res.status(200).json({ newUrl });
-  //   } catch (error: any) {
-  //     if (DEBUG_LOGGING) console.error("[/api/regenerateImage] error:", error);
-  //     res.status(500).json({
-  //       error: error.message || "Image regeneration failed",
-  //     });
-  //   }
-  // });
+          const total = book.pages?.length ?? 0;
+          if (total === 0) {
+            jobTracker.set(jobId, {
+              phase: "error",
+              pct: 100,
+              error: "No pages to generate",
+            });
+            return;
+          }
+          const share = total > 0 ? 50 / total : 50;
+
+          const sides: ("left" | "right")[] = Array.from(
+            { length: total },
+            () => (Math.random() < 0.5 ? "left" : "right"),
+          );
+
+          // Time-based fake progress while images generate in parallel (40% -> ~90%)
+          const GENERATING_DURATION_MS = 55_000; // ~55s
+          const GENERATING_INTERVAL_MS = 1_000;
+          const GENERATING_START = 40;
+          const GENERATING_END = 90;
+          const generatingStartTime = Date.now();
+          let generatingTimer: NodeJS.Timeout | null = setInterval(() => {
+            const elapsed = Date.now() - generatingStartTime;
+            const progressed = Math.min(
+              GENERATING_START +
+                (elapsed / GENERATING_DURATION_MS) *
+                  (GENERATING_END - GENERATING_START),
+              GENERATING_END - 1,
+            );
+            const current = jobTracker.get(jobId);
+            if (!current || current.phase !== "generating") return;
+            if ((current.pct ?? 0) < progressed) {
+              jobTracker.set(jobId, {
+                phase: "generating",
+                pct: progressed,
+                message: current.message || "Generating images…",
+              });
+            }
+          }, GENERATING_INTERVAL_MS);
+
+          // Prepare all scene generation promises in parallel
+          const scenePromises = Array.from({ length: total }, async (_, i) => {
+            const scene = (book as any).pages[i];
+            const present =
+              scene?.scene_inputs?.scene_description?.Present_Characters || [];
+            const missingRefs = present.filter(
+              (name: string) => !characterImageMap?.[name]?.image_url,
+            );
+            if (missingRefs.length) {
+              console.warn(
+                `[/api/startImageGeneration] Missing image_url for characters on scene ${i + 1}:`,
+                missingRefs,
+              );
+            }
+
+            // Each scene reports local progress; map to an overall slice
+            return generateImageForScene(
+              bookId,
+              {
+                scene_description: scene.scene_inputs?.scene_description ?? {
+                  Scene_Number: i + 1,
+                },
+                scene_text: scene.content,
+              },
+              null, // no previous image in parallel mode
+              characterImageMap,
+              animationStyle,
+              (phase, pct, msg) => {
+                const overall = 40 + i * share + (pct / 100) * share;
+                const current = jobTracker.get(jobId);
+                // Respect fake loader; never decrease progress
+                if (!current || current.phase !== "generating") return;
+                if ((current.pct ?? 0) < overall) {
+                  jobTracker.set(jobId, {
+                    phase: "generating",
+                    pct: Math.min(overall, 89),
+                    message: msg,
+                  });
+                }
+              },
+            );
+          });
+
+          const generatedScenes = await Promise.all(scenePromises);
+
+          if (generatingTimer) {
+            clearInterval(generatingTimer);
+            generatingTimer = null;
+          }
+
+          jobTracker.set(jobId, {
+            phase: "generating_cover",
+            pct: 92,
+            message: "Generating base front-cover image…",
+          });
+
+          const base = await generateImageForFrontCover(
+            bookId,
+            (book as any).cover?.base_cover_inputs?.front_cover ?? {},
+            characterImageMap,
+            animationStyle,
+            (phase, pct, msg) =>
+              jobTracker.set(jobId, {
+                phase: "generating_cover",
+                pct: 92 + (pct / 100) * 4,
+                message: msg,
+              }),
+          );
+
+          const finalCoverUrl = await generateFinalCoverWithTitle(
+            bookId,
+            base.firebaseUrl,
+            book.title || "",
+            3,
+            (phase, pct, msg) =>
+              jobTracker.set(jobId, {
+                phase: "generating_cover",
+                pct: 96 + (pct / 100) * 4,
+                message: msg,
+              }),
+          );
+
+          // Assemble updated scenes with generated results
+          const updatedScenes = Array.from({ length: total }, (_, i) => {
+            const scene = (book as any).pages[i];
+            const { firebaseUrl, responseId } = generatedScenes[i];
+            return {
+              scene_number: i + 1,
+              imageUrl: firebaseUrl,
+              imageUrls: [firebaseUrl],
+              sceneResponseIds: [responseId],
+              current_scene_index: 0,
+              content: scene.content,
+              side: sides[i],
+              scene_inputs: {
+                scene_description: scene.scene_inputs?.scene_description ?? {
+                  Scene_Number: i + 1,
+                },
+                characterImageMap,
+                previousImageUrl:
+                  i > 0 ? (generatedScenes[i - 1]?.firebaseUrl ?? null) : null,
+                seed: 3,
+              },
+            } as any;
+          });
+
+          await storage.updateBook(bookId, {
+            pages: updatedScenes,
+            cover: {
+              ...(book as any).cover,
+              base_cover_url: base.firebaseUrl,
+              base_cover_urls: [base.firebaseUrl],
+              base_cover_response_id: base.responseId,
+              base_cover_response_ids: [base.responseId],
+              current_base_cover_index: 0,
+              story_title: book.title || "",
+              base_cover_inputs: {
+                front_cover:
+                  (book as any).cover?.base_cover_inputs?.front_cover ?? {},
+                characterImageMap,
+                seed: 3,
+              },
+              final_cover_url: finalCoverUrl,
+              final_cover_urls: [finalCoverUrl],
+              current_final_cover_index: 0,
+              final_cover_inputs: {
+                base_cover_url: base.firebaseUrl,
+                story_title: book.title || "",
+                seed: 3,
+              },
+            },
+            imagesJobId: null,
+          });
+
+          jobTracker.set(jobId, { phase: "complete", pct: 100 });
+        } catch (error: any) {
+          console.error("/api/startImageGeneration error", error);
+          jobTracker.set(jobId, {
+            phase: "error",
+            pct: 100,
+            error: error.message || "Failed to start image generation",
+          });
+        } finally {
+          imageGenerationLocks.delete(bookId);
+        }
+      })();
+    } catch (e: any) {
+      // ensure we release the lock if something failed before the async worker started
+      const { bookId } = req.body || {};
+      if (bookId) {
+        imageGenerationLocks.delete(bookId);
+      }
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   app.post("/api/regenerateImage", async (req: Request, res: Response) => {
     try {
       const { bookId, pageId, sceneResponseId, revisedPrompt } = req.body;
@@ -3102,12 +3319,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const currentIndex = oldPage.current_scene_index || 0;
 
       // Use the last response ID if not provided
+      // For regeneration, we should ALWAYS use the LATEST response ID, not the currently displayed one
       const responseId =
         sceneResponseId ||
-        getCurrentFromArray(
-          oldPage.sceneResponseIds || oldPage.sceneResponseId,
-          currentIndex,
-        );
+        (() => {
+          const responseIds = ensureArray(
+            oldPage.sceneResponseIds || oldPage.sceneResponseId,
+          );
+          return responseIds.length > 0
+            ? responseIds[responseIds.length - 1]
+            : null;
+        })();
 
       const { firebaseUrl: newUrl, responseId: newResponseId } =
         await regenerateSceneImage(bookId, responseId, revisedPrompt);
@@ -3149,58 +3371,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // app.post("/api/regenerateCover", async (req: Request, res: Response) => {
-  //   try {
-  //     const { bookId, coverInputs, title, coverResponseId, revisedPrompt } =
-  //       req.body;
-
-  //     const book = await storage.getBookById(bookId);
-  //     if (!book) return res.status(404).json({ error: "Book not found" });
-
-  //     const prevSeed =
-  //       book.cover?.base_cover_inputs?.seed ??
-  //       book.cover?.final_cover_inputs?.seed ??
-  //       3;
-
-  //     const seed = Math.floor(Math.random() * 1_000_000);
-
-  //     // const newBaseCoverUrl = await regenerateBaseCoverImage(coverInputs, seed);
-  //     const { firebaseUrl: newBaseCoverUrl, responseId: newResponseId } =
-  //       await regenerateBaseCoverImage(bookId, coverResponseId, revisedPrompt);
-
-  //     // Then add title to create final cover
-  //     const newFinalCoverUrl = await generateFinalCoverWithTitle(
-  //       bookId,
-  //       newBaseCoverUrl,
-  //       title,
-  //       seed,
-  //     );
-
-  //     const updatedCover = {
-  //       ...book.cover,
-  //       base_cover_inputs: { ...coverInputs, seed },
-  //       final_cover_inputs: { ...(book.cover?.final_cover_inputs ?? {}), seed },
-  //       base_cover_url: newBaseCoverUrl,
-  //       final_cover_url: newFinalCoverUrl,
-  //       base_cover_response_id: newResponseId,
-  //     };
-
-  //     console.log("updatedCover:", updatedCover);
-  //     await storage.updateBook(bookId, { cover: updatedCover });
-
-  //     res.status(200).json({ newUrl: newFinalCoverUrl });
-  //   } catch (error: any) {
-  //     if (DEBUG_LOGGING)
-  //       console.error(
-  //         "[/api/regenerateImage] Image regeneration error:",
-  //         error,
-  //       );
-  //     res
-  //       .status(500)
-  //       .json({ error: error.message || "Image regeneration failed" });
-  //   }
-  // });
-
   app.post("/api/regenerateCover", async (req: Request, res: Response) => {
     try {
       const { bookId, coverInputs, title, coverResponseId, revisedPrompt } =
@@ -3213,13 +3383,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const currentIndex = book.cover?.current_base_cover_index || 0;
 
       // Use the last response ID if not provided
+      // For regeneration, we should ALWAYS use the LATEST response ID, not the currently displayed one
       const responseId =
         coverResponseId ||
-        getCurrentFromArray(
-          book.cover?.base_cover_response_ids ||
-            book.cover?.base_cover_response_id,
-          currentIndex,
-        );
+        (() => {
+          const responseIds = ensureArray(
+            book.cover?.base_cover_response_ids ||
+              book.cover?.base_cover_response_id,
+          );
+          return responseIds.length > 0
+            ? responseIds[responseIds.length - 1]
+            : null;
+        })();
 
       const seed = Math.floor(Math.random() * 1_000_000);
 
@@ -3277,6 +3452,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .json({ error: error.message || "Image regeneration failed" });
     }
   });
+
+  // Get artifacts for a specific job ID
+  app.get(
+    "/api/jobs/:bookId/:jobId/artifacts",
+    async (req: Request, res: Response) => {
+      try {
+        const { bookId, jobId } = req.params;
+
+        // Import the historyStore function
+        const { getJobArtifacts } = await import(
+          "./utils/story-generation-api/src/core/historyStore"
+        );
+
+        const artifacts = await getJobArtifacts(bookId, jobId);
+
+        res.status(200).json({
+          jobId,
+          artifacts,
+          totalArtifacts: artifacts.length,
+        });
+      } catch (error: any) {
+        console.error(`[GET /api/jobs/:bookId/:jobId/artifacts] error:`, error);
+        res.status(500).json({
+          error: error.message || "Failed to retrieve job artifacts",
+        });
+      }
+    },
+  );
 
   app.post("/api/toggleImageVersion", async (req: Request, res: Response) => {
     try {
@@ -3609,6 +3812,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
     },
   );
 
+  // Animation style endpoints
+  app.get("/api/animation-styles", async (req: Request, res: Response) => {
+    try {
+      res.status(200).json(ANIMATION_STYLES);
+    } catch (error: any) {
+      console.error("Error fetching animation styles:", error);
+      res.status(500).json({ message: "Server error", error: error.message });
+    }
+  });
+
+  app.post(
+    "/api/cartoonify-batch",
+    authenticate,
+    async (req: Request, res: Response) => {
+      try {
+        const { characterIds, animationStyle } = req.body;
+
+        if (!characterIds || !Array.isArray(characterIds)) {
+          return res
+            .status(400)
+            .json({ message: "characterIds array is required" });
+        }
+
+        if (!animationStyle) {
+          return res
+            .status(400)
+            .json({ message: "animationStyle is required" });
+        }
+
+        if (DEBUG_LOGGING) {
+          console.log(
+            `[/api/cartoonify-batch] Processing ${characterIds.length} characters with style: ${animationStyle}`,
+          );
+        }
+
+        const results = await getOrGenerateMultipleCartoonifiedImages(
+          characterIds,
+          animationStyle,
+        );
+
+        res.status(200).json({ results });
+      } catch (error: any) {
+        console.error("Error in batch cartoonify:", error);
+        res.status(500).json({
+          message: "Failed to cartoonify characters",
+          error: error.message,
+        });
+      }
+    },
+  );
+
   // Story routes with authentication middleware
   app.post(
     "/api/stories",
@@ -3924,7 +4178,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     "/api/cartoonify",
     authenticate,
     async (req: Request, res: Response) => {
-      const { characterId, imageUrl } = req.body;
+      const {
+        characterId,
+        imageUrl,
+        guidance_scale,
+        num_inference_steps,
+        style,
+      } = req.body;
       if (!characterId || !imageUrl) {
         return res
           .status(400)
@@ -3932,8 +4192,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       try {
-        const toonUrl = await cartoonifyImage(imageUrl);
-        await storage.updateCharacter(characterId, { toonUrl });
+        const toonUrl = await cartoonifyImage(imageUrl, {
+          guidance_scale,
+          num_inference_steps,
+          style,
+        });
+        // Persist style-specific avatar URL for reuse
+        const existing = await storage.getCharacter(characterId);
+        const toonUrls = {
+          ...(existing?.toonUrls ?? {}),
+          [style || "default"]: toonUrl,
+        } as any;
+        await storage.updateCharacter(characterId, { toonUrl, toonUrls });
 
         return res.status(200).json({ toonUrl });
       } catch (err: any) {
@@ -3941,6 +4211,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res
           .status(500)
           .json({ error: "Cartoonify failed", details: err.message });
+      }
+    },
+  );
+
+  // Batch cartoonify that accepts tuning options and returns per-id URLs
+  app.post(
+    "/api/cartoonify-configurable-batch",
+    authenticate,
+    async (req: Request, res: Response) => {
+      try {
+        const {
+          items,
+          guidance_scale,
+          num_inference_steps,
+        }: {
+          items: Array<{ characterId: string; imageUrl: string }>;
+          guidance_scale?: number;
+          num_inference_steps?: number;
+        } = req.body;
+
+        if (!Array.isArray(items) || items.length === 0) {
+          return res
+            .status(400)
+            .json({ message: "items array {characterId,imageUrl} required" });
+        }
+
+        const results: Record<string, string> = {};
+        for (const it of items) {
+          const url = await cartoonifyImage(it.imageUrl, {
+            guidance_scale,
+            num_inference_steps,
+            style: (req.body as any).style,
+          });
+          results[it.characterId] = url;
+          // persist to character when it's the user's character
+          try {
+            const existing = await storage.getCharacter(it.characterId);
+            const toonUrls = {
+              ...(existing?.toonUrls ?? {}),
+              [(req.body as any).style || "default"]: url,
+            } as any;
+            await storage.updateCharacter(it.characterId, {
+              toonUrl: url,
+              toonUrls,
+            });
+          } catch {}
+        }
+        res.status(200).json({ results });
+      } catch (error: any) {
+        console.error("[/api/cartoonify-configurable-batch] error:", error);
+        res.status(500).json({ message: "Failed", error: error.message });
       }
     },
   );
@@ -4403,7 +4724,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       })();
     },
   );
-
   // Payment routes for Razorpay integration
 
   // Get Razorpay config for frontend

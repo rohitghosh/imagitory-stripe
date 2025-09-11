@@ -86,6 +86,7 @@
 //   const [selectedTheme, setSelectedTheme] = useState<string>("");
 //   const [isCustomTheme, setIsCustomTheme] = useState<boolean>(false);
 //   const [selectedSubject, setSelectedSubject] = useState<string>("");
+//   const [isSubjectValidated, setIsSubjectValidated] = useState<boolean>(false);
 //   const [rhyming, setRhyming] = useState<boolean>(false);
 //   const [themeSubjectSchema, setThemeSubjectSchema] =
 //     useState<ThemeSubjectSchema | null>(null);
@@ -141,8 +142,29 @@
 
 //   /* on mount via /create/:id */
 //   useEffect(() => {
-//     if (id && !bookId) setBookId(id);
-//   }, [id]);
+//     if (id && !bookId) {
+//       setBookId(id);
+//     } else if (!id && bookId) {
+//       // Reset state when navigating from /create/:id to /create
+//       setBookId(null);
+//       setCurrentStep(1);
+//       setCurrentSubStep("characters");
+//       setActiveChar(null);
+//       setKidName("");
+//       setBookStyle("default");
+//       setBookTitle("Untitled");
+//       setSelectedSideChars([]);
+//       setSelectedTheme("");
+//       setIsCustomTheme(false);
+//       setSelectedSubject("");
+//       setIsSubjectValidated(false);
+//       setRhyming(false);
+//       setThemeSubjectSchema(null);
+//       setImagesJobId(undefined);
+//       setReasoningLog("");
+//       setSection(null);
+//     }
+//   }, [id, bookId]);
 
 //   /* ─────────────────────────── character pick (main character) ──────────────────── */
 //   async function handleSelectCharacter(character: any) {
@@ -177,12 +199,18 @@
 //   function handleThemeSelection(theme: string, isCustom: boolean) {
 //     setSelectedTheme(theme);
 //     setIsCustomTheme(isCustom);
+//     // Reset subject validation when theme changes
+//     setIsSubjectValidated(false);
 //     setCurrentSubStep("subject");
 //   }
 
 //   /* ─────────────────────────── subject selection ──────────────────── */
-//   function handleSubjectSelection(subject: string) {
+//   function handleSubjectSelection(
+//     subject: string,
+//     isValidated: boolean = false,
+//   ) {
 //     setSelectedSubject(subject);
+//     setIsSubjectValidated(isValidated);
 
 //     // Create the theme-subject schema for downstream use
 //     const schema = createThemeSubjectSchema(
@@ -193,13 +221,19 @@
 //     );
 //     setThemeSubjectSchema(schema);
 
-//     // For custom themes, subject selection includes validation, so we can proceed directly to settings
-//     // For predefined themes, proceed to settings without validation
-//     setCurrentSubStep("settings");
+//     // For predefined themes, subject selection automatically validates and proceeds to settings
+//     // For custom themes, only proceed to settings if validation is complete
+//     if (!isCustomTheme || isValidated) {
+//       setCurrentSubStep("settings");
+//     }
 //   }
 
 //   /* ─────────────────────────── story settings and generation ──────────────────── */
-//   function handleStorySettings(rhymingEnabled: boolean) {
+//   function handleStorySettings(
+//     rhymingEnabled: boolean,
+//     animationStyle: string,
+//     characterToonUrls?: Record<string, string>,
+//   ) {
 //     setRhyming(rhymingEnabled);
 
 //     // Prepare character data for story generation
@@ -207,16 +241,23 @@
 //     const characterDescriptions = selectedSideChars.map(
 //       (char) => char.description || "",
 //     );
+
+//     // Use cartoonified URLs if available, otherwise fallback to original images
 //     const characterImageMap = {
 //       [kidName]: {
-//         image_url: activeChar.toonUrl || activeChar.imageUrls?.[0] || "",
+//         image_url:
+//           characterToonUrls?.[activeChar.id] ||
+//           activeChar.toonUrl ||
+//           activeChar.imageUrls?.[0] ||
+//           "",
 //         description: `a ${activeChar.age} year old human kid`,
 //       },
 //       ...Object.fromEntries(
 //         selectedSideChars.map((char) => [
 //           char.name,
 //           {
-//             image_url: char.toonUrl || char.avatar,
+//             image_url:
+//               characterToonUrls?.[char.id] || char.toonUrl || char.avatar,
 //             description: char.description || "",
 //           },
 //         ]),
@@ -240,6 +281,7 @@
 //       theme: finalTheme,
 //       subject: finalSubject,
 //       storyRhyming: rhymingEnabled,
+//       animationStyle, // Add animation style to payload
 //       characters,
 //       characterDescriptions,
 //       characterImageMap,
@@ -373,8 +415,11 @@
 //     );
 //   }
 
-//   // Add a derived variable for disabling subject tab
+//   // Add derived variables for disabling tabs
 //   const isSubjectTabDisabled = selectedTheme === "";
+//   const isSettingsTabDisabled = isCustomTheme
+//     ? selectedSubject === "" || !isSubjectValidated
+//     : selectedSubject === "";
 
 //   return (
 //     <div className="min-h-screen flex flex-col">
@@ -400,50 +445,89 @@
 //         {currentStep === 2 && (
 //           <section>
 //             <h2 className="text-2xl font-bold mb-4">Step 2: Select Story</h2>
-
-//             {/* Vertical Tab Navigation */}
-//             <div className="flex gap-6">
-//               {/* Left: Tab Navigation */}
-//               <div className="w-64 flex-shrink-0">
-//                 <nav className="flex flex-col space-y-1">
+//             {/* Responsive Substep Navigation */}
+//             <div className={isMobile ? "flex flex-col gap-4" : "flex gap-6"}>
+//               {/* Substep Navigation */}
+//               <nav
+//                 className={
+//                   isMobile
+//                     ? "flex flex-row overflow-x-auto pb-2 -mx-4 px-4 sticky top-0 z-10 bg-white shadow-sm"
+//                     : "w-64 flex-shrink-0"
+//                 }
+//                 style={isMobile ? { borderBottom: "1px solid #f3f4f6" } : {}}
+//               >
+//                 <div
+//                   className={
+//                     isMobile
+//                       ? "flex flex-row w-full"
+//                       : "flex flex-col space-y-1"
+//                   }
+//                 >
 //                   {STORY_SUB_STEPS.map((subStep) => {
 //                     const isActive = currentSubStep === subStep.id;
 //                     const isCompleted =
 //                       (subStep.id === "characters" &&
 //                         selectedSideChars.length >= 0) ||
 //                       (subStep.id === "theme" && selectedTheme !== "") ||
-//                       (subStep.id === "subject" && selectedSubject !== "") ||
+//                       (subStep.id === "subject" &&
+//                         selectedSubject !== "" &&
+//                         (!isCustomTheme || isSubjectValidated)) ||
 //                       (subStep.id === "settings" && false); // Will be completed when story generates
-//                     // Disable subject tab if no theme selected
+//                     // Disable tabs based on dependencies
 //                     const isDisabled =
-//                       subStep.id === "subject" && isSubjectTabDisabled;
+//                       (subStep.id === "subject" && isSubjectTabDisabled) ||
+//                       (subStep.id === "settings" && isSettingsTabDisabled);
 //                     return (
 //                       <button
 //                         key={subStep.id}
 //                         onClick={() =>
 //                           !isDisabled && setCurrentSubStep(subStep.id)
 //                         }
-//                         className={`flex items-center px-4 py-3 text-left rounded-lg transition-colors ${
-//                           isActive
-//                             ? "bg-yellow-100 text-yellow-800 border-l-4 border-yellow-500"
-//                             : isCompleted
-//                               ? "bg-green-50 text-green-700 hover:bg-green-100"
-//                               : isDisabled
-//                                 ? "text-gray-400 bg-gray-50 cursor-not-allowed"
-//                                 : "text-gray-600 hover:bg-gray-100"
-//                         }`}
+//                         className={
+//                           isMobile
+//                             ? `flex flex-col items-center px-1 py-2 min-w-[75px] transition-colors text-xs font-medium ${
+//                                 isActive
+//                                   ? "bg-yellow-100 text-yellow-800 border-b-4 border-yellow-500"
+//                                   : isCompleted
+//                                     ? "bg-green-50 text-green-700 hover:bg-green-100"
+//                                     : isDisabled
+//                                       ? "text-gray-400 bg-gray-50 cursor-not-allowed"
+//                                       : "text-gray-600 hover:bg-gray-100"
+//                               }`
+//                             : `flex items-center px-4 py-3 text-left rounded-lg transition-colors ${
+//                                 isActive
+//                                   ? "bg-yellow-100 text-yellow-800 border-l-4 border-yellow-500"
+//                                   : isCompleted
+//                                     ? "bg-green-50 text-green-700 hover:bg-green-100"
+//                                     : isDisabled
+//                                       ? "text-gray-400 bg-gray-50 cursor-not-allowed"
+//                                       : "text-gray-600 hover:bg-gray-100"
+//                               }`
+//                         }
 //                         disabled={isDisabled}
 //                       >
 //                         <div
-//                           className={`w-6 h-6 rounded-full mr-3 flex items-center justify-center text-sm font-medium ${
-//                             isActive
-//                               ? "bg-yellow-500 text-white"
-//                               : isCompleted
-//                                 ? "bg-green-500 text-white"
-//                                 : isDisabled
-//                                   ? "bg-gray-200 text-gray-400"
-//                                   : "bg-gray-300 text-gray-600"
-//                           }`}
+//                           className={
+//                             isMobile
+//                               ? `w-6 h-6 rounded-full mb-1 flex items-center justify-center text-xs font-medium ${
+//                                   isActive
+//                                     ? "bg-yellow-500 text-white"
+//                                     : isCompleted
+//                                       ? "bg-green-500 text-white"
+//                                       : isDisabled
+//                                         ? "bg-gray-200 text-gray-400"
+//                                         : "bg-gray-300 text-gray-600"
+//                                 }`
+//                               : `w-6 h-6 rounded-full mr-3 flex items-center justify-center text-sm font-medium ${
+//                                   isActive
+//                                     ? "bg-yellow-500 text-white"
+//                                     : isCompleted
+//                                       ? "bg-green-500 text-white"
+//                                       : isDisabled
+//                                         ? "bg-gray-200 text-gray-400"
+//                                         : "bg-gray-300 text-gray-600"
+//                                 }`
+//                           }
 //                         >
 //                           {isCompleted
 //                             ? "✓"
@@ -455,13 +539,18 @@
 //                                   ? "3"
 //                                   : "4"}
 //                         </div>
-//                         <span className="font-medium">{subStep.name}</span>
+//                         <span
+//                           className={
+//                             isMobile ? "text-center leading-tight" : ""
+//                           }
+//                         >
+//                           {subStep.name}
+//                         </span>
 //                       </button>
 //                     );
 //                   })}
-//                 </nav>
-//               </div>
-
+//                 </div>
+//               </nav>
 //               {/* Right: Content Area */}
 //               <div className="flex-1">
 //                 {currentSubStep === "characters" && (
@@ -471,7 +560,6 @@
 //                     initialSelected={selectedSideChars} // NEW
 //                   />
 //                 )}
-
 //                 {currentSubStep === "theme" && (
 //                   <ThemeSelection
 //                     onSubmit={handleThemeSelection}
@@ -479,12 +567,13 @@
 //                     initialTheme={selectedTheme} // NEW
 //                   />
 //                 )}
-
 //                 {currentSubStep === "subject" && (
 //                   <SubjectSelection
 //                     selectedTheme={selectedTheme}
 //                     isCustomTheme={isCustomTheme}
-//                     onSubmit={handleSubjectSelection}
+//                     onSubmit={(subject, isValidated) =>
+//                       handleSubjectSelection(subject, isValidated)
+//                     }
 //                     onBack={() => setCurrentSubStep("theme")}
 //                     kidName={kidName}
 //                     pronoun={
@@ -508,13 +597,18 @@
 //                         : []
 //                     }
 //                     initialSubject={selectedSubject} // NEW
+//                     onChange={setSelectedSubject} // NEW: Update selectedSubject when custom subject changes
+//                     onValidationChange={setIsSubjectValidated} // NEW: Update validation state
 //                   />
 //                 )}
-
 //                 {currentSubStep === "settings" && (
 //                   <StorySettings
 //                     onSubmit={handleStorySettings}
 //                     onBack={() => setCurrentSubStep("subject")}
+//                     characterIds={[
+//                       activeChar?.id,
+//                       ...selectedSideChars.map((char) => char.id),
+//                     ].filter(Boolean)}
 //                   />
 //                 )}
 //               </div>
@@ -553,14 +647,14 @@
 //                     <p className="font-semibold mb-1 flex items-center shimmer">
 //                       {section.title}
 //                     </p>
-//                     <div
+//                     {/* <div
 //                       ref={cardRef}
 //                       className="bg-white border border-imaginory-yellow/30 rounded-md p-3
 //                                  text-xs text-gray-800 whitespace-pre-wrap
 //                                  max-h-56 overflow-y-auto"
 //                     >
 //                       <ReactMarkdown>{section.body}</ReactMarkdown>
-//                     </div>
+//                     </div> */}
 //                   </div>
 //                 )}
 //               </div>
@@ -574,10 +668,6 @@
 //     </div>
 //   );
 // }
-// src/pages/CreateStoryPage.tsx
-// src/pages/CreateStoryPage.tsx
-// src/pages/CreateStoryPage.tsx
-
 
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
@@ -594,6 +684,7 @@ import { ThemeSelection } from "@/components/story/ThemeSelection";
 import { SubjectSelection } from "@/components/story/SubjectSelection";
 import { StorySettings } from "@/components/story/StorySettings";
 import { ProgressDisplay } from "@/components/ui/progress-display";
+import { AvatarTuner } from "@/components/avatar/AvatarTuner";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/contexts/AuthContext";
@@ -685,6 +776,10 @@ export default function CreateStoryPage() {
   const [reasoningLog, setReasoningLog] = useState(""); // live CoT
   const [section, setSection] = useState<Section | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
+  const [toonUrls, setToonUrls] = useState<Record<string, string>>({});
+  const [avatarFinalized, setAvatarFinalized] = useState<boolean>(false);
+  const [showAvatarTuner, setShowAvatarTuner] = useState<boolean>(false);
+  const imagesStartedRef = useRef<boolean>(false);
 
   const [working, setWorking] = useState<Section | null>(null);
   const [visible, setVisible] = useState<Section | null>(null);
@@ -752,7 +847,7 @@ export default function CreateStoryPage() {
       setReasoningLog("");
       setSection(null);
       // Clear any stored payment payload when starting fresh
-      localStorage.removeItem('pendingStoryPayload');
+      localStorage.removeItem("pendingStoryPayload");
       setPendingStoryPayload(null);
     }
   }, [id, bookId]);
@@ -761,14 +856,16 @@ export default function CreateStoryPage() {
   useEffect(() => {
     // Check if we're returning from payment and need to generate story
     const urlParams = new URLSearchParams(window.location.search);
-    const paymentCompleted = urlParams.get('payment_completed');
+    const paymentCompleted = urlParams.get("payment_completed");
 
-    if (paymentCompleted === 'true' && bookId) {
+    if (paymentCompleted === "true" && bookId) {
       console.log("Payment completed, checking for stored payload...");
 
       // Get payload from localStorage or current state
-      const storedPayload = localStorage.getItem('pendingStoryPayload');
-      const payload = storedPayload ? JSON.parse(storedPayload) : pendingStoryPayload;
+      const storedPayload = localStorage.getItem("pendingStoryPayload");
+      const payload = storedPayload
+        ? JSON.parse(storedPayload)
+        : pendingStoryPayload;
 
       if (payload) {
         console.log("Payment completed, generating story...", payload);
@@ -780,10 +877,12 @@ export default function CreateStoryPage() {
         generateStory(payload);
 
         // Clean up
-        localStorage.removeItem('pendingStoryPayload');
+        localStorage.removeItem("pendingStoryPayload");
         setPendingStoryPayload(null);
       } else {
-        console.log("No stored payload found, user may need to recreate the story");
+        console.log(
+          "No stored payload found, user may need to recreate the story",
+        );
         toast({
           title: "Story generation ready",
           description: "Please complete the story creation steps.",
@@ -792,7 +891,7 @@ export default function CreateStoryPage() {
 
       // Clean up URL params
       const newUrl = window.location.pathname;
-      window.history.replaceState({}, '', newUrl);
+      window.history.replaceState({}, "", newUrl);
     }
   }, [bookId, pendingStoryPayload, toast]); // Add dependencies
 
@@ -874,24 +973,40 @@ export default function CreateStoryPage() {
   }
 
   /* ─────────────────────────── story settings and generation ──────────────────── */
-  async function handleStorySettings(rhymingEnabled: boolean) {
+  function handleStorySettings(
+    rhymingEnabled: boolean,
+    animationStyle: string,
+    characterToonUrls?: Record<string, string>,
+  ) {
     setRhyming(rhymingEnabled);
+    setBookStyle(animationStyle);
 
     // Prepare character data for story generation
     const characters = selectedSideChars.map((char) => char.name);
     const characterDescriptions = selectedSideChars.map(
       (char) => char.description || "",
     );
+
+    // Use cartoonified URLs if available, otherwise fallback to original images
     const characterImageMap = {
       [kidName]: {
-        image_url: activeChar.toonUrl || activeChar.imageUrls?.[0] || "",
+        image_url:
+          characterToonUrls?.[activeChar.id] ||
+          toonUrls[activeChar.id] ||
+          activeChar.toonUrl ||
+          activeChar.imageUrls?.[0] ||
+          "",
         description: `a ${activeChar.age} year old human kid`,
       },
       ...Object.fromEntries(
         selectedSideChars.map((char) => [
           char.name,
           {
-            image_url: char.toonUrl || char.avatar,
+            image_url:
+              characterToonUrls?.[char.id] ||
+              toonUrls[char.id] ||
+              char.toonUrl ||
+              char.avatar,
             description: char.description || "",
           },
         ]),
@@ -915,6 +1030,7 @@ export default function CreateStoryPage() {
       theme: finalTheme,
       subject: finalSubject,
       storyRhyming: rhymingEnabled,
+      animationStyle, // Add animation style to payload
       characters,
       characterDescriptions,
       characterImageMap,
@@ -936,8 +1052,8 @@ export default function CreateStoryPage() {
       log("Returning user: creating order and redirecting to payment");
       setPendingStoryPayload(payload);
       // Store payload in localStorage so it survives payment redirect
-      localStorage.setItem('pendingStoryPayload', JSON.stringify(payload));
-      
+      localStorage.setItem("pendingStoryPayload", JSON.stringify(payload));
+
       // Create order and redirect to payment directly, passing payload to avoid race condition
       handleDirectPayment(payload);
     }
@@ -950,13 +1066,23 @@ export default function CreateStoryPage() {
       .then((r) => {
         setImagesJobId(r.jobId);
         patchBookM.mutate({ id: bookId!, payload: { imagesJobId: r.jobId } });
-        // Don't change step here - it should already be set by caller
+        setCurrentStep(3);
+        const preMain = (activeChar as any)?.toonUrls?.[animationStyle];
+        if (preMain) {
+          setToonUrls((prev) => ({ ...prev, [activeChar.id]: preMain }));
+          setAvatarFinalized(true);
+          setShowAvatarTuner(false);
+        } else {
+          // Show avatar tuner immediately while story outline is generating
+          setShowAvatarTuner(true);
+        }
       })
       .catch((err) => {
         log("Full-story kickoff error", err);
         toast({
           title: "Story generation failed",
-          description: "There was an error starting your story generation. Please try again.",
+          description:
+            "There was an error starting your story generation. Please try again.",
           variant: "destructive",
         });
       });
@@ -989,13 +1115,13 @@ export default function CreateStoryPage() {
         bookId,
         userId: user.uid,
         // Provide default values for shipping fields (can be updated later if needed)
-        firstName: user.displayName?.split(' ')[0] || 'Customer',
-        lastName: user.displayName?.split(' ')[1] || '',
-        address: 'TBD', // To Be Determined - can be updated later
-        city: 'TBD',
-        state: 'TBD',
-        zip: '00000',
-        country: 'US',
+        firstName: user.displayName?.split(" ")[0] || "Customer",
+        lastName: user.displayName?.split(" ")[1] || "",
+        address: "TBD", // To Be Determined - can be updated later
+        city: "TBD",
+        state: "TBD",
+        zip: "00000",
+        country: "US",
       });
 
       console.log("✅ Order created, redirecting to payment:", orderResponse);
@@ -1005,10 +1131,11 @@ export default function CreateStoryPage() {
       console.error("❌ Order creation failed:", error);
       toast({
         title: "Order failed",
-        description: "There was a problem creating your order. Please try again.",
+        description:
+          "There was a problem creating your order. Please try again.",
         variant: "destructive",
       });
-      
+
       // Reset to settings step on failure to allow retry
       setCurrentSubStep("settings");
     }
@@ -1085,7 +1212,168 @@ export default function CreateStoryPage() {
     }
   }, [imagesProg]);
 
-  // Note: Book page redirect is handled in the hydration effect above
+  // B. or the book already contains pages
+  useEffect(() => {
+    if (!bookId) return;
+    if (imagesProg?.phase === "complete") {
+      (async () => {
+        await queryClient.invalidateQueries({ queryKey: ["book", bookId] });
+        await queryClient.refetchQueries({ queryKey: ["book", bookId] });
+        setLocation(`/book/${bookId}`, { replace: true });
+      })();
+    }
+  }, [imagesProg?.phase, bookId]);
+
+  // Hydrate active character details (imageUrls, toonUrl) after mount/refresh
+  useEffect(() => {
+    (async () => {
+      if (activeChar && (!activeChar.imageUrls || !activeChar.imageUrls[0])) {
+        try {
+          const detail = await apiRequest(
+            "GET",
+            `/api/characters/${activeChar.id}`,
+          );
+          setActiveChar(detail);
+        } catch {}
+      }
+    })();
+  }, [activeChar?.id]);
+
+  // Auto-start image generation when both prerequisites are ready:
+  // 1) Story outline finished (phase === "awaiting_avatar")
+  // 2) Avatar finalized by user
+  useEffect(() => {
+    if (
+      imagesProg?.phase === "awaiting_avatar" &&
+      avatarFinalized &&
+      !imagesStartedRef.current &&
+      activeChar
+    ) {
+      (async () => {
+        try {
+          imagesStartedRef.current = true;
+          console.log(
+            "[Create] Preflight: building characterImageMap with style",
+            bookStyle,
+            {
+              main: activeChar?.id,
+              sides: selectedSideChars.map((s) => s.id),
+            },
+          );
+          const characterImageMap = await buildCharacterImageMap(
+            activeChar,
+            selectedSideChars,
+            toonUrls,
+            bookStyle || "pixar",
+          );
+
+          console.log(
+            "[Create] Preflight result keys:",
+            Object.keys(characterImageMap || {}),
+          );
+
+          const r = await apiRequest("POST", "/api/startImageGeneration", {
+            bookId,
+            characterImageMap,
+            animationStyle: bookStyle || "pixar",
+          });
+          if (r?.jobId) {
+            setImagesJobId(r.jobId);
+            patchBookM.mutate({
+              id: bookId!,
+              payload: { imagesJobId: r.jobId },
+            });
+          }
+        } catch (e) {
+          console.error(e);
+          toast({
+            title: "Failed to start image generation",
+            variant: "destructive",
+          });
+        }
+      })();
+    }
+  }, [
+    imagesProg?.phase,
+    avatarFinalized,
+    activeChar,
+    toonUrls,
+    selectedSideChars,
+    kidName,
+  ]);
+
+  async function buildCharacterImageMap(
+    main: any,
+    sides: { id: string; name: string; avatar: string; description?: string }[],
+    existingToons: Record<string, string>,
+    style: string,
+  ) {
+    const needs: { characterId: string; imageUrl: string }[] = [];
+    const resultMap: any = {};
+
+    // Main
+    const mainToon =
+      existingToons[main.id] || (main.toonUrls?.[style] ?? main.toonUrl);
+    if (mainToon) {
+      resultMap[main.name] = {
+        image_url: mainToon,
+        description: `a ${main.age} year old human kid`,
+      };
+    } else if (main.imageUrls?.[0]) {
+      needs.push({ characterId: main.id, imageUrl: main.imageUrls[0] });
+    }
+
+    // Sides
+    sides.forEach((s) => {
+      const sToon = existingToons[s.id];
+      if (sToon) {
+        resultMap[s.name] = {
+          image_url: sToon,
+          description: s.description || "",
+        };
+      } else {
+        needs.push({ characterId: s.id, imageUrl: s.avatar });
+      }
+    });
+
+    if (needs.length) {
+      const resp = await apiRequest(
+        "POST",
+        "/api/cartoonify-configurable-batch",
+        {
+          items: needs,
+          guidance_scale: 5,
+          num_inference_steps: 40,
+          style,
+        },
+      );
+      const newToons: Record<string, string> = resp.results || {};
+      console.log("[Create] Toonify batch results:", Object.keys(newToons));
+      // Merge into state cache
+      setToonUrls((prev) => ({ ...prev, ...newToons }));
+
+      // Fill main if missing
+      if (!resultMap[main.name]) {
+        const m = newToons[main.id] || main.imageUrls?.[0] || "";
+        resultMap[main.name] = {
+          image_url: m,
+          description: `a ${main.age} year old human kid`,
+        };
+      }
+      // Fill sides
+      sides.forEach((s) => {
+        if (!resultMap[s.name]) {
+          const url = newToons[s.id] || s.avatar;
+          resultMap[s.name] = {
+            image_url: url,
+            description: s.description || "",
+          };
+        }
+      });
+    }
+
+    return resultMap;
+  }
 
   const appendToken = React.useCallback((raw: string) => {
     // Keep spaces; convert lone newline → real paragraph break
@@ -1343,6 +1631,10 @@ export default function CreateStoryPage() {
                   <StorySettings
                     onSubmit={handleStorySettings}
                     onBack={() => setCurrentSubStep("subject")}
+                    characterIds={[
+                      activeChar?.id,
+                      ...selectedSideChars.map((char) => char.id),
+                    ].filter(Boolean)}
                   />
                 )}
               </div>
@@ -1365,14 +1657,101 @@ export default function CreateStoryPage() {
         {((currentStep === 3 && isFirstTimeUser) || currentStep === 4) && (
           <section>
             <h2 className="text-2xl font-bold mb-4">
-              {isFirstTimeUser ? "Step 3: Preview & Download" : "Step 4: Preview & Download"}
+              {isFirstTimeUser
+                ? "Step 3: Preview & Download"
+                : "Step 4: Preview & Download"}
             </h2>
 
-            {imagesProg && (
-              <div className="mb-4">
-                <p className="text-center text-sm text-gray-500">
-                  Generating pages… — {imagesProg.pct.toFixed(0)}%
+            {/* Show Avatar Tuner immediately after kickoff until finalized */}
+            {showAvatarTuner && !avatarFinalized && activeChar && (
+              <div className="space-y-4">
+                <p className="text-sm text-gray-700 text-center">
+                  Choose your avatar while we plan your story. We’ll use it for
+                  the images.
                 </p>
+                <AvatarTuner
+                  primary={{
+                    id: activeChar.id,
+                    name: activeChar.name,
+                    imageUrl: activeChar.imageUrls?.[0] || "",
+                    toonUrl: toonUrls[activeChar.id] || activeChar.toonUrl,
+                  }}
+                  sides={selectedSideChars.map((c) => ({
+                    id: c.id,
+                    name: c.name,
+                    imageUrl: c.avatar,
+                    toonUrl: toonUrls[c.id] || c.toonUrl,
+                  }))}
+                  style={bookStyle || "pixar"}
+                  onFinalized={async (map, _cfg) => {
+                    setToonUrls((prev) => ({ ...prev, ...map }));
+                    setAvatarFinalized(true);
+                    // If the outline is already finished (awaiting_avatar), kick off images now
+                    if (
+                      imagesProg?.phase === "awaiting_avatar" &&
+                      !imagesStartedRef.current
+                    ) {
+                      try {
+                        imagesStartedRef.current = true;
+                        const characterImageMap = {
+                          [kidName]: {
+                            image_url:
+                              map[activeChar.id] ||
+                              activeChar.toonUrl ||
+                              activeChar.imageUrls?.[0] ||
+                              "",
+                            description: `a ${activeChar.age} year old human kid`,
+                          },
+                          ...Object.fromEntries(
+                            selectedSideChars.map((char) => [
+                              char.name,
+                              {
+                                image_url:
+                                  map[char.id] || char.toonUrl || char.avatar,
+                                description: char.description || "",
+                              },
+                            ]),
+                          ),
+                        } as any;
+
+                        const r = await apiRequest(
+                          "POST",
+                          "/api/startImageGeneration",
+                          {
+                            bookId,
+                            characterImageMap,
+                            animationStyle: "pixar",
+                          },
+                        );
+                        if (r?.jobId) {
+                          setImagesJobId(r.jobId);
+                          patchBookM.mutate({
+                            id: bookId!,
+                            payload: { imagesJobId: r.jobId },
+                          });
+                        }
+                      } catch (e) {
+                        console.error(e);
+                        toast({
+                          title: "Failed to start image generation",
+                          variant: "destructive",
+                        });
+                      }
+                    }
+                  }}
+                />
+              </div>
+            )}
+
+            {/* Always show progress (story outline first, then images) */}
+            {imagesProg && !(showAvatarTuner && !avatarFinalized) && (
+              <div className="mb-4">
+                <div className="text-center text-sm text-gray-500 space-y-1">
+                  <p>Generating pages… — {imagesProg.pct.toFixed(0)}%</p>
+                  {/* {imagesProg.message && (
+                    <p className="text-[12px] text-gray-400">{imagesProg.message}</p>
+                  )} */}
+                </div>
                 <ProgressDisplay prog={imagesProg} />
               </div>
             )}

@@ -7,10 +7,97 @@ import {
   ImageArtifact,
   GenerationResult,
   ProgressCallback,
+  ConversationTurn,
+  ImageJob,
 } from "./types";
 import * as store from "./historyStore";
 import { saveBufferToStorage, getExtensionFromMime } from "./storage";
 import { generateRequestHash } from "./hashing";
+
+/**
+ * Generate a child job ID for regenerations
+ */
+export function generateChildJobId(
+  parentJobId: string,
+  regenerationIndex: number,
+): string {
+  return `${parentJobId}_regen_${regenerationIndex}`;
+}
+
+/**
+ * Extract parent job ID from a regeneration job ID
+ */
+export function getParentJobId(jobId: string): string {
+  if (jobId.includes("_regen_")) {
+    return jobId.split("_regen_")[0];
+  }
+  return jobId;
+}
+
+/**
+ * Get the regeneration index from a job ID
+ */
+export function getRegenerationIndex(jobId: string): number {
+  if (jobId.includes("_regen_")) {
+    const parts = jobId.split("_regen_");
+    return parseInt(parts[1], 10);
+  }
+  return 0;
+}
+
+/**
+ * Build conversation history for regeneration
+ */
+export async function buildConversationHistory(
+  conversationId: string,
+  parentJobId: string,
+  newPrompt: string,
+): Promise<ConversationTurn[]> {
+  const parentJob = await store.loadJob(conversationId, parentJobId);
+  if (!parentJob) {
+    throw new Error(`Parent job ${parentJobId} not found`);
+  }
+
+  const history: ConversationTurn[] = [];
+
+  // Add parent job's conversation history if it exists (for chained regenerations)
+  if (parentJob.conversation_history) {
+    history.push(...parentJob.conversation_history);
+  } else {
+    // First time: add original input as user message
+    history.push({
+      role: "user" as const,
+      parts: parentJob.input_snapshot.prompt_parts,
+    });
+  }
+
+  // Add parent job's output as model response (both text AND images)
+  const modelResponseParts: Part[] = [
+    ...(parentJob.output_summary?.text
+      ? [{ type: "text" as const, text: parentJob.output_summary.text }]
+      : []),
+    ...(parentJob.output_summary?.images || []).map((img) => ({
+      type: "image_url" as const,
+      url: img.url,
+      mimeType: img.mimeType,
+    })),
+  ];
+
+  if (modelResponseParts.length > 0) {
+    history.push({
+      role: "model" as const,
+      parts: modelResponseParts,
+    });
+  }
+
+  // Add new prompt as user message
+  history.push({
+    role: "user" as const,
+    parts: [{ type: "text" as const, text: newPrompt }],
+  });
+
+  return history;
+}
 
 /**
  * Get the appropriate engine for the provider
@@ -24,7 +111,7 @@ function getEngine(provider: "openai" | "gemini"): ImageEngine {
  */
 function getDefaultModel(provider: "openai" | "gemini"): string {
   return provider === "openai"
-    ? "gpt-4o-mini"
+    ? "gpt-5-mini"
     : "gemini-2.5-flash-image-preview";
 }
 
@@ -67,6 +154,9 @@ export async function generateImage(opts: {
     status: "pending",
     input_snapshot: { prompt_parts, gen_config: {} }, // Empty config since it's in config file
     request_hash,
+    // Don't include parent_job_id for original jobs (undefined values cause Firestore errors)
+    regeneration_index: 0, // Original generation
+    conversation_history: [{ role: "user" as const, parts: prompt_parts }], // Store initial conversation
   });
 
   onProgress?.("generating", 20, "Calling image generation API...");
@@ -111,10 +201,32 @@ export async function generateImage(opts: {
       outputSummary.text = result.text;
     }
 
+    // Update conversation history with model response (both text AND images) for future regenerations
+    const modelResponseParts: Part[] = [
+      ...(result.text ? [{ type: "text" as const, text: result.text }] : []),
+      ...artifacts.map((img) => ({
+        type: "image_url" as const,
+        url: img.url,
+        mimeType: img.mimeType,
+      })),
+    ];
+
+    const updatedConversationHistory: ConversationTurn[] = [
+      { role: "user" as const, parts: prompt_parts },
+      { role: "model" as const, parts: modelResponseParts },
+    ];
+
     await store.markJobStatus(conversationId, jobId, "succeeded", {
       output_summary: outputSummary,
       provider_meta: result.provider_meta,
     });
+
+    // Update conversation history (always, since we now include generated images)
+    await store.updateJobConversationHistory(
+      conversationId,
+      jobId,
+      updatedConversationHistory,
+    );
 
     onProgress?.("complete", 100, "Image generation complete");
 
@@ -133,7 +245,7 @@ export async function generateImage(opts: {
 }
 
 /**
- * Regenerate image using the orchestrator
+ * Regenerate image using the orchestrator with proper job chaining
  */
 export async function regenerateImage(opts: {
   conversationId: string;
@@ -145,79 +257,129 @@ export async function regenerateImage(opts: {
 
   onProgress?.("initializing", 0, "Loading job for regeneration...");
 
-  // Load the original job
-  const job = await store.loadJob(conversationId, jobId);
-  if (!job) {
+  // Load the original/parent job
+  const parentJob = await store.loadJob(conversationId, jobId);
+  if (!parentJob) {
     throw new Error(`Job ${jobId} not found`);
   }
 
-  const { provider, model, input_snapshot, provider_meta } = job;
+  const { provider, model } = parentJob;
   const engine = getEngine(provider);
 
-  onProgress?.("regenerating", 20, "Regenerating image...");
+  // Generate child job ID
+  const parentJobId = getParentJobId(jobId);
+  const currentIndex = getRegenerationIndex(jobId);
+  const newIndex = currentIndex + 1;
+  const newJobId = generateChildJobId(parentJobId, newIndex);
 
-  // Try native regeneration for OpenAI if response_id is available
+  onProgress?.("building_history", 10, "Building conversation history...");
+
+  // Build conversation history for multi-turn
+  const conversationHistory = await buildConversationHistory(
+    conversationId,
+    jobId,
+    revisedPrompt || "Regenerate this image",
+  );
+
+  // Create new job with chaining information
+  const request_hash = generateRequestHash(
+    conversationHistory.slice(-1)[0].parts,
+    {},
+  );
+
+  const childJobId = await store.createJob(conversationId, {
+    provider,
+    model,
+    status: "pending",
+    input_snapshot: {
+      prompt_parts: conversationHistory.slice(-1)[0].parts, // Latest user input
+      gen_config: parentJob.input_snapshot.gen_config,
+    },
+    request_hash,
+    parent_job_id: jobId,
+    regeneration_index: newIndex,
+    conversation_history: conversationHistory,
+  });
+
+  onProgress?.("regenerating", 30, "Regenerating image...");
+
+  let result;
+
+  // Try native OpenAI regeneration first if available
   if (
     provider === "openai" &&
     engine.regenerate &&
-    provider_meta?.raw_refs?.response_id
+    parentJob.provider_meta?.raw_refs?.response_id
   ) {
     try {
-      const result = await engine.regenerate({
-        response_id: provider_meta.raw_refs.response_id,
+      result = await engine.regenerate({
+        response_id: parentJob.provider_meta.raw_refs.response_id,
       });
-
       onProgress?.("processing", 70, "Processing regenerated images...");
-
-      // Save regenerated images
-      const artifacts: ImageArtifact[] = [];
-      for (let i = 0; i < result.images.length; i++) {
-        const img = result.images[i];
-        const ext = getExtensionFromMime(img.mimeType);
-        const storagePath = `books/${conversationId}/regenerated_images/${jobId}_regen_${Date.now()}_${i}.${ext}`;
-
-        const saved = await saveBufferToStorage(img.buffer, ext, storagePath);
-        const artifact: ImageArtifact = {
-          ...saved,
-          mimeType: img.mimeType,
-          bytes: img.buffer.length,
-        };
-
-        artifacts.push(artifact);
-      }
-
-      onProgress?.("complete", 100, "Regeneration complete");
-
-      return {
-        jobId: `${jobId}_regen_${Date.now()}`,
-        images: artifacts,
-        provider_meta: result.provider_meta,
-      };
     } catch (error) {
       console.warn(
-        "Native regeneration failed, falling back to replay:",
+        "Native OpenAI regeneration failed, falling back to conversation history:",
         error,
       );
+      result = null;
     }
   }
 
-  // Fallback: replay generation with original or modified prompt
-  let prompt_parts = input_snapshot.prompt_parts;
-
-  // If revised prompt provided, replace text parts
-  if (revisedPrompt) {
-    prompt_parts = [
-      { type: "text", text: revisedPrompt },
-      ...prompt_parts.filter((p) => p.type !== "text"),
-    ];
+  // Use conversation history for Gemini or OpenAI fallback
+  if (!result) {
+    if (provider === "gemini") {
+      // For Gemini, use the conversation history to create a multi-turn chat
+      result = await engine.generate({
+        model,
+        prompt_parts: conversationHistory.slice(-1)[0].parts, // Send latest user input
+        conversation_history: conversationHistory.slice(0, -1), // Send prior history
+      });
+    } else {
+      // For OpenAI fallback, send just the latest prompt with image references
+      result = await engine.generate({
+        model,
+        prompt_parts: conversationHistory.slice(-1)[0].parts,
+      });
+    }
+    onProgress?.("processing", 70, "Processing regenerated images...");
   }
 
-  // Generate new image (config handled by engines from config file)
-  return generateImage({
-    conversationId,
-    provider,
-    model,
-    prompt_parts,
-    onProgress,
+  // Save artifacts
+  const artifacts: ImageArtifact[] = [];
+  for (let i = 0; i < result.images.length; i++) {
+    const img = result.images[i];
+    const ext = getExtensionFromMime(img.mimeType);
+    const storagePath = `books/${conversationId}/images/${childJobId}_${i}.${ext}`;
+
+    const saved = await saveBufferToStorage(img.buffer, ext, storagePath);
+    const artifact: ImageArtifact = {
+      ...saved,
+      mimeType: img.mimeType,
+      bytes: img.buffer.length,
+    };
+
+    artifacts.push(artifact);
+  }
+
+  // Update job status
+  const outputSummary: any = {
+    images: artifacts,
+  };
+
+  if (result.text) {
+    outputSummary.text = result.text;
+  }
+
+  await store.markJobStatus(conversationId, childJobId, "succeeded", {
+    output_summary: outputSummary,
+    provider_meta: result.provider_meta,
   });
+
+  onProgress?.("complete", 100, "Regeneration complete");
+
+  return {
+    jobId: childJobId,
+    images: artifacts,
+    provider_meta: result.provider_meta,
+  };
 }

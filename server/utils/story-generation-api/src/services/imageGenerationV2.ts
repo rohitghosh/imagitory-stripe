@@ -6,13 +6,14 @@
  * existing story generation API.
  */
 
-import { generateImage } from "../core/orchestrator";
+import { generateImage, regenerateImage } from "../core/orchestrator";
 import {
   UnifiedSceneDescription,
   UnifiedFrontCover,
   ProgressCallback,
   CharacterVariables,
 } from "../types";
+import { Part } from "../core/types";
 import {
   generateUnifiedImagePrompt,
   generateUnifiedFrontCoverPrompt,
@@ -21,6 +22,7 @@ import {
   removeDuplicateAdjacentWords,
 } from "./imageGeneration";
 import { DEFAULT_CHARACTER_IMAGES } from "../utils/constants";
+import { getCurrentProvider } from "../config/imageGenConfig";
 
 /**
  * Generate image for a story scene using the new orchestrator
@@ -33,6 +35,7 @@ export async function generateImageForScene(
     string,
     CharacterVariables
   > = DEFAULT_CHARACTER_IMAGES,
+  animationStyle: string = "pixar",
   onProgress?: ProgressCallback,
   seed = 3,
 ): Promise<{ firebaseUrl: string; responseId: string }> {
@@ -46,7 +49,7 @@ export async function generateImageForScene(
     sceneDesc,
     present,
     characterImageMap,
-    "pixar",
+    animationStyle,
   );
 
   // Apply character aliases if needed
@@ -63,17 +66,47 @@ export async function generateImageForScene(
   // Remove duplicate adjacent words
   prompt = removeDuplicateAdjacentWords(prompt);
 
-  onProgress?.("generating", 10, "Prompt ready, calling image generation…");
+  onProgress?.("generating", 10, "Extracting character images…");
+
+  // Extract character images (same logic as original imageGeneration.ts)
+  const characterImageParts: Part[] = [];
+  if (present.length > 0) {
+    for (const charName of present) {
+      const charVars = characterImageMap[charName];
+      if (charVars && charVars.image_url) {
+        characterImageParts.push({
+          type: "image_url",
+          url: charVars.image_url,
+        });
+      }
+    }
+  }
+
+  // Add previous image if visual overlap is needed
+  if (
+    scene.scene_description.Visual_Overlap_With_Previous &&
+    previousImageUrl
+  ) {
+    characterImageParts.push({
+      type: "image_url",
+      url: previousImageUrl,
+    });
+  }
+
+  onProgress?.("generating", 15, "Prompt ready, calling image generation…");
 
   try {
-    // Use the new orchestrator to generate the image
+    // Use the new orchestrator to generate the image with BOTH text AND images
     const result = await generateImage({
       conversationId: bookId,
-      provider: process.env.IMAGE_PROVIDER === "gemini" ? "gemini" : "openai",
-      prompt_parts: [{ type: "text", text: prompt }],
+      provider: getCurrentProvider(),
+      prompt_parts: [
+        { type: "text", text: prompt },
+        ...characterImageParts, // ✅ Include character images!
+      ],
       onProgress: (phase, pct, message) => {
-        // Map orchestrator progress to expected progress range (10-90%)
-        const adjustedPct = 10 + (pct / 100) * 80;
+        // Map orchestrator progress to expected progress range (15-90%)
+        const adjustedPct = 15 + (pct / 100) * 75;
         onProgress?.(phase, adjustedPct, message);
       },
     });
@@ -109,6 +142,7 @@ export async function generateImageForFrontCover(
     string,
     CharacterVariables
   > = DEFAULT_CHARACTER_IMAGES,
+  animationStyle: string = "pixar",
   onProgress?: ProgressCallback,
   seed = 3,
 ): Promise<{ firebaseUrl: string; responseId: string }> {
@@ -120,24 +154,44 @@ export async function generateImageForFrontCover(
     frontCover,
     coverPresent,
     characterImageMap,
-    "pixar",
+    animationStyle,
   );
+
+  onProgress?.("generating_cover", 10, "Extracting character images…");
+
+  // Extract character images for front cover (same logic as original)
+  const characterImageParts: Part[] = [];
+  if (coverPresent.length > 0) {
+    for (const charName of coverPresent) {
+      const charVars = characterImageMap[charName];
+      if (charVars && charVars.image_url) {
+        characterImageParts.push({
+          type: "image_url",
+          url: charVars.image_url,
+        });
+      }
+    }
+  }
 
   onProgress?.(
     "generating_cover",
-    10,
+    15,
     "Prompt ready, calling image generation…",
   );
 
   try {
-    // Use the new orchestrator to generate the front cover
+    // Use the new orchestrator to generate the front cover with BOTH text AND images
     const result = await generateImage({
       conversationId: bookId,
-      provider: process.env.IMAGE_PROVIDER === "gemini" ? "gemini" : "openai",
-      prompt_parts: [{ type: "text", text: prompt }],
+      provider: getCurrentProvider(),
+      model: "cover", // Hint for engines to use cover config
+      prompt_parts: [
+        { type: "text", text: prompt },
+        ...characterImageParts, // ✅ Include character images!
+      ],
       onProgress: (phase, pct, message) => {
-        // Map orchestrator progress to expected progress range (10-90%)
-        const adjustedPct = 10 + (pct / 100) * 80;
+        // Map orchestrator progress to expected progress range (15-90%)
+        const adjustedPct = 15 + (pct / 100) * 75;
         onProgress?.(phase, adjustedPct, message);
       },
     });
@@ -164,7 +218,7 @@ export async function generateImageForFrontCover(
 }
 
 /**
- * Generate final cover with title (placeholder - need to implement title overlay)
+ * Generate final cover with title using Fal AI title overlay
  */
 export async function generateFinalCoverWithTitle(
   bookId: string,
@@ -175,72 +229,147 @@ export async function generateFinalCoverWithTitle(
 ): Promise<string> {
   onProgress?.("generating_cover", 0, "Adding title to cover…");
 
-  // For now, this is a placeholder that returns the base cover
-  // In a full implementation, this would overlay the title on the base cover
-  // using image processing or a specialized title overlay service
+  // Import fal and other dependencies needed for title overlay
+  const { fal } = await import("@fal-ai/client");
+  const { toDataUrl } = await import("../core/storage");
+  const { uploadBase64ToFirebase } = await import("../../../uploadImage");
 
-  onProgress?.("generating_cover", 50, "Processing title overlay…");
+  const TEST_MODE = process.env.TEST_MODE;
 
-  // TODO: Implement actual title overlay functionality
-  // This might involve:
-  // 1. Loading the base cover image
-  // 2. Adding text overlay with the story title
-  // 3. Saving the result to storage
+  const onQueueUpdate = (update: any) => {
+    if (update.status === "completed") {
+      onProgress?.("generating_cover", 100, "Title added successfully");
+    } else if (update.status === "failed") {
+      throw new Error("Failed to add title to cover");
+    } else {
+      onProgress?.("generating_cover", 50, "Processing title overlay…");
+    }
+  };
 
-  onProgress?.("generating_cover", 100, "Title overlay complete");
+  let finalImageUrl = null;
 
-  return baseCoverUrl; // Return base cover for now
+  if (TEST_MODE === "true") {
+    // Use test image in test mode
+    finalImageUrl =
+      "https://fal.media/files/zebra/gmaYiChEr3BYD11bv22pq_cb45651b96c04d7fb9f7aa5982ceb756.jpg";
+  } else {
+    // Use Fal AI to add title overlay to the base cover
+    const result = await fal.subscribe("fal-ai/flux-pro/kontext", {
+      input: {
+        prompt: createTitleOverlayPrompt(storyTitle),
+        image_url: baseCoverUrl,
+        enable_safety_checker: false,
+      },
+      pollInterval: 1000,
+      onQueueUpdate,
+    });
+
+    finalImageUrl = result?.data?.images?.[0]?.url;
+  }
+
+  if (!finalImageUrl) {
+    throw new Error("No final cover URL returned from Fal AI title overlay");
+  }
+
+  // Convert the final image to base64 and upload to Firebase
+  const dataUrl = await toDataUrl(finalImageUrl);
+  const firebaseUrl = await uploadBase64ToFirebase(
+    dataUrl,
+    `books/${bookId}/covers`,
+  );
+
+  return firebaseUrl;
 }
 
 /**
- * Regenerate base cover image
+ * Creates the prompt for Fal AI title overlay
+ */
+function createTitleOverlayPrompt(storyTitle: string): string {
+  return `Add a beautiful, child-friendly book title "${storyTitle}" to the center-top of this image. The title should be:
+- Large, clear, and easy to read
+- In a playful, colorful font suitable for children
+- Positioned in the top third of the image
+- With a subtle background or shadow to ensure readability
+- In colors that complement the existing image palette
+- Stylized to look like a professional children's book cover`;
+}
+
+/**
+ * Regenerate base cover image (matches original signature)
  */
 export async function regenerateBaseCoverImage(
   bookId: string,
-  baseCoverInputs: {
-    front_cover: UnifiedFrontCover;
-    characterImageMap: Record<string, CharacterVariables>;
-    seed: number;
-  },
+  coverResponseId: string,
+  revisedPrompt: string,
   onProgress?: ProgressCallback,
 ): Promise<{ firebaseUrl: string; responseId: string }> {
   onProgress?.("regenerating", 0, "Regenerating base cover…");
 
-  return generateImageForFrontCover(
-    bookId,
-    baseCoverInputs.front_cover,
-    baseCoverInputs.characterImageMap,
-    onProgress,
-    baseCoverInputs.seed,
-  );
+  try {
+    // Use the new orchestrator's regenerate function
+    const result = await regenerateImage({
+      conversationId: bookId,
+      jobId: coverResponseId,
+      revisedPrompt,
+      onProgress: (phase, pct, message) => {
+        onProgress?.(phase, pct, message);
+      },
+    });
+
+    onProgress?.("regenerating", 100, "Cover regeneration complete");
+
+    // Extract the first image from the result
+    if (result.images && result.images.length > 0) {
+      const image = result.images[0];
+      return {
+        firebaseUrl: image.url,
+        responseId: result.jobId,
+      };
+    } else {
+      throw new Error("No cover image regenerated");
+    }
+  } catch (error) {
+    console.error("Cover regeneration failed:", error);
+    throw error;
+  }
 }
 
 /**
- * Regenerate scene image
+ * Regenerate scene image (matches original signature)
  */
 export async function regenerateSceneImage(
   bookId: string,
-  sceneInputs: {
-    scene_description: any;
-    characterImageMap: Record<string, CharacterVariables>;
-    previousImageUrl: string | null;
-    seed: number;
-  },
+  sceneResponseId: string,
+  revisedPrompt: string,
   onProgress?: ProgressCallback,
 ): Promise<{ firebaseUrl: string; responseId: string }> {
   onProgress?.("regenerating", 0, "Regenerating scene image…");
 
-  const scene = {
-    scene_description: sceneInputs.scene_description,
-    scene_text: [], // Not needed for regeneration
-  };
+  try {
+    // Use the new orchestrator's regenerate function
+    const result = await regenerateImage({
+      conversationId: bookId,
+      jobId: sceneResponseId,
+      revisedPrompt,
+      onProgress: (phase, pct, message) => {
+        onProgress?.(phase, pct, message);
+      },
+    });
 
-  return generateImageForScene(
-    bookId,
-    scene,
-    sceneInputs.previousImageUrl,
-    sceneInputs.characterImageMap,
-    onProgress,
-    sceneInputs.seed,
-  );
+    onProgress?.("regenerating", 100, "Scene regeneration complete");
+
+    // Extract the first image from the result
+    if (result.images && result.images.length > 0) {
+      const image = result.images[0];
+      return {
+        firebaseUrl: image.url,
+        responseId: result.jobId,
+      };
+    } else {
+      throw new Error("No scene image regenerated");
+    }
+  } catch (error) {
+    console.error("Scene regeneration failed:", error);
+    throw error;
+  }
 }

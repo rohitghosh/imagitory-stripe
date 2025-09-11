@@ -36,7 +36,6 @@
 //   return state;
 // }
 
-
 import { useState, useEffect, useRef } from "react";
 
 // util hook placed above component definition
@@ -64,19 +63,23 @@ export function useJobProgress(jobId?: string) {
       smoothingInterval.current = null;
     }
 
-    const startSmoothing = (targetPct: number, currentPct: number, phase: string) => {
+    const startSmoothing = (
+      targetPct: number,
+      currentPct: number,
+      phase: string,
+    ) => {
       if (smoothingInterval.current) {
         clearInterval(smoothingInterval.current);
       }
 
       // Define minimum progress speeds for different phases (% per second)
       const progressSpeeds = {
-        initializing: 0.5,   // Slow initialization
-        prompting: 0.3,      // Very slow for reasoning phase  
-        reasoning: 0.2,      // Very slow for deep thinking
-        generating: 0.8,     // Faster for image generation
-        complete: 100,       // Instant completion
-        error: 100,          // Instant error display
+        initializing: 0.5, // Slow initialization
+        prompting: 0.3, // Very slow for reasoning phase
+        reasoning: 0.2, // Very slow for deep thinking
+        generating: 0.8, // Faster for image generation
+        complete: 100, // Instant completion
+        error: 100, // Instant error display
       };
 
       const speed = progressSpeeds[phase] || 0.5;
@@ -86,22 +89,25 @@ export function useJobProgress(jobId?: string) {
         if (cancel) return;
 
         const timeSincePhaseStart = Date.now() - phaseStartTime.current;
-        const timeBasedProgress = Math.min(timeSincePhaseStart / 60000 * 10, 10); // 10% over 60 seconds max
+        const timeBasedProgress = Math.min(
+          (timeSincePhaseStart / 60000) * 10,
+          10,
+        ); // 10% over 60 seconds max
 
         // Combine server progress with time-based progress
         const minProgressForTime = Math.max(
           currentDisplayPct.current + increment,
-          currentPct + timeBasedProgress
+          currentPct + timeBasedProgress,
         );
 
         const newPct = Math.min(
           Math.max(minProgressForTime, targetPct),
-          phase === "complete" ? 100 : Math.min(targetPct + 15, 95) // Never go above 95% unless complete
+          phase === "complete" ? 100 : Math.min(targetPct + 15, 95), // Never go above 95% unless complete
         );
 
         if (newPct !== currentDisplayPct.current) {
           currentDisplayPct.current = newPct;
-          setState(prev => prev ? { ...prev, pct: newPct } : undefined);
+          setState((prev) => (prev ? { ...prev, pct: newPct } : undefined));
         }
 
         // Stop if we've reached or exceeded the target
