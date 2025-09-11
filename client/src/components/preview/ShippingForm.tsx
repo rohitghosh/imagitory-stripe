@@ -173,10 +173,7 @@ export function ShippingForm({ onSubmit }: ShippingFormProps) {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="us">United States</SelectItem>
-                        <SelectItem value="ca">Canada</SelectItem>
-                        <SelectItem value="uk">United Kingdom</SelectItem>
-                        <SelectItem value="au">Australia</SelectItem>
+                        <SelectItem value="us">India</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />

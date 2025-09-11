@@ -803,7 +803,8 @@ export default function CreateStoryPage() {
   const patchBookM = useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: any }) =>
       apiRequest("PATCH", `/api/books/${id}`, payload),
-    onSuccess: (_data, { id }) => queryClient.invalidateQueries({ queryKey: ["book", id] }),
+    onSuccess: (_data, { id }) =>
+      queryClient.invalidateQueries({ queryKey: ["book", id] }),
     onError: () =>
       toast({
         title: "Error",
@@ -1174,8 +1175,9 @@ export default function CreateStoryPage() {
     if (book?.imagesJobId && !imagesJobId) setImagesJobId(book.imagesJobId);
     if (book.pages?.length) {
       // If book already has pages, redirect to book view instead of staying on create page
-      setLocation(`/book/${bookId}`);
-      return;
+      // setLocation(`/book/${bookId}`);
+      // return;
+      setCurrentStep(4);
     }
   }, [book]);
 
@@ -1637,20 +1639,23 @@ export default function CreateStoryPage() {
 
         {currentStep === 3 && !isFirstTimeUser && (
           <section>
-            <h2 className="text-2xl font-bold mb-4">
-              Step 3: Payment
-            </h2>
+            <h2 className="text-2xl font-bold mb-4">Step 3: Payment</h2>
             <p className="text-gray-600 mb-6">
               Complete your payment to start generating your personalized story.
             </p>
             <div className="max-w-md mx-auto text-center space-y-4">
               <div className="p-4 bg-imaginory-yellow/10 border border-imaginory-yellow/30 rounded-lg">
                 <p className="text-sm text-imaginory-black font-body">
-                  🎨 Ready to create your personalized story! Click below to proceed to secure payment.
+                  🎨 Ready to create your personalized story! Click below to
+                  proceed to secure payment.
                 </p>
               </div>
-              <Button 
-                onClick={() => handleDirectPayment(pendingStoryPayload || getCurrentStoryPayload())}
+              <Button
+                onClick={() =>
+                  handleDirectPayment(
+                    pendingStoryPayload || getCurrentStoryPayload(),
+                  )
+                }
                 className="imaginory-button text-lg px-8 py-3 w-full"
                 data-testid="button-proceed-payment"
               >
