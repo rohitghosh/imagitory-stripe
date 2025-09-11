@@ -570,26 +570,6 @@ export async function generateCompleteStory(
       seed,
     ),
   );
-  /* ── 2. Scene images (40 → 90 %) ──────────────────────────────────── */
-  // const total = 1; // We are only processing one scene now
-  // const sides: ("left" | "right")[] = [Math.random() < 0.5 ? "left" : "right"]; // Side for the single scene
-  // const share = 50 / total; // Progress share for the single scene
-  // onProgress?.("generating", 40, "Starting scene image…");
-
-  // // Process only the first scene
-  // const scenePromises = [story.scenes[0]].map((scene: any, index: number) =>
-  //   generateImageForScene(
-  //     finalBookId, // Use the consistent bookId
-  //     scene,
-  //     null,
-  //     characterImageMap,
-  //     (phase, pct, msg) => {
-  //       const overall = 40 + index * share + (pct / 100) * share;
-  //       onProgress?.(phase, overall, msg);
-  //     },
-  //     seed,
-  //   ),
-  // );
 
   const generatedScenes = await Promise.all(scenePromises);
   onProgress?.("generating", 90, "All scene images generated");
