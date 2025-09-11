@@ -47,7 +47,7 @@ export default function OrderSuccessPage() {
           });
           setTimeout(() => {
             setLocation(`/create/${order.bookId}?payment_completed=true`);
-          }, 2000);
+          }, 1500);
         }
       } catch (error) {
         toast({
@@ -187,29 +187,14 @@ export default function OrderSuccessPage() {
           <Card className="mb-6 border border-imaginory-yellow/20 shadow-lg">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-imaginory-black font-heading">
-                <Truck className="w-5 h-5 text-imaginory-yellow" />
-                Shipping Information
+                <BookOpen className="w-5 h-5 text-imaginory-yellow" />
+                Next Steps
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-2">
-                <p className="font-medium font-body text-imaginory-black">
-                  {orderData.firstName} {orderData.lastName}
-                </p>
-                <p className="text-sm text-muted-foreground font-body">
-                  {orderData.address}
-                </p>
-                <p className="text-sm text-muted-foreground font-body">
-                  {orderData.city}, {orderData.state} {orderData.zip}
-                </p>
-                <p className="text-sm text-muted-foreground font-body">
-                  {orderData.country}
-                </p>
-              </div>
               <div className="mt-4 p-3 bg-imaginory-yellow/10 border border-imaginory-yellow/30 rounded-lg">
                 <p className="text-sm text-imaginory-black font-body">
-                  📦 Your book will be printed and shipped within 3-5 business
-                  days. You'll receive a tracking number via email once it ships.
+                  🎨 Your custom story book is being generated! You'll be redirected to the creation process where you can customize your character and watch your story come to life.
                 </p>
               </div>
             </CardContent>

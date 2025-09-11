@@ -689,7 +689,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/contexts/AuthContext";
 import { useJobProgress } from "@/hooks/use-job-progress";
-import { ShippingForm } from "@/components/preview/ShippingForm";
+import { Button } from "@/components/ui/button";
 import {
   createThemeSubjectSchema,
   requiresValidation,
@@ -803,7 +803,7 @@ export default function CreateStoryPage() {
   const patchBookM = useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: any }) =>
       apiRequest("PATCH", `/api/books/${id}`, payload),
-    onSuccess: (_data, { id }) => queryClient.invalidateQueries(["book", id]),
+    onSuccess: (_data, { id }) => queryClient.invalidateQueries({ queryKey: ["book", id] }),
     onError: () =>
       toast({
         title: "Error",
@@ -973,7 +973,7 @@ export default function CreateStoryPage() {
   }
 
   /* ─────────────────────────── story settings and generation ──────────────────── */
-  function handleStorySettings(
+  async function handleStorySettings(
     rhymingEnabled: boolean,
     animationStyle: string,
     characterToonUrls?: Record<string, string>,
@@ -1066,8 +1066,8 @@ export default function CreateStoryPage() {
       .then((r) => {
         setImagesJobId(r.jobId);
         patchBookM.mutate({ id: bookId!, payload: { imagesJobId: r.jobId } });
-        setCurrentStep(3);
-        const preMain = (activeChar as any)?.toonUrls?.[animationStyle];
+        setCurrentStep(4);
+        const preMain = (activeChar as any)?.toonUrls?.[bookStyle || "pixar"];
         if (preMain) {
           setToonUrls((prev) => ({ ...prev, [activeChar.id]: preMain }));
           setAvatarFinalized(true);
@@ -1141,28 +1141,21 @@ export default function CreateStoryPage() {
     }
   }
 
-  async function handlePaymentSubmit(formData: any) {
-    try {
-      if (user && pendingStoryPayload) {
-        console.log("🚀 Creating order for story generation:", formData);
-        const orderResponse = await apiRequest("POST", "/api/orders", {
-          ...formData,
-          bookId,
-          userId: user.uid,
-        });
-
-        console.log("✅ Order created, redirecting to payment:", orderResponse);
-        // Redirect to payment page
-        setLocation(`/payment/${orderResponse.id}`);
-      }
-    } catch (error) {
-      console.error("❌ Order creation failed:", error);
-      toast({
-        title: "Order failed",
-        description: "There was a problem creating your order.",
-        variant: "destructive",
-      });
-    }
+  function getCurrentStoryPayload() {
+    return {
+      bookId,
+      userId: user?.uid,
+      kidName,
+      kidAge: activeChar?.age,
+      characterId: activeChar?.id,
+      sideCharacterIds: selectedSideChars.map((char) => char.id),
+      theme: selectedTheme,
+      customTheme: isCustomTheme ? selectedSubject : null,
+      subject: selectedSubject,
+      rhyming,
+      style: bookStyle,
+      title: bookTitle,
+    };
   }
 
   /* ─────────────────────────── hydration logic ─────────────────── */
@@ -1188,7 +1181,7 @@ export default function CreateStoryPage() {
 
   useEffect(() => {
     if (imagesProg?.phase === "complete") {
-      queryClient.invalidateQueries(["book", bookId]);
+      queryClient.invalidateQueries({ queryKey: ["book", bookId] });
     }
   }, [imagesProg]);
 
@@ -1650,7 +1643,20 @@ export default function CreateStoryPage() {
             <p className="text-gray-600 mb-6">
               Complete your payment to start generating your personalized story.
             </p>
-            <ShippingForm onSubmit={handlePaymentSubmit} />
+            <div className="max-w-md mx-auto text-center space-y-4">
+              <div className="p-4 bg-imaginory-yellow/10 border border-imaginory-yellow/30 rounded-lg">
+                <p className="text-sm text-imaginory-black font-body">
+                  🎨 Ready to create your personalized story! Click below to proceed to secure payment.
+                </p>
+              </div>
+              <Button 
+                onClick={() => handleDirectPayment(pendingStoryPayload || getCurrentStoryPayload())}
+                className="imaginory-button text-lg px-8 py-3 w-full"
+                data-testid="button-proceed-payment"
+              >
+                Proceed to Payment ($29.99)
+              </Button>
+            </div>
           </section>
         )}
 
