@@ -698,7 +698,7 @@ import {
 const STEPS = [
   { id: 1, name: "Choose Character" },
   { id: 2, name: "Select Story" },
-  { id: 3, name: "Payment & Shipping" },
+  { id: 3, name: "Payment" },
   { id: 4, name: "Preview & Download" },
 ];
 
@@ -1638,7 +1638,7 @@ export default function CreateStoryPage() {
         {currentStep === 3 && !isFirstTimeUser && (
           <section>
             <h2 className="text-2xl font-bold mb-4">
-              Step 3: Payment & Shipping
+              Step 3: Payment
             </h2>
             <p className="text-gray-600 mb-6">
               Complete your payment to start generating your personalized story.
