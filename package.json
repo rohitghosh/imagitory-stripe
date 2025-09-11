@@ -95,6 +95,7 @@
     "recharts": "^2.13.0",
     "sharp": "^0.33.5",
     "stream-buffers": "^3.0.3",
+    "stripe": "^18.5.0",
     "tailwind-merge": "^2.5.4",
     "tailwindcss-animate": "^1.0.7",
     "tmp-promise": "^3.0.3",

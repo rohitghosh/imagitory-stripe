@@ -13,7 +13,7 @@ interface PaymentPageProps {
 
 declare global {
   interface Window {
-    Razorpay: any;
+    Stripe: any;
   }
 }
 
@@ -27,7 +27,10 @@ export default function PaymentPage() {
   const [orderData, setOrderData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [razorpayKeyId, setRazorpayKeyId] = useState<string>("");
+  const [stripePublishableKey, setStripePublishableKey] = useState<string>("");
+  const [stripe, setStripe] = useState<any>(null);
+  const [elements, setElements] = useState<any>(null);
+  const [cardElement, setCardElement] = useState<any>(null);
 
   useEffect(() => {
     console.log("💳 PaymentPage useEffect - orderId:", orderId);
@@ -40,7 +43,7 @@ export default function PaymentPage() {
     const loadData = async () => {
       try {
         console.log("🔄 Loading order data and payment config...");
-        // Load both order data and Razorpay config
+        // Load both order data and Stripe config
         const [orderResponse, configResponse] = await Promise.all([
           fetch(`/api/orders/${orderId}`),
           fetch("/api/payments/config")
@@ -59,7 +62,7 @@ export default function PaymentPage() {
         console.log("✅ Config loaded:", config);
         
         setOrderData(order);
-        setRazorpayKeyId(config.keyId);
+        setStripePublishableKey(config.publishableKey);
       } catch (error) {
         console.error("❌ Error loading payment page data:", error);
         toast({
@@ -77,95 +80,109 @@ export default function PaymentPage() {
   }, [orderId, setLocation, toast]);
 
   useEffect(() => {
-    // Load Razorpay script
+    // Load Stripe.js
     const script = document.createElement("script");
-    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.src = "https://js.stripe.com/v3/";
     script.async = true;
+    script.onload = () => {
+      if (stripePublishableKey && window.Stripe) {
+        const stripeInstance = window.Stripe(stripePublishableKey);
+        setStripe(stripeInstance);
+      }
+    };
     document.body.appendChild(script);
 
     return () => {
       document.body.removeChild(script);
     };
-  }, []);
+  }, [stripePublishableKey]);
+
+  // Initialize Stripe Elements when stripe is ready
+  useEffect(() => {
+    if (stripe) {
+      const elementsInstance = stripe.elements();
+      setElements(elementsInstance);
+      
+      // Create card element
+      const cardElementInstance = elementsInstance.create('card', {
+        style: {
+          base: {
+            fontSize: '16px',
+            color: '#424770',
+            '::placeholder': {
+              color: '#aab7c4',
+            },
+          },
+        },
+      });
+      
+      setCardElement(cardElementInstance);
+      
+      // Mount the card element
+      setTimeout(() => {
+        const cardContainer = document.getElementById('card-element');
+        if (cardContainer && cardElementInstance) {
+          cardElementInstance.mount('#card-element');
+        }
+      }, 100);
+    }
+  }, [stripe]);
 
   const handlePayment = async () => {
-    if (!orderData || !user) return;
+    if (!orderData || !user || !stripe || !cardElement) return;
 
     setIsProcessing(true);
 
     try {
-      // Create Razorpay order
+      // Create Stripe Payment Intent
       const orderResponse = await apiRequest("POST", "/api/payments/create-order", {
         orderId: orderData.id,
-        amount: 100, // $29.99 in paise (Indian currency subunit)
-        currency: "INR",
       });
 
-      const { razorpayOrderId, amount, currency } = orderResponse;
+      const { clientSecret, paymentIntentId } = orderResponse;
 
-      const options = {
-        key: razorpayKeyId,
-        amount: amount,
-        currency: currency,
-        name: "StoryPals",
-        description: `Custom Story Book - ${orderData.bookTitle || "Personalized Story"}`,
-        order_id: razorpayOrderId,
-        handler: async function (response: any) {
-          try {
-            // Verify payment on backend
-            const verifyResponse = await apiRequest("POST", "/api/payments/verify", {
-              orderId: orderData.id,
-              razorpayOrderId: response.razorpay_order_id,
-              razorpayPaymentId: response.razorpay_payment_id,
-              razorpaySignature: response.razorpay_signature,
-            });
-
-            if (verifyResponse.success) {
-              toast({
-                title: "Payment Successful!",
-                description: "Your order has been confirmed",
-              });
-              setLocation(`/order-success/${orderData.id}`);
-            } else {
-              throw new Error("Payment verification failed");
-            }
-          } catch (error) {
-            toast({
-              title: "Payment Verification Failed",
-              description: "Please contact support",
-              variant: "destructive",
-            });
-          }
-        },
-        modal: {
-          ondismiss: function () {
-            setIsProcessing(false);
+      // Confirm payment with Stripe
+      const { error, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
+        payment_method: {
+          card: cardElement,
+          billing_details: {
+            name: `${orderData.firstName} ${orderData.lastName}`,
+            email: user.email,
           },
-        },
-        prefill: {
-          name: `${orderData.firstName} ${orderData.lastName}`,
-          email: user.email,
-        },
-        theme: {
-          color: "#3B82F6",
-        },
-      };
+        }
+      });
 
-      const razorpay = new window.Razorpay(options);
-      razorpay.on("payment.failed", function (response: any) {
+      if (error) {
         toast({
           title: "Payment Failed",
-          description: response.error.description,
+          description: error.message,
           variant: "destructive",
         });
         setIsProcessing(false);
-      });
+        return;
+      }
 
-      razorpay.open();
+      if (paymentIntent && paymentIntent.status === 'succeeded') {
+        // Verify payment on backend
+        const verifyResponse = await apiRequest("POST", "/api/payments/verify", {
+          orderId: orderData.id,
+          paymentIntentId: paymentIntent.id,
+        });
+
+        if (verifyResponse.success) {
+          toast({
+            title: "Payment Successful!",
+            description: "Your order has been confirmed",
+          });
+          setLocation(`/order-success/${orderData.id}`);
+        } else {
+          throw new Error("Payment verification failed");
+        }
+      }
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to initialize payment",
+        description: "Failed to process payment",
         variant: "destructive",
       });
       setIsProcessing(false);
@@ -231,7 +248,7 @@ export default function PaymentPage() {
               <div className="space-y-4">
                 <div className="flex justify-between">
                   <span className="font-medium font-body text-imaginory-black">Custom Story Book</span>
-                  <span className="font-bold font-heading text-imaginory-black">₹1.00</span>
+                  <span className="font-bold font-heading text-imaginory-black">$29.99</span>
                 </div>
                 <div className="flex justify-between text-sm text-muted-foreground font-body">
                   <span>Shipping</span>
@@ -240,7 +257,7 @@ export default function PaymentPage() {
                 <hr className="border-imaginory-yellow/30" />
                 <div className="flex justify-between text-lg font-bold font-heading text-imaginory-black">
                   <span>Total</span>
-                  <span>₹1.00</span>
+                  <span>$29.99</span>
                 </div>
               </div>
             </CardContent>
@@ -269,11 +286,27 @@ export default function PaymentPage() {
             <CardContent className="p-6">
               <div className="flex items-center gap-3 text-sm text-muted-foreground mb-4 font-body">
                 <Shield className="w-4 h-4 text-imaginory-yellow" />
-                <span>Secure payment powered by Razorpay</span>
+                <span>Secure payment powered by Stripe</span>
               </div>
+              {/* Stripe Card Element */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-imaginory-black mb-2">
+                  Card Details
+                </label>
+                <div 
+                  id="card-element" 
+                  data-testid="card-element"
+                  className="p-3 border border-imaginory-yellow/30 rounded-md bg-white"
+                  style={{ minHeight: '40px' }}
+                >
+                  {/* Stripe Elements will mount here */}
+                </div>
+              </div>
+              
               <Button
                 onClick={handlePayment}
-                disabled={isProcessing}
+                disabled={isProcessing || !stripe || !cardElement}
+                data-testid="button-pay"
                 className="imaginory-button w-full py-3 px-8 text-lg shadow-lg hover:shadow-xl transition-all"
               >
                 {isProcessing ? "Processing..." : "Pay & Confirm Order"}
@@ -304,7 +337,7 @@ export default function PaymentPage() {
               <div>
                 <h4 className="font-semibold text-sm mb-2 text-green-700">💰 Refund Policy</h4>
                 <ul className="text-sm text-gray-600 space-y-1">
-                  <li>• Cancellations: Within 2 hours (₹200 processing fee)</li>
+                  <li>• Cancellations: Within 2 hours ($5 processing fee)</li>
                   <li>• Delayed shipments: Partial refund available</li>
                   <li>• Damaged items: Replacement or refund</li>
                   <li>• Refunds processed within 5-7 business days</li>

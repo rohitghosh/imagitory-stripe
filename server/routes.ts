@@ -2274,10 +2274,8 @@ import {
 // import { loadBase64Image } from "./utils/layouts"; // Not found
 import { uploadBase64ToFirebase } from "./utils/uploadImage";
 
-import { jobTracker } from "./lib/jobTracker";
-import Razorpay from "razorpay";
-
 import { jobTracker, type JobState } from "./lib/jobTracker";
+import Stripe from "stripe";
 import { ANIMATION_STYLES } from "./utils/story-generation-api/src/config/animationStyles";
 import {
   getOrGenerateCartoonifiedImage,
@@ -4724,12 +4722,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       })();
     },
   );
-  // Payment routes for Razorpay integration
+  // Payment routes for Stripe integration
 
-  // Get Razorpay config for frontend
+  // Get Stripe config for frontend
   app.get("/api/payments/config", (req, res) => {
     res.json({
-      keyId: process.env.RAZORPAY_KEY_ID,
+      publishableKey: process.env.STRIPE_PUBLISHABLE_KEY,
     });
   });
 
@@ -4746,90 +4744,103 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  const razorpay = new Razorpay({
-    key_id: process.env.RAZORPAY_KEY_ID,
-    key_secret: process.env.RAZORPAY_KEY_SECRET,
+  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+    apiVersion: '2024-11-20',
   });
 
-  // Create Razorpay order
+  // Create Stripe Payment Intent
   app.post("/api/payments/create-order", async (req, res) => {
     try {
-      const { orderId, amount, currency = "INR" } = req.body;
+      const { orderId } = req.body;
 
-      if (!orderId || !amount) {
+      if (!orderId) {
         return res.status(400).json({ error: "Missing required fields" });
       }
 
-      // Create order in Razorpay
-      const options = {
-        amount: amount, // amount in paise
+      // Get order to determine server-side amount (security)
+      const order = await storage.getOrder(orderId);
+      if (!order) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+
+      // Fixed price: $29.99 (determined server-side for security)
+      const amount = 2999; // $29.99 in cents
+      const currency = "usd";
+
+      // Create Payment Intent in Stripe
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: amount,
         currency,
-        receipt: orderId,
-        payment_capture: 1,
-      };
+        metadata: {
+          orderId: orderId,
+        },
+        automatic_payment_methods: {
+          enabled: true,
+        },
+      });
 
-      const razorpayOrder = await razorpay.orders.create(options);
-
-      // Update order with Razorpay order ID
+      // Update order with Stripe Payment Intent ID
       await storage.updateOrder(orderId, {
-        razorpayOrderId: razorpayOrder.id,
+        stripePaymentIntentId: paymentIntent.id,
         amount: amount / 100, // store in dollars
         currency,
         status: "payment_pending",
       });
 
       res.json({
-        razorpayOrderId: razorpayOrder.id,
-        amount: razorpayOrder.amount,
-        currency: razorpayOrder.currency,
+        clientSecret: paymentIntent.client_secret,
+        paymentIntentId: paymentIntent.id,
+        amount: paymentIntent.amount,
+        currency: paymentIntent.currency,
       });
     } catch (error) {
-      console.error("Error creating Razorpay order:", error);
+      console.error("Error creating Stripe Payment Intent:", error);
       res.status(500).json({ error: "Failed to create payment order" });
     }
   });
 
-  // Verify payment
+  // Confirm payment
   app.post("/api/payments/verify", async (req, res) => {
     try {
-      const { orderId, razorpayOrderId, razorpayPaymentId, razorpaySignature } =
-        req.body;
+      const { orderId, paymentIntentId } = req.body;
 
-      if (
-        !orderId ||
-        !razorpayOrderId ||
-        !razorpayPaymentId ||
-        !razorpaySignature
-      ) {
+      if (!orderId || !paymentIntentId) {
         return res.status(400).json({ error: "Missing required fields" });
       }
 
-      // Verify signature
-      const { createHmac } = await import("crypto");
-      const expectedSignature = createHmac(
-        "sha256",
-        process.env.RAZORPAY_KEY_SECRET,
-      )
-        .update(`${razorpayOrderId}|${razorpayPaymentId}`)
-        .digest("hex");
+      // Retrieve payment intent from Stripe to verify status
+      const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
 
-      if (expectedSignature !== razorpaySignature) {
+      // Validate payment intent
+      if (paymentIntent.metadata.orderId !== orderId) {
+        return res.status(400).json({ error: "Order ID mismatch" });
+      }
+
+      // Expected amount and currency (server-side validation)
+      const expectedAmount = 2999; // $29.99 in cents
+      const expectedCurrency = "usd";
+
+      if (paymentIntent.amount !== expectedAmount || paymentIntent.currency !== expectedCurrency) {
+        return res.status(400).json({ error: "Payment amount mismatch" });
+      }
+
+      if (paymentIntent.status === "succeeded") {
+        // Update order with payment details
+        await storage.updateOrder(orderId, {
+          stripePaymentIntentId: paymentIntent.id,
+          paymentStatus: "success",
+          status: "paid",
+        });
+
+        res.json({ success: true });
+      } else {
+        // Payment not successful
         await storage.updateOrder(orderId, {
           paymentStatus: "failed",
           status: "cancelled",
         });
-        return res.status(400).json({ error: "Invalid signature" });
+        res.status(400).json({ error: "Payment not completed" });
       }
-
-      // Update order with payment details
-      await storage.updateOrder(orderId, {
-        razorpayPaymentId,
-        razorpaySignature,
-        paymentStatus: "success",
-        status: "paid",
-      });
-
-      res.json({ success: true });
     } catch (error) {
       console.error("Error verifying payment:", error);
       res.status(500).json({ error: "Payment verification failed" });
