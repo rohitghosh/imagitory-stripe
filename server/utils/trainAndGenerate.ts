@@ -10,6 +10,7 @@ import { URL } from "url";
 import { expandImageToLeft, splitImageInHalf } from "./elementGeneration";
 import { uploadBase64ToFirebase } from "./uploadImage";
 import { jobTracker } from "../lib/jobTracker";
+import { getStylePrompt } from "./story-generation-api/src/config/animationStyles";
 
 // import {
 //   generateStoryScenesFromInputs,
@@ -1199,7 +1200,14 @@ export async function generateStoryImagesWithAvatar(
   // };
 }
 
-export async function cartoonifyImage(imageUrl: string): Promise<string> {
+export async function cartoonifyImage(
+  imageUrl: string,
+  opts?: {
+    guidance_scale?: number;
+    num_inference_steps?: number;
+    style?: string;
+  },
+): Promise<string> {
   // const result = await fal.subscribe("fal-ai/image-editing/cartoonify", {
   //   input: { image_url: imageUrl },
   // });
@@ -1207,17 +1215,22 @@ export async function cartoonifyImage(imageUrl: string): Promise<string> {
   if (TEST_MODE) {
     return "https://v3.fal.media/files/penguin/D9g2chjiCZrFkDps_y9Zd.png"; // dummy cartoonified image
   } else {
+    const animationStyle = opts?.style ?? "pixar";
+    const stylePrompt = getStylePrompt(animationStyle);
+    const prompt = `Convert this photo into a cartoon character. ${
+      stylePrompt || `Render in ${animationStyle} animation style.`
+    } The character should be friendly, child-appropriate, and maintain the key facial features and characteristics of the person in the photo. Focus on creating a clean, appealing cartoon representation suitable for children's books.`;
+
     const result = await fal.subscribe("fal-ai/instant-character", {
       input: {
-        prompt:
-          "Pixar style 3D high-resolution character of a young kid, based on the reference photo. Full body shot, character is standing straight and erect, symmetrical pose, looking directly at the camera. Retain the exact hair color, skin tone, and facial features from the photo. Plain white background. CRITICAL: the image should be high resolution.",
+        prompt,
         image_url: imageUrl,
         image_size: "square_hd",
         scale: 0.9,
         negative_prompt:
           "blurry, low-resolution, pixelated, photorealistic, hyper-real pores, harsh skin texture, fine wrinkles",
-        guidance_scale: 5,
-        num_inference_steps: 40,
+        guidance_scale: opts?.guidance_scale ?? 5,
+        num_inference_steps: opts?.num_inference_steps ?? 40,
         num_images: 1,
         enable_safety_checker: true,
         output_format: "png",

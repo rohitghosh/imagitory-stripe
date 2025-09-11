@@ -102,16 +102,16 @@ export function StorySettings({
   };
 
   const handleCartoonifyComplete = (results: Record<string, string>) => {
-    setCharacterToonUrls(results);
-    setCanGenerate(true);
+    // setCharacterToonUrls(results);
+    // setCanGenerate(true);
   };
 
   const handleStyleChange = (styleId: string) => {
     setAnimationStyle(styleId);
     // Disable generate button until cartoonify completes
-    if (characterIds.length > 0) {
-      setCanGenerate(false);
-    }
+    // if (characterIds.length > 0) {
+    //   setCanGenerate(false);
+    // }
   };
 
   return (

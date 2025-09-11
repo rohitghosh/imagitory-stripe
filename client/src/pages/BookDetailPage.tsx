@@ -1066,7 +1066,7 @@ export default function BookDetailPage() {
                   onClick={handleDownloadPDF}
                   className="text-base bg-imaginory-yellow hover:bg-imaginory-yellow/90 text-imaginory-black font-medium px-4 py-2 shadow-sm"
                 >
-                  Preview PDF
+                  Finalise PDF
                 </Button>
               </div>
             </div>

@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 
@@ -15,8 +14,8 @@ interface AnimationStyle {
 interface AnimationStyleSelectionProps {
   selectedStyle: string;
   onStyleChange: (styleId: string) => void;
-  characterIds: string[]; // Main character + side characters
-  onCartoonifyComplete?: (results: Record<string, string>) => void; // characterId -> toonUrl
+  characterIds?: string[]; // kept for compatibility, no longer used here
+  onCartoonifyComplete?: (results: Record<string, string>) => void; // deprecated
   disabled?: boolean;
 }
 
@@ -29,9 +28,7 @@ export function AnimationStyleSelection({
 }: AnimationStyleSelectionProps) {
   const [styles, setStyles] = useState<AnimationStyle[]>([]);
   const [loading, setLoading] = useState(true);
-  const [cartoonifying, setCartoonifying] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [currentCharacter, setCurrentCharacter] = useState<string>("");
+  // cartoonify is no longer triggered here – we keep no local progress state
   const { toast } = useToast();
 
   // Load animation styles
@@ -84,58 +81,8 @@ export function AnimationStyleSelection({
   }, []);
 
   const handleStyleSelect = async (styleId: string) => {
-    if (disabled || cartoonifying) return;
-
+    if (disabled) return;
     onStyleChange(styleId);
-
-    // If we have characters to cartoonify, do it now
-    if (characterIds.length > 0) {
-      setCartoonifying(true);
-      setProgress(0);
-      setCurrentCharacter("");
-
-      try {
-        const response = await apiRequest("POST", "/api/cartoonify-batch", {
-          characterIds,
-          animationStyle: styleId,
-        });
-
-        // Simulate progress updates
-        let currentProgress = 0;
-        const interval = setInterval(() => {
-          currentProgress += 10;
-          setProgress(currentProgress);
-
-          if (currentProgress >= 90) {
-            clearInterval(interval);
-          }
-        }, 200);
-
-        // Wait for actual completion
-        const results = response.results || {};
-
-        clearInterval(interval);
-        setProgress(100);
-
-        onCartoonifyComplete?.(results);
-
-        toast({
-          title: "Style Applied",
-          description: `Characters updated to ${styles.find((s) => s.id === styleId)?.label} style`,
-        });
-      } catch (error) {
-        console.error("Failed to cartoonify characters:", error);
-        toast({
-          title: "Error",
-          description: "Failed to apply animation style to characters",
-          variant: "destructive",
-        });
-      } finally {
-        setCartoonifying(false);
-        setProgress(0);
-        setCurrentCharacter("");
-      }
-    }
   };
 
   if (loading) {
@@ -162,24 +109,7 @@ export function AnimationStyleSelection({
             </p>
           </div>
 
-          {cartoonifying && (
-            <div className="bg-blue-50 rounded-lg p-4 mb-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-blue-800">
-                  Applying animation style to characters...
-                </span>
-                <span className="text-sm text-blue-600">
-                  {Math.round(progress)}%
-                </span>
-              </div>
-              <Progress value={progress} className="h-2" />
-              {currentCharacter && (
-                <p className="text-xs text-blue-600 mt-1">
-                  Processing {currentCharacter}...
-                </p>
-              )}
-            </div>
-          )}
+          {/* No background toonify here anymore – just selection */}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {styles.map((style) => (
@@ -189,7 +119,7 @@ export function AnimationStyleSelection({
                   selectedStyle === style.id
                     ? "border-yellow-500 bg-yellow-50 shadow-md"
                     : "border-gray-200 hover:border-gray-300 hover:shadow-sm"
-                } ${disabled || cartoonifying ? "opacity-50 cursor-not-allowed" : ""}`}
+                } ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
                 onClick={() => handleStyleSelect(style.id)}
               >
                 <div className="aspect-square mb-3 rounded-md overflow-hidden bg-gray-100">
