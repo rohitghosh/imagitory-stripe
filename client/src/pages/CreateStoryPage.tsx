@@ -699,7 +699,7 @@ const STEPS = [
   { id: 1, name: "Choose Character" },
   { id: 2, name: "Select Story" },
   { id: 3, name: "Payment" },
-  { id: 4, name: "Preview & Download" },
+  { id: 4, name: "Review & Finalize" },
 ];
 
 const STORY_SUB_STEPS = [
