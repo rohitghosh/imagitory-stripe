@@ -418,7 +418,7 @@ export async function generateStoryScenesFromInputs(
   onProgress?.("prompting", 15, "System prompt assembled…");
 
   // Build user prompt dynamically
-  let userPrompt = `\nYou are a world-class story generator. Follow all rules, structures, and principles from the System Prompt to generate a 9-scene story blueprint`;
+  let userPrompt = `\nYou are a world-class story generator. Follow all rules, structures, and principles from the System Prompt to generate a story blueprint`;
 
   // Add character information if present
   if (input.characters && input.characters.length > 0) {
@@ -460,7 +460,7 @@ export async function generateStoryScenesFromInputs(
 Produce a single, valid JSON object as your entire output. The object must contain:
 - story_title: A catchy, age-appropriate title
 - front_cover: Detailed cover description following the schema
-- scenes: Array of exactly 9 scene objects
+- scenes: Array of exactly given number of scene objects
 
 ${
   hasAdditionalCharacters
@@ -506,8 +506,8 @@ Do not write any other text, explanation, or introduction. Your entire output mu
   }
 
   // Sanity-check scene count
-  if (!Array.isArray(story.scenes) || story.scenes.length !== 9) {
-    throw new Error("Structured output did not contain exactly 9 scenes");
+  if (!Array.isArray(story.scenes)) {
+    throw new Error("Structured output did not contain scenes");
   }
 
   onProgress?.("prompting", 50, "Story outline ready");
@@ -572,26 +572,6 @@ export async function generateCompleteStory(
       seed,
     ),
   );
-  /* ── 2. Scene images (40 → 90 %) ──────────────────────────────────── */
-  // const total = 1; // We are only processing one scene now
-  // const sides: ("left" | "right")[] = [Math.random() < 0.5 ? "left" : "right"]; // Side for the single scene
-  // const share = 50 / total; // Progress share for the single scene
-  // onProgress?.("generating", 40, "Starting scene image…");
-
-  // // Process only the first scene
-  // const scenePromises = [story.scenes[0]].map((scene: any, index: number) =>
-  //   generateImageForScene(
-  //     finalBookId, // Use the consistent bookId
-  //     scene,
-  //     null,
-  //     characterImageMap,
-  //     (phase, pct, msg) => {
-  //       const overall = 40 + index * share + (pct / 100) * share;
-  //       onProgress?.(phase, overall, msg);
-  //     },
-  //     seed,
-  //   ),
-  // );
 
   const generatedScenes = await Promise.all(scenePromises);
   onProgress?.("generating", 90, "All scene images generated");

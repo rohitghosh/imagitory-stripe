@@ -719,6 +719,24 @@ const TypingDots = () => (
   </span>
 );
 
+const WaitBanner: React.FC<{ show: boolean; minutes?: number }> = ({
+  show,
+  minutes = 3,
+}) => {
+  if (!show) return null;
+  return (
+    <p className="text-center font-semibold text-gray-800 mb-2">
+      🍿 Quick break time! This step usually takes ~{minutes} minutes —
+      grab a snack and check back soon.
+    </p>
+  );
+};
+
+const isRunning = (p?: { phase?: string; pct?: number }) =>
+  !!p && p.phase !== "complete" && (p.pct ?? 0) < 100;
+
+
+
 type Section = { title: string; body: string };
 
 const DEBUG = true;
@@ -1552,6 +1570,7 @@ export default function CreateStoryPage() {
             {/* Always show progress (story outline first, then images) */}
             {imagesProg && !(showAvatarTuner && !avatarFinalized) && (
               <div className="mb-4">
+                 <WaitBanner show={isRunning(imagesProg)} minutes={3} />
                 <div className="text-center text-sm text-gray-500 space-y-1">
                   <p>Generating pages… — {imagesProg.pct.toFixed(0)}%</p>
                   {/* {imagesProg.message && (
