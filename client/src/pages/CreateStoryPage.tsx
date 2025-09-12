@@ -1,5 +1,3 @@
-
-
 // import React, { useEffect, useRef, useState, useCallback } from "react";
 // import ReactMarkdown from "react-markdown";
 // import { useLocation, useParams } from "wouter";
@@ -671,7 +669,6 @@
 //   );
 // }
 
-
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import { useLocation, useParams } from "wouter";
@@ -700,7 +697,7 @@ import {
 const STEPS = [
   { id: 1, name: "Choose Character" },
   { id: 2, name: "Select Story" },
-  { id: 3, name: "Preview & Download" },
+  { id: 3, name: "Review & Finalize" },
 ];
 
 const STORY_SUB_STEPS = [
@@ -1052,7 +1049,10 @@ export default function CreateStoryPage() {
     (async () => {
       if (activeChar && (!activeChar.imageUrls || !activeChar.imageUrls[0])) {
         try {
-          const detail = await apiRequest("GET", `/api/characters/${activeChar.id}`);
+          const detail = await apiRequest(
+            "GET",
+            `/api/characters/${activeChar.id}`,
+          );
           setActiveChar(detail);
         } catch {}
       }
@@ -1072,18 +1072,25 @@ export default function CreateStoryPage() {
       (async () => {
         try {
           imagesStartedRef.current = true;
-          console.log("[Create] Preflight: building characterImageMap with style", bookStyle, {
-            main: activeChar?.id,
-            sides: selectedSideChars.map((s) => s.id),
-          });
+          console.log(
+            "[Create] Preflight: building characterImageMap with style",
+            bookStyle,
+            {
+              main: activeChar?.id,
+              sides: selectedSideChars.map((s) => s.id),
+            },
+          );
           const characterImageMap = await buildCharacterImageMap(
-              activeChar,
-              selectedSideChars,
-              toonUrls,
-              bookStyle || "pixar",
-            );
+            activeChar,
+            selectedSideChars,
+            toonUrls,
+            bookStyle || "pixar",
+          );
 
-          console.log("[Create] Preflight result keys:", Object.keys(characterImageMap || {}));
+          console.log(
+            "[Create] Preflight result keys:",
+            Object.keys(characterImageMap || {}),
+          );
 
           const r = await apiRequest("POST", "/api/startImageGeneration", {
             bookId,
@@ -1092,7 +1099,10 @@ export default function CreateStoryPage() {
           });
           if (r?.jobId) {
             setImagesJobId(r.jobId);
-            patchBookM.mutate({ id: bookId!, payload: { imagesJobId: r.jobId } });
+            patchBookM.mutate({
+              id: bookId!,
+              payload: { imagesJobId: r.jobId },
+            });
           }
         } catch (e) {
           console.error(e);
@@ -1103,7 +1113,14 @@ export default function CreateStoryPage() {
         }
       })();
     }
-  }, [imagesProg?.phase, avatarFinalized, activeChar, toonUrls, selectedSideChars, kidName]);
+  }, [
+    imagesProg?.phase,
+    avatarFinalized,
+    activeChar,
+    toonUrls,
+    selectedSideChars,
+    kidName,
+  ]);
 
   async function buildCharacterImageMap(
     main: any,
@@ -1115,7 +1132,8 @@ export default function CreateStoryPage() {
     const resultMap: any = {};
 
     // Main
-    const mainToon = existingToons[main.id] || (main.toonUrls?.[style] ?? main.toonUrl);
+    const mainToon =
+      existingToons[main.id] || (main.toonUrls?.[style] ?? main.toonUrl);
     if (mainToon) {
       resultMap[main.name] = {
         image_url: mainToon,
@@ -1129,19 +1147,26 @@ export default function CreateStoryPage() {
     sides.forEach((s) => {
       const sToon = existingToons[s.id];
       if (sToon) {
-        resultMap[s.name] = { image_url: sToon, description: s.description || "" };
+        resultMap[s.name] = {
+          image_url: sToon,
+          description: s.description || "",
+        };
       } else {
         needs.push({ characterId: s.id, imageUrl: s.avatar });
       }
     });
 
     if (needs.length) {
-      const resp = await apiRequest("POST", "/api/cartoonify-configurable-batch", {
-        items: needs,
-        guidance_scale: 5,
-        num_inference_steps: 40,
-        style,
-      });
+      const resp = await apiRequest(
+        "POST",
+        "/api/cartoonify-configurable-batch",
+        {
+          items: needs,
+          guidance_scale: 5,
+          num_inference_steps: 40,
+          style,
+        },
+      );
       const newToons: Record<string, string> = resp.results || {};
       console.log("[Create] Toonify batch results:", Object.keys(newToons));
       // Merge into state cache
@@ -1150,13 +1175,19 @@ export default function CreateStoryPage() {
       // Fill main if missing
       if (!resultMap[main.name]) {
         const m = newToons[main.id] || main.imageUrls?.[0] || "";
-        resultMap[main.name] = { image_url: m, description: `a ${main.age} year old human kid` };
+        resultMap[main.name] = {
+          image_url: m,
+          description: `a ${main.age} year old human kid`,
+        };
       }
       // Fill sides
       sides.forEach((s) => {
         if (!resultMap[s.name]) {
           const url = newToons[s.id] || s.avatar;
-          resultMap[s.name] = { image_url: url, description: s.description || "" };
+          resultMap[s.name] = {
+            image_url: url,
+            description: s.description || "",
+          };
         }
       });
     }
@@ -1441,7 +1472,8 @@ export default function CreateStoryPage() {
             {showAvatarTuner && !avatarFinalized && activeChar && (
               <div className="space-y-4">
                 <p className="text-sm text-gray-700 text-center">
-                  Choose your avatar while we plan your story. We’ll use it for the images.
+                  Choose your avatar while we plan your story. We’ll use it for
+                  the images.
                 </p>
                 <AvatarTuner
                   primary={{
@@ -1461,7 +1493,10 @@ export default function CreateStoryPage() {
                     setToonUrls((prev) => ({ ...prev, ...map }));
                     setAvatarFinalized(true);
                     // If the outline is already finished (awaiting_avatar), kick off images now
-                    if (imagesProg?.phase === "awaiting_avatar" && !imagesStartedRef.current) {
+                    if (
+                      imagesProg?.phase === "awaiting_avatar" &&
+                      !imagesStartedRef.current
+                    ) {
                       try {
                         imagesStartedRef.current = true;
                         const characterImageMap = {
@@ -1477,21 +1512,29 @@ export default function CreateStoryPage() {
                             selectedSideChars.map((char) => [
                               char.name,
                               {
-                                image_url: map[char.id] || char.toonUrl || char.avatar,
+                                image_url:
+                                  map[char.id] || char.toonUrl || char.avatar,
                                 description: char.description || "",
                               },
                             ]),
                           ),
                         } as any;
 
-                        const r = await apiRequest("POST", "/api/startImageGeneration", {
-                          bookId,
-                          characterImageMap,
-                          animationStyle: "pixar",
-                        });
+                        const r = await apiRequest(
+                          "POST",
+                          "/api/startImageGeneration",
+                          {
+                            bookId,
+                            characterImageMap,
+                            animationStyle: "pixar",
+                          },
+                        );
                         if (r?.jobId) {
                           setImagesJobId(r.jobId);
-                          patchBookM.mutate({ id: bookId!, payload: { imagesJobId: r.jobId } });
+                          patchBookM.mutate({
+                            id: bookId!,
+                            payload: { imagesJobId: r.jobId },
+                          });
                         }
                       } catch (e) {
                         console.error(e);
@@ -1510,9 +1553,7 @@ export default function CreateStoryPage() {
             {imagesProg && !(showAvatarTuner && !avatarFinalized) && (
               <div className="mb-4">
                 <div className="text-center text-sm text-gray-500 space-y-1">
-                  <p>
-                    Generating pages… — {imagesProg.pct.toFixed(0)}%
-                  </p>
+                  <p>Generating pages… — {imagesProg.pct.toFixed(0)}%</p>
                   {/* {imagesProg.message && (
                     <p className="text-[12px] text-gray-400">{imagesProg.message}</p>
                   )} */}

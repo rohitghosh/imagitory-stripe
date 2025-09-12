@@ -523,6 +523,16 @@ import { Spinner } from "@/components/ui/spinner";
 import { CustomerSupportChat } from "@/components/CustomerSupportChat";
 import { useQueryClient } from "@tanstack/react-query";
 import { ChatDrawer } from "@/components/ChatDrawer";
+// BookDetailPage.tsx (top imports)
+import { StepIndicator } from "@/components/StepIndicator";
+import { useIsMobile } from "@/hooks/use-mobile";
+
+// put near top of file, outside the component
+const STEPS = [
+  { id: 1, name: "Choose Character" },
+  { id: 2, name: "Select Story" },
+  { id: 3, name: "Review & Finalize" }, // keep identical labels for consistency
+] as const;
 
 // ---------- helpers ----------
 function deepGet(obj: any, path: string) {
@@ -772,6 +782,8 @@ export default function BookDetailPage() {
   const MOBILE_CHAT_PEEK_PX = 80; // ~peek height
   const MOBILE_CHAT_SNAPS = [0.25, 0.6, 0.92]; // 25%, 60%, 92% of screen
 
+  const isMobile = useIsMobile();
+
   // --- DATA ---
   const {
     data: book,
@@ -994,6 +1006,12 @@ export default function BookDetailPage() {
     return (
       <div className="h-dvh flex flex-col bg-yellow-50 overflow-hidden">
         <Header />
+
+        {/* Wizard steps */}
+        <div className="px-4 md:px-6 pt-4 md:pt-6 max-w-4xl mx-auto w-full">
+          <StepIndicator steps={STEPS} currentStep={3} />
+        </div>
+
         <div className="flex-1 flex items-center justify-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-imaginory-yellow"></div>
         </div>
@@ -1005,6 +1023,9 @@ export default function BookDetailPage() {
     return (
       <div className="h-dvh flex flex-col bg-yellow-50 overflow-hidden">
         <Header />
+        <div className="px-4 md:px-6 pt-4 md:pt-6 max-w-4xl mx-auto w-full">
+          <StepIndicator steps={STEPS} currentStep={3} />
+        </div>
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
             <h1 className="text-2xl font-bold text-gray-900 mb-2">
@@ -1026,6 +1047,33 @@ export default function BookDetailPage() {
   return (
     <div className="h-dvh flex flex-col bg-yellow-50 overflow-hidden">
       <Header />
+      <div
+        className="mt-2 flex items-center gap-2 text-[13px] md:text-sm
+                      rounded-md border border-yellow-200 bg-yellow-100/60
+                      text-yellow-900 px-3 py-2"
+      >
+        {/* flag + lock icon combo */}
+        <svg
+          className="w-4 h-4 md:w-4.5 md:h-4.5"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+        >
+          <path d="M4 4v16"></path>
+          <path d="M4 6h10l-1.5 3L14 12H4"></path>
+        </svg>
+        <span className="font-medium">Final step</span>
+        <span className="opacity-70">
+          {isMobile
+            ? "Finalizing will lock images. Pull up the chat assistant from the bottom to edit images or text."
+            : "Finalizing will lock images. Chat with the assistant to edit images and text."}
+        </span>
+      </div>
+
+      <div className="px-4 md:px-6 pt-4 md:pt-6 max-w-4xl mx-auto w-full">
+        <StepIndicator steps={STEPS} currentStep={3} />
+      </div>
 
       {/* Desktop Layout (vertical thumbnails in left pane) */}
       <div className="hidden md:flex flex-1 min-h-0 overflow-hidden">
@@ -1066,7 +1114,7 @@ export default function BookDetailPage() {
                   onClick={handleDownloadPDF}
                   className="text-base bg-imaginory-yellow hover:bg-imaginory-yellow/90 text-imaginory-black font-medium px-4 py-2 shadow-sm"
                 >
-                  Finalise PDF
+                  Finalize Book
                 </Button>
               </div>
             </div>
@@ -1093,17 +1141,25 @@ export default function BookDetailPage() {
                 <div className="h-full overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
                   <div className="p-1 space-y-1">
                     {carouselImages.map((image, index) => {
-                      const label = image.isCover ? "Cover" : String(hasCover ? index : index + 1);
+                      const label = image.isCover
+                        ? "Cover"
+                        : String(hasCover ? index : index + 1);
                       return (
                         <button
                           key={index}
                           onClick={() => navigateTo(index)}
                           className={`w-full h-24 rounded-md overflow-hidden ring-1 transition-all bg-gray-100 hover:shadow-sm relative ${
-                            index === currentImageIndex ? "ring-imaginory-yellow shadow-md" : "ring-transparent hover:ring-gray-300"
+                            index === currentImageIndex
+                              ? "ring-imaginory-yellow shadow-md"
+                              : "ring-transparent hover:ring-gray-300"
                           }`}
                           aria-label={`Page ${label}`}
                         >
-                          <img src={image.url} alt={`Page ${label}`} className="w-full h-full object-cover" />
+                          <img
+                            src={image.url}
+                            alt={`Page ${label}`}
+                            className="w-full h-full object-cover"
+                          />
                           <div className="absolute bottom-1 right-1 bg-black/70 text-white text-[10px] px-1 py-0.5 rounded min-w-[16px] text-center">
                             {label}
                           </div>
@@ -1266,7 +1322,7 @@ export default function BookDetailPage() {
               size="sm"
               className="bg-imaginory-yellow hover:bg-imaginory-yellow/90 text-imaginory-black font-medium px-4 py-2 shadow-sm"
             >
-              Preview
+              Finalize Book
             </Button>
           </div>
           <div className="mt-2">
@@ -1291,8 +1347,10 @@ export default function BookDetailPage() {
               const startX = (e.currentTarget as any)._sx ?? t.clientX;
               const diffX = startX - t.clientX;
               if (Math.abs(diffX) > 50) {
-                if (diffX > 0 && currentImageIndex < pages.length - 1) navigateTo(currentImageIndex + 1);
-                else if (diffX < 0 && currentImageIndex > 0) navigateTo(currentImageIndex - 1);
+                if (diffX > 0 && currentImageIndex < pages.length - 1)
+                  navigateTo(currentImageIndex + 1);
+                else if (diffX < 0 && currentImageIndex > 0)
+                  navigateTo(currentImageIndex - 1);
               }
             }}
           >
@@ -1345,7 +1403,10 @@ export default function BookDetailPage() {
                     <div className="mx-auto max-w-5xl px-3 pb-4 pt-3">
                       <div className="rounded-lg bg-black/55 backdrop-blur-sm shadow-2xl ring-1 ring-white/10">
                         <div className="px-4 py-3">
-                          <OverlayText content={currentPage.content} className="text-white" />
+                          <OverlayText
+                            content={currentPage.content}
+                            className="text-white"
+                          />
                         </div>
                       </div>
                     </div>
@@ -1358,18 +1419,26 @@ export default function BookDetailPage() {
           <div className="px-4 py-3 bg-white border-t border-gray-100 overflow-x-auto scrollbar-hide">
             <div className="flex space-x-2">
               {carouselImages.map((image, index) => {
-                const label = image.isCover ? "Cover" : String(hasCover ? index : index + 1);
+                const label = image.isCover
+                  ? "Cover"
+                  : String(hasCover ? index : index + 1);
                 return (
                   <button
                     key={index}
                     onClick={() => navigateTo(index)}
                     className={`flex-shrink-0 w-12 h-12 rounded-lg overflow-hidden border-2 transition-all ${
-                      index === currentImageIndex ? "border-imaginory-yellow shadow-md" : "border-gray-300"
+                      index === currentImageIndex
+                        ? "border-imaginory-yellow shadow-md"
+                        : "border-gray-300"
                     }`}
                     aria-label={`Page ${label}`}
                     title={label}
                   >
-                    <img src={image.url} alt={`Page ${label}`} className="w-full h-full object-cover" />
+                    <img
+                      src={image.url}
+                      alt={`Page ${label}`}
+                      className="w-full h-full object-cover"
+                    />
                   </button>
                 );
               })}
