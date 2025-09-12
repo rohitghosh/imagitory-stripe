@@ -46,10 +46,9 @@
 // // import { pickContrastingTextColor } from "./utils/textColorUtils"; // Not found
 // // import { loadBase64Image } from "./utils/layouts"; // Not found
 // import { uploadBase64ToFirebase } from "./utils/uploadImage";
-// import { jobTracker } from "./lib/jobTracker";
-// import Razorpay from "razorpay";
 
 // import { jobTracker, type JobState } from "./lib/jobTracker";
+// import Stripe from "stripe";
 // import { ANIMATION_STYLES } from "./utils/story-generation-api/src/config/animationStyles";
 // import {
 //   getOrGenerateCartoonifiedImage,
@@ -70,7 +69,10 @@
 //   regenerateSceneImage,
 //   regenerateBaseCoverImage,
 //   generateFinalCoverWithTitle,
+//   generateImageForScene,
+//   generateImageForFrontCover,
 // } from "./utils/story-generation-api/src/services/imageGenerationV2";
+// import { generateStoryScenesFromInputs } from "./utils/story-generation-api/src/services/storyGeneration";
 
 // type StoryResult = {
 //   pages: string[];
@@ -143,7 +145,6 @@
 
 // export async function registerRoutes(app: Express): Promise<Server> {
 //   const httpServer = createServer(app);
-//   app.use(express.json({ limit: "5mb" }));
 
 //   // Configure session middleware with memory store for persistence
 //   app.use(
@@ -203,6 +204,9 @@
 //       next();
 //     });
 //   }
+
+//   // In-memory guard to prevent concurrent image generations per book
+//   const imageGenerationLocks = new Set<string>();
 
 //   // TEMPORARY TEST ROUTE: Auto-login endpoint to bypass Firebase auth while testing
 //   app.get("/api/auto-login", (req, res) => {
@@ -588,7 +592,7 @@
 //   // app.post("/api/regenerateFullCover", regenerateFullCover);
 
 //   app.post("/api/generateFullStory", authenticate, async (req, res) => {
-//     console.log("Received request to generate full story with:", req);
+//     console.log("Received request to generate full story with:", req.body);
 //     const {
 //       bookId,
 //       kidName,
@@ -597,7 +601,6 @@
 //       theme,
 //       subject,
 //       storyRhyming,
-
 //       animationStyle = "pixar", // Default to pixar if not provided
 //       characters,
 //       characterDescriptions,
@@ -664,6 +667,9 @@
 
 //     (async () => {
 //       let reasoningTimer: NodeJS.Timeout | null = null;
+//       let progressBoostTimer: NodeJS.Timeout | null = null;
+//       let currentPhaseStartTime = Date.now();
+
 //       const REASON_START_PCT = 10;
 //       const REASON_END_PCT = 38; // cap for reasoning phase
 //       const DURATION_MS = 120_000; // ~2 minutes
@@ -672,14 +678,49 @@
 //       const INCREMENT =
 //         (REASON_END_PCT - REASON_START_PCT) / (DURATION_MS / INTERVAL_MS);
 
+//       // Time-based progress boost helper for smoother perceived progress
+//       const startProgressBoosting = (
+//         currentPhase: string,
+//         basePct: number,
+//         maxPct: number,
+//       ) => {
+//         if (progressBoostTimer) clearInterval(progressBoostTimer);
+//         currentPhaseStartTime = Date.now();
+//         const BOOST_INTERVAL_MS = 3000; // every 3s
+//         const MIN_INCREMENT = 0.1; // ensure a tiny nudge
+//         progressBoostTimer = setInterval(() => {
+//           const currentJob = jobTracker.get(jobId);
+//           if (!currentJob || currentJob.phase !== currentPhase) return;
+//           const elapsed = Date.now() - currentPhaseStartTime;
+//           const timeBased = Math.min((elapsed / 90_000) * 8, maxPct - basePct); // up to +8% per 90s
+//           const target = Math.min(
+//             basePct + timeBased + MIN_INCREMENT,
+//             maxPct - 3,
+//           );
+//           if ((currentJob.pct ?? 0) < target) {
+//             jobTracker.set(jobId, { ...currentJob, pct: target });
+//           }
+//         }, BOOST_INTERVAL_MS);
+//       };
+
 //       try {
 //         jobTracker.set(jobId, {
 //           phase: "initializing",
-//           pct: 0,
+//           pct: 2,
 //           message: "Starting story generation...",
 //         });
 
-//         const { scenes, cover } = await generateCompleteStory(
+//         // Start gentle boost during initialization up to reasoning start threshold
+//         startProgressBoosting("initializing", 0, REASON_START_PCT);
+
+//         // 1) Generate story outline only
+//         jobTracker.set(jobId, {
+//           phase: "prompting",
+//           pct: 0,
+//           message: "Generating story outline…",
+//         });
+
+//         const story = await generateStoryScenesFromInputs(
 //           {
 //             kidName,
 //             pronoun,
@@ -690,52 +731,346 @@
 //             characters,
 //             characterDescriptions,
 //           },
-//           characterImageMap,
-//           animationStyle,
 //           (phase, pct, msg) => {
+//             // Clear previous timers when phase changes
+//             if (phase !== "reasoning" && reasoningTimer) {
+//               clearInterval(reasoningTimer);
+//               reasoningTimer = null;
+//             }
+//             if (progressBoostTimer) {
+//               clearInterval(progressBoostTimer);
+//               progressBoostTimer = null;
+//             }
+
 //             if (phase === "reasoning") {
-//               // always append the token log
 //               jobTracker.set(jobId, {
 //                 ...jobTracker.get(jobId)!,
-//                 log: (jobTracker.get(jobId)!.log || "") + msg,
+//                 log: (jobTracker.get(jobId)!.log || "") + (msg || ""),
 //               });
-
-//               // start the timer once
 //               if (!reasoningTimer) {
+//                 if (progressBoostTimer) {
+//                   clearInterval(progressBoostTimer);
+//                   progressBoostTimer = null;
+//                 }
 //                 reasoningTimer = setInterval(() => {
-//                   const curr = jobTracker.get(jobId)!.pct ?? REASON_START_PCT;
-//                   const next = Math.min(curr + INCREMENT, REASON_END_PCT);
-//                   jobTracker.set(jobId, { phase: "reasoning", pct: next });
-//                   if (next >= REASON_END_PCT && reasoningTimer) {
+//                   const curr =
+//                     jobTracker.get(jobId)!.pct ??
+//                     TIMING_CONFIG.REASON_START_PCT;
+//                   const next = Math.min(
+//                     curr + tickIncrement,
+//                     TIMING_CONFIG.REASON_END_PCT,
+//                   );
+//                   jobTracker.set(jobId, {
+//                     phase: "reasoning",
+//                     pct: next,
+//                     log: jobTracker.get(jobId)!.log,
+//                   });
+//                   if (next >= TIMING_CONFIG.REASON_END_PCT && reasoningTimer) {
 //                     clearInterval(reasoningTimer);
+//                     reasoningTimer = null;
 //                   }
-//                 }, INTERVAL_MS);
+//                 }, TIMING_CONFIG.REASONING_INTERVAL_MS);
 //               }
 //             } else {
 //               if (reasoningTimer) {
 //                 clearInterval(reasoningTimer);
 //                 reasoningTimer = null;
 //               }
+//               if (progressBoostTimer) {
+//                 clearInterval(progressBoostTimer);
+//                 progressBoostTimer = null;
+//               }
 //               jobTracker.set(jobId, { phase, pct, message: msg });
+
+//               // Start time-based progress boosting for long phases
+//               if (phase === "prompting" && pct < 30) {
+//                 startProgressBoosting(phase, pct, 40);
+//               }
 //             }
 //           },
-//           bookId,
+//           (chunk) => {
+//             jobTracker.set(jobId, {
+//               ...jobTracker.get(jobId)!,
+//               log: (jobTracker.get(jobId)!.log || "") + chunk,
+//             });
+//           },
 //         );
 
-//         // persist & maybe enqueue PDF generation, etc…
+//         // Persist outline (including scene_description) and mark generation paused awaiting avatar selection
 //         await storage.updateBook(bookId, {
-//           pages: scenes,
-//           cover: cover,
-//           title: cover.story_title,
-//           imagesJobId: null,
+//           title: story.story_title,
+//           pages: story.scenes.map((scene: any, i: number) => ({
+//             id: i + 1,
+//             content: scene.scene_text,
+//             scene_inputs: {
+//               scene_description: scene.scene_description,
+//             },
+//           })),
+//           // Persist the front_cover inputs from the outline for later cover generation
+//           cover: {
+//             base_cover_inputs: {
+//               front_cover: (story as any).front_cover,
+//             },
+//           },
+//           imagesJobId: jobId,
 //           isStoryRhyming: storyRhyming,
 //         });
-//         jobTracker.set(jobId, { phase: "complete", pct: 100 });
+//         if (progressBoostTimer) {
+//           clearInterval(progressBoostTimer);
+//           progressBoostTimer = null;
+//         }
+//         jobTracker.set(jobId, {
+//           phase: "awaiting_avatar",
+//           pct: REASON_END_PCT, // ~38%
+//           message: "Waiting for avatar selection…",
+//         });
 //       } catch (err: any) {
 //         console.error("[/api/generateFullStory] error", err);
+//         if (reasoningTimer) clearInterval(reasoningTimer);
+//         if (progressBoostTimer) clearInterval(progressBoostTimer);
 //         jobTracker.set(jobId, { phase: "error", pct: 100, error: err.message });
 //       }
 //     })();
+//   });
+
+//   // Endpoint to start image generation once avatar(s) are finalized
+//   app.post("/api/startImageGeneration", authenticate, async (req, res) => {
+//     try {
+//       const { bookId, characterImageMap, animationStyle = "pixar" } = req.body;
+//       if (!bookId) return res.status(400).json({ error: "bookId is required" });
+
+//       const book = await storage.getBookById(bookId);
+//       if (!book) return res.status(404).json({ error: "Book not found" });
+//       if (book.userId !== req.session!.userId)
+//         return res.status(403).json({ error: "Access denied" });
+
+//       // Concurrency guard: if a generation is already running for this book, return existing jobId
+//       if (imageGenerationLocks.has(bookId)) {
+//         console.warn(
+//           "[/api/startImageGeneration] Generation already in progress for book:",
+//           bookId,
+//         );
+//         return res.status(202).json({ jobId: book.imagesJobId });
+//       }
+//       imageGenerationLocks.add(bookId);
+
+//       // Reuse existing imagesJobId or create a new one
+//       const jobId = book.imagesJobId ?? jobTracker.newJob();
+//       await storage.updateBook(bookId, { imagesJobId: jobId });
+
+//       console.log(
+//         "[/api/startImageGeneration] Starting with style:",
+//         animationStyle,
+//       );
+//       console.log(
+//         "[/api/startImageGeneration] characterImageMap keys:",
+//         Object.keys(characterImageMap || {}),
+//       );
+//       res.status(202).json({ jobId });
+
+//       (async () => {
+//         try {
+//           jobTracker.set(jobId, {
+//             phase: "generating",
+//             pct: 40,
+//             message: "Starting scene images…",
+//           });
+
+//           const total = book.pages?.length ?? 0;
+//           if (total === 0) {
+//             jobTracker.set(jobId, {
+//               phase: "error",
+//               pct: 100,
+//               error: "No pages to generate",
+//             });
+//             return;
+//           }
+//           const share = total > 0 ? 50 / total : 50;
+
+//           const sides: ("left" | "right")[] = Array.from(
+//             { length: total },
+//             () => (Math.random() < 0.5 ? "left" : "right"),
+//           );
+
+//           // Time-based fake progress while images generate in parallel (40% -> ~90%)
+//           const GENERATING_DURATION_MS = 55_000; // ~55s
+//           const GENERATING_INTERVAL_MS = 1_000;
+//           const GENERATING_START = 40;
+//           const GENERATING_END = 90;
+//           const generatingStartTime = Date.now();
+//           let generatingTimer: NodeJS.Timeout | null = setInterval(() => {
+//             const elapsed = Date.now() - generatingStartTime;
+//             const progressed = Math.min(
+//               GENERATING_START +
+//                 (elapsed / GENERATING_DURATION_MS) *
+//                   (GENERATING_END - GENERATING_START),
+//               GENERATING_END - 1,
+//             );
+//             const current = jobTracker.get(jobId);
+//             if (!current || current.phase !== "generating") return;
+//             if ((current.pct ?? 0) < progressed) {
+//               jobTracker.set(jobId, {
+//                 phase: "generating",
+//                 pct: progressed,
+//                 message: current.message || "Generating images…",
+//               });
+//             }
+//           }, GENERATING_INTERVAL_MS);
+
+//           // Prepare all scene generation promises in parallel
+//           const scenePromises = Array.from({ length: total }, async (_, i) => {
+//             const scene = (book as any).pages[i];
+//             const present =
+//               scene?.scene_inputs?.scene_description?.Present_Characters || [];
+//             const missingRefs = present.filter(
+//               (name: string) => !characterImageMap?.[name]?.image_url,
+//             );
+//             if (missingRefs.length) {
+//               console.warn(
+//                 `[/api/startImageGeneration] Missing image_url for characters on scene ${i + 1}:`,
+//                 missingRefs,
+//               );
+//             }
+
+//             // Each scene reports local progress; map to an overall slice
+//             return generateImageForScene(
+//               bookId,
+//               {
+//                 scene_description: scene.scene_inputs?.scene_description ?? {
+//                   Scene_Number: i + 1,
+//                 },
+//                 scene_text: scene.content,
+//               },
+//               null, // no previous image in parallel mode
+//               characterImageMap,
+//               animationStyle,
+//               (phase, pct, msg) => {
+//                 const overall = 40 + i * share + (pct / 100) * share;
+//                 const current = jobTracker.get(jobId);
+//                 // Respect fake loader; never decrease progress
+//                 if (!current || current.phase !== "generating") return;
+//                 if ((current.pct ?? 0) < overall) {
+//                   jobTracker.set(jobId, {
+//                     phase: "generating",
+//                     pct: Math.min(overall, 89),
+//                     message: msg,
+//                   });
+//                 }
+//               },
+//             );
+//           });
+
+//           const generatedScenes = await Promise.all(scenePromises);
+
+//           if (generatingTimer) {
+//             clearInterval(generatingTimer);
+//             generatingTimer = null;
+//           }
+
+//           jobTracker.set(jobId, {
+//             phase: "generating_cover",
+//             pct: 92,
+//             message: "Generating base front-cover image…",
+//           });
+
+//           const base = await generateImageForFrontCover(
+//             bookId,
+//             (book as any).cover?.base_cover_inputs?.front_cover ?? {},
+//             characterImageMap,
+//             animationStyle,
+//             (phase, pct, msg) =>
+//               jobTracker.set(jobId, {
+//                 phase: "generating_cover",
+//                 pct: 92 + (pct / 100) * 4,
+//                 message: msg,
+//               }),
+//           );
+
+//           const finalCoverUrl = await generateFinalCoverWithTitle(
+//             bookId,
+//             base.firebaseUrl,
+//             book.title || "",
+//             3,
+//             (phase, pct, msg) =>
+//               jobTracker.set(jobId, {
+//                 phase: "generating_cover",
+//                 pct: 96 + (pct / 100) * 4,
+//                 message: msg,
+//               }),
+//           );
+
+//           // Assemble updated scenes with generated results
+//           const updatedScenes = Array.from({ length: total }, (_, i) => {
+//             const scene = (book as any).pages[i];
+//             const { firebaseUrl, responseId } = generatedScenes[i];
+//             return {
+//               scene_number: i + 1,
+//               imageUrl: firebaseUrl,
+//               imageUrls: [firebaseUrl],
+//               sceneResponseIds: [responseId],
+//               current_scene_index: 0,
+//               content: scene.content,
+//               side: sides[i],
+//               scene_inputs: {
+//                 scene_description: scene.scene_inputs?.scene_description ?? {
+//                   Scene_Number: i + 1,
+//                 },
+//                 characterImageMap,
+//                 previousImageUrl:
+//                   i > 0 ? (generatedScenes[i - 1]?.firebaseUrl ?? null) : null,
+//                 seed: 3,
+//               },
+//             } as any;
+//           });
+
+//           await storage.updateBook(bookId, {
+//             pages: updatedScenes,
+//             cover: {
+//               ...(book as any).cover,
+//               base_cover_url: base.firebaseUrl,
+//               base_cover_urls: [base.firebaseUrl],
+//               base_cover_response_id: base.responseId,
+//               base_cover_response_ids: [base.responseId],
+//               current_base_cover_index: 0,
+//               story_title: book.title || "",
+//               base_cover_inputs: {
+//                 front_cover:
+//                   (book as any).cover?.base_cover_inputs?.front_cover ?? {},
+//                 characterImageMap,
+//                 seed: 3,
+//               },
+//               final_cover_url: finalCoverUrl,
+//               final_cover_urls: [finalCoverUrl],
+//               current_final_cover_index: 0,
+//               final_cover_inputs: {
+//                 base_cover_url: base.firebaseUrl,
+//                 story_title: book.title || "",
+//                 seed: 3,
+//               },
+//             },
+//             imagesJobId: null,
+//           });
+
+//           jobTracker.set(jobId, { phase: "complete", pct: 100 });
+//         } catch (error: any) {
+//           console.error("/api/startImageGeneration error", error);
+//           jobTracker.set(jobId, {
+//             phase: "error",
+//             pct: 100,
+//             error: error.message || "Failed to start image generation",
+//           });
+//         } finally {
+//           imageGenerationLocks.delete(bookId);
+//         }
+//       })();
+//     } catch (e: any) {
+//       // ensure we release the lock if something failed before the async worker started
+//       const { bookId } = req.body || {};
+//       if (bookId) {
+//         imageGenerationLocks.delete(bookId);
+//       }
+//       res.status(500).json({ error: e.message });
+//     }
 //   });
 
 //   app.post("/api/regenerateImage", async (req: Request, res: Response) => {
@@ -1290,15 +1625,14 @@
 //         res.status(200).json({ results });
 //       } catch (error: any) {
 //         console.error("Error in batch cartoonify:", error);
-//         res
-//           .status(500)
-//           .json({
-//             message: "Failed to cartoonify characters",
-//             error: error.message,
-//           });
+//         res.status(500).json({
+//           message: "Failed to cartoonify characters",
+//           error: error.message,
+//         });
 //       }
 //     },
 //   );
+
 //   // Story routes with authentication middleware
 //   app.post(
 //     "/api/stories",
@@ -1614,7 +1948,13 @@
 //     "/api/cartoonify",
 //     authenticate,
 //     async (req: Request, res: Response) => {
-//       const { characterId, imageUrl } = req.body;
+//       const {
+//         characterId,
+//         imageUrl,
+//         guidance_scale,
+//         num_inference_steps,
+//         style,
+//       } = req.body;
 //       if (!characterId || !imageUrl) {
 //         return res
 //           .status(400)
@@ -1622,8 +1962,18 @@
 //       }
 
 //       try {
-//         const toonUrl = await cartoonifyImage(imageUrl);
-//         await storage.updateCharacter(characterId, { toonUrl });
+//         const toonUrl = await cartoonifyImage(imageUrl, {
+//           guidance_scale,
+//           num_inference_steps,
+//           style,
+//         });
+//         // Persist style-specific avatar URL for reuse
+//         const existing = await storage.getCharacter(characterId);
+//         const toonUrls = {
+//           ...(existing?.toonUrls ?? {}),
+//           [style || "default"]: toonUrl,
+//         } as any;
+//         await storage.updateCharacter(characterId, { toonUrl, toonUrls });
 
 //         return res.status(200).json({ toonUrl });
 //       } catch (err: any) {
@@ -1631,6 +1981,57 @@
 //         return res
 //           .status(500)
 //           .json({ error: "Cartoonify failed", details: err.message });
+//       }
+//     },
+//   );
+
+//   // Batch cartoonify that accepts tuning options and returns per-id URLs
+//   app.post(
+//     "/api/cartoonify-configurable-batch",
+//     authenticate,
+//     async (req: Request, res: Response) => {
+//       try {
+//         const {
+//           items,
+//           guidance_scale,
+//           num_inference_steps,
+//         }: {
+//           items: Array<{ characterId: string; imageUrl: string }>;
+//           guidance_scale?: number;
+//           num_inference_steps?: number;
+//         } = req.body;
+
+//         if (!Array.isArray(items) || items.length === 0) {
+//           return res
+//             .status(400)
+//             .json({ message: "items array {characterId,imageUrl} required" });
+//         }
+
+//         const results: Record<string, string> = {};
+//         for (const it of items) {
+//           const url = await cartoonifyImage(it.imageUrl, {
+//             guidance_scale,
+//             num_inference_steps,
+//             style: (req.body as any).style,
+//           });
+//           results[it.characterId] = url;
+//           // persist to character when it's the user's character
+//           try {
+//             const existing = await storage.getCharacter(it.characterId);
+//             const toonUrls = {
+//               ...(existing?.toonUrls ?? {}),
+//               [(req.body as any).style || "default"]: url,
+//             } as any;
+//             await storage.updateCharacter(it.characterId, {
+//               toonUrl: url,
+//               toonUrls,
+//             });
+//           } catch {}
+//         }
+//         res.status(200).json({ results });
+//       } catch (error: any) {
+//         console.error("[/api/cartoonify-configurable-batch] error:", error);
+//         res.status(500).json({ message: "Failed", error: error.message });
 //       }
 //     },
 //   );
@@ -2093,13 +2494,12 @@
 //       })();
 //     },
 //   );
+//   // Payment routes for Stripe integration
 
-//   // Payment routes for Razorpay integration
-
-//   // Get Razorpay config for frontend
+//   // Get Stripe config for frontend
 //   app.get("/api/payments/config", (req, res) => {
 //     res.json({
-//       keyId: process.env.RAZORPAY_KEY_ID,
+//       publishableKey: process.env.STRIPE_PUBLISHABLE_KEY,
 //     });
 //   });
 
@@ -2116,90 +2516,105 @@
 //     }
 //   });
 
-//   const razorpay = new Razorpay({
-//     key_id: process.env.RAZORPAY_KEY_ID,
-//     key_secret: process.env.RAZORPAY_KEY_SECRET,
-//   });
+//   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
-//   // Create Razorpay order
+//   // Create Stripe Payment Intent
 //   app.post("/api/payments/create-order", async (req, res) => {
 //     try {
-//       const { orderId, amount, currency = "INR" } = req.body;
+//       const { orderId } = req.body;
 
-//       if (!orderId || !amount) {
+//       if (!orderId) {
 //         return res.status(400).json({ error: "Missing required fields" });
 //       }
 
-//       // Create order in Razorpay
-//       const options = {
-//         amount: amount, // amount in paise
+//       // Get order to determine server-side amount (security)
+//       const order = await storage.getOrder(orderId);
+//       if (!order) {
+//         return res.status(404).json({ error: "Order not found" });
+//       }
+
+//       // Fixed price: $29.99 (determined server-side for security)
+//       const amount = 2999; // $29.99 in cents
+//       const currency = "usd";
+
+//       // Create Payment Intent in Stripe
+//       const paymentIntent = await stripe.paymentIntents.create({
+//         amount: amount,
 //         currency,
-//         receipt: orderId,
-//         payment_capture: 1,
-//       };
+//         metadata: {
+//           orderId: orderId,
+//         },
+//         automatic_payment_methods: {
+//           enabled: true,
+//         },
+//       });
 
-//       const razorpayOrder = await razorpay.orders.create(options);
-
-//       // Update order with Razorpay order ID
+//       // Update order with Stripe Payment Intent ID
 //       await storage.updateOrder(orderId, {
-//         razorpayOrderId: razorpayOrder.id,
+//         stripePaymentIntentId: paymentIntent.id,
 //         amount: amount / 100, // store in dollars
 //         currency,
 //         status: "payment_pending",
 //       });
 
 //       res.json({
-//         razorpayOrderId: razorpayOrder.id,
-//         amount: razorpayOrder.amount,
-//         currency: razorpayOrder.currency,
+//         clientSecret: paymentIntent.client_secret,
+//         paymentIntentId: paymentIntent.id,
+//         amount: paymentIntent.amount,
+//         currency: paymentIntent.currency,
 //       });
 //     } catch (error) {
-//       console.error("Error creating Razorpay order:", error);
+//       console.error("Error creating Stripe Payment Intent:", error);
 //       res.status(500).json({ error: "Failed to create payment order" });
 //     }
 //   });
 
-//   // Verify payment
+//   // Confirm payment
 //   app.post("/api/payments/verify", async (req, res) => {
 //     try {
-//       const { orderId, razorpayOrderId, razorpayPaymentId, razorpaySignature } =
-//         req.body;
+//       const { orderId, paymentIntentId } = req.body;
 
-//       if (
-//         !orderId ||
-//         !razorpayOrderId ||
-//         !razorpayPaymentId ||
-//         !razorpaySignature
-//       ) {
+//       if (!orderId || !paymentIntentId) {
 //         return res.status(400).json({ error: "Missing required fields" });
 //       }
 
-//       // Verify signature
-//       const { createHmac } = await import("crypto");
-//       const expectedSignature = createHmac(
-//         "sha256",
-//         process.env.RAZORPAY_KEY_SECRET,
-//       )
-//         .update(`${razorpayOrderId}|${razorpayPaymentId}`)
-//         .digest("hex");
+//       // Retrieve payment intent from Stripe to verify status
+//       const paymentIntent =
+//         await stripe.paymentIntents.retrieve(paymentIntentId);
 
-//       if (expectedSignature !== razorpaySignature) {
+//       // Validate payment intent
+//       if (paymentIntent.metadata.orderId !== orderId) {
+//         return res.status(400).json({ error: "Order ID mismatch" });
+//       }
+
+//       // Expected amount and currency (server-side validation)
+//       const expectedAmount = 2999; // $29.99 in cents
+//       const expectedCurrency = "usd";
+
+//       if (
+//         paymentIntent.amount !== expectedAmount ||
+//         paymentIntent.currency !== expectedCurrency
+//       ) {
+//         return res.status(400).json({ error: "Payment amount mismatch" });
+//       }
+
+//       if (paymentIntent.status === "succeeded") {
+//         // Update order with payment details
+//         await storage.updateOrder(orderId, {
+//           stripePaymentIntentId: paymentIntent.id,
+//           paymentStatus: "success",
+//           status: "paid",
+//         });
+
+//         res.json({ success: true });
+//       } else {
+//         // Payment not successful
 //         await storage.updateOrder(orderId, {
 //           paymentStatus: "failed",
 //           status: "cancelled",
 //         });
-//         return res.status(400).json({ error: "Invalid signature" });
+//         res.status(400).json({ error: "Payment not completed" });
 //       }
-
-//       // Update order with payment details
-//       await storage.updateOrder(orderId, {
-//         razorpayPaymentId,
-//         razorpaySignature,
-//         paymentStatus: "success",
-//         status: "paid",
-//       });
-
-//       res.json({ success: true });
 //     } catch (error) {
 //       console.error("Error verifying payment:", error);
 //       res.status(500).json({ error: "Payment verification failed" });
@@ -4743,14 +5158,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-    apiVersion: '2024-11-20',
-  });
+  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
   // Create Stripe Payment Intent
   app.post("/api/payments/create-order", async (req, res) => {
     try {
-      const { orderId } = req.body;
+      const { orderId, planType } = req.body;
 
       if (!orderId) {
         return res.status(400).json({ error: "Missing required fields" });
@@ -4762,9 +5175,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Order not found" });
       }
 
-      // Fixed price: $29.99 (determined server-side for security)
-      const amount = 2999; // $29.99 in cents
+      // Determine amount by order type
+      let amount = 0;
       const currency = "usd";
+      if (order.orderType === "shipping") {
+        amount = 3999; // $39.99
+      } else {
+        // book_creation: one-time $3.99 or subscription handled separately
+        amount = planType === "subscription" ? 0 : 399; // $3.99
+      }
+
+      if (amount === 0) {
+        return res.status(400).json({ error: "Invalid amount for this flow" });
+      }
 
       // Create Payment Intent in Stripe
       const paymentIntent = await stripe.paymentIntents.create({
@@ -4801,14 +5224,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Confirm payment
   app.post("/api/payments/verify", async (req, res) => {
     try {
-      const { orderId, paymentIntentId } = req.body;
+      const { orderId, paymentIntentId, planType } = req.body;
 
       if (!orderId || !paymentIntentId) {
         return res.status(400).json({ error: "Missing required fields" });
       }
 
       // Retrieve payment intent from Stripe to verify status
-      const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+      const paymentIntent =
+        await stripe.paymentIntents.retrieve(paymentIntentId);
 
       // Validate payment intent
       if (paymentIntent.metadata.orderId !== orderId) {
@@ -4816,10 +5240,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Expected amount and currency (server-side validation)
-      const expectedAmount = 2999; // $29.99 in cents
+      const order = await storage.getOrder(orderId);
+      if (!order) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+      let expectedAmount = 0;
       const expectedCurrency = "usd";
+      if (order.orderType === "shipping") {
+        expectedAmount = 3999;
+      } else {
+        // book_creation one-time
+        expectedAmount = 399; // $3.99
+      }
 
-      if (paymentIntent.amount !== expectedAmount || paymentIntent.currency !== expectedCurrency) {
+      if (
+        paymentIntent.amount !== expectedAmount ||
+        paymentIntent.currency !== expectedCurrency
+      ) {
         return res.status(400).json({ error: "Payment amount mismatch" });
       }
 
@@ -4843,6 +5280,98 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error verifying payment:", error);
       res.status(500).json({ error: "Payment verification failed" });
+    }
+  });
+
+  // Create subscription (for book_creation monthly plan)
+  app.post("/api/payments/create-subscription", async (req, res) => {
+    try {
+      const { orderId, customerEmail } = req.body;
+      if (!orderId || !customerEmail) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      const order = await storage.getOrder(orderId);
+      if (!order) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+      if (order.orderType !== "book_creation") {
+        return res
+          .status(400)
+          .json({ error: "Subscriptions only for book creation" });
+      }
+
+      // Create or reuse customer by email
+      const customers = await stripe.customers.list({
+        email: customerEmail,
+        limit: 1,
+      });
+      const customer =
+        customers.data[0] ||
+        (await stripe.customers.create({ email: customerEmail }));
+
+      // Create a Setup Intent to collect payment method client-side
+      const setupIntent = await stripe.setupIntents.create({
+        customer: customer.id,
+        payment_method_types: ["card"],
+      });
+
+      // Store pending subscription request on order
+      await storage.updateOrder(orderId, {
+        status: "payment_pending",
+        paymentStatus: "pending",
+        subscriptionCustomerId: customer.id,
+        subscriptionPlan: "monthly_15_99",
+      });
+
+      res.json({ clientSecret: setupIntent.client_secret });
+    } catch (error) {
+      console.error("Error creating subscription:", error);
+      res.status(500).json({ error: "Failed to create subscription" });
+    }
+  });
+
+  // Confirm subscription after card is attached (server finalizes subscription)
+  app.post("/api/payments/confirm-subscription", async (req, res) => {
+    try {
+      const { orderId, paymentMethodId } = req.body;
+      if (!orderId || !paymentMethodId) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+      const order = await storage.getOrder(orderId);
+      if (!order || !order.subscriptionCustomerId) {
+        return res.status(400).json({ error: "Subscription context missing" });
+      }
+
+      // Attach payment method to customer
+      await stripe.paymentMethods.attach(paymentMethodId, {
+        customer: order.subscriptionCustomerId,
+      });
+      // Set default payment method
+      await stripe.customers.update(order.subscriptionCustomerId, {
+        invoice_settings: { default_payment_method: paymentMethodId },
+      });
+
+      // Create the subscription
+      const priceId = process.env.STRIPE_PRICE_BOOK_CREATION_SUBSCRIPTION!; // configure in env
+      const subscription = await stripe.subscriptions.create({
+        customer: order.subscriptionCustomerId as string,
+        items: [{ price: priceId }],
+        expand: ["latest_invoice.payment_intent"],
+      });
+
+      await storage.updateOrder(orderId, {
+        status: "paid",
+        paymentStatus: "success",
+        subscriptionId: subscription.id,
+        amount: 15.99,
+        currency: "usd",
+      });
+
+      res.json({ success: true, subscriptionId: subscription.id });
+    } catch (error) {
+      console.error("Error confirming subscription:", error);
+      res.status(500).json({ error: "Failed to confirm subscription" });
     }
   });
 

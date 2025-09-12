@@ -39,8 +39,8 @@ export default function OrderSuccessPage() {
           setBookData(book);
         }
 
-        // If this is a story generation order, redirect to story creation page
-        if (order.bookId) {
+        // If this is a book creation payment, redirect to story creation page
+        if (order.orderType === "book_creation" && order.bookId) {
           toast({
             title: "Payment successful!",
             description: "Redirecting to story generation...",
@@ -160,6 +160,20 @@ export default function OrderSuccessPage() {
                     </span>
                   </Badge>
                 </div>
+                {orderData?.orderType === "shipping" && (
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Truck className="w-4 h-4" />
+                      <span>Shipping Address</span>
+                    </div>
+                    <div className="text-sm">
+                      <div>{orderData.firstName} {orderData.lastName}</div>
+                      <div>{orderData.address}</div>
+                      <div>{orderData.city}, {orderData.state} {orderData.zip}</div>
+                      <div>{orderData.country}</div>
+                    </div>
+                  </div>
+                )}
                 {bookData && (
                   <div className="flex justify-between items-center">
                     <span className="font-medium font-body text-imaginory-black">Book Title</span>
@@ -170,7 +184,9 @@ export default function OrderSuccessPage() {
                 )}
                 <div className="flex justify-between items-center">
                   <span className="font-medium font-body text-imaginory-black">Amount Paid</span>
-                  <span className="font-bold font-body text-imaginory-black">$29.99</span>
+                  <span className="font-bold font-body text-imaginory-black">
+                    {orderData?.orderType === "shipping" ? "$39.99" : "$3.99"}
+                  </span>
                 </div>
                 {orderData.razorpayPaymentId && (
                   <div className="flex justify-between items-center">

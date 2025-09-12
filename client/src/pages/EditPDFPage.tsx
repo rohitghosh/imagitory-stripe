@@ -3614,6 +3614,7 @@ export default function EditPDFPage() {
           ...formData,
           bookId,
           userId: user.uid,
+          orderType: "shipping",
         });
 
         console.log("✅ Order created:", orderResponse);

@@ -728,16 +728,14 @@ const WaitBanner: React.FC<{ show: boolean; minutes?: number }> = ({
   if (!show) return null;
   return (
     <p className="text-center font-semibold text-gray-800 mb-2">
-      🍿 Quick break time! This step usually takes ~{minutes} minutes —
-      grab a snack and check back soon.
+      🍿 Quick break time! This step usually takes ~{minutes} minutes — grab a
+      snack and check back soon.
     </p>
   );
 };
 
 const isRunning = (p?: { phase?: string; pct?: number }) =>
   !!p && p.phase !== "complete" && (p.pct ?? 0) < 100;
-
-
 
 type Section = { title: string; body: string };
 
@@ -1133,6 +1131,7 @@ export default function CreateStoryPage() {
       const orderResponse = await apiRequest("POST", "/api/orders", {
         bookId,
         userId: user.uid,
+        orderType: "book_creation",
         // Provide default values for shipping fields (can be updated later if needed)
         firstName: user.displayName?.split(" ")[0] || "Customer",
         lastName: user.displayName?.split(" ")[1] || "",
@@ -1775,7 +1774,7 @@ export default function CreateStoryPage() {
             {/* Always show progress (story outline first, then images) */}
             {imagesProg && !(showAvatarTuner && !avatarFinalized) && (
               <div className="mb-4">
-                 <WaitBanner show={isRunning(imagesProg)} minutes={3} />
+                <WaitBanner show={isRunning(imagesProg)} minutes={3} />
                 <div className="text-center text-sm text-gray-500 space-y-1">
                   <p>Generating pages… — {imagesProg.pct.toFixed(0)}%</p>
                   {/* {imagesProg.message && (
