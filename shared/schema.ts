@@ -313,6 +313,7 @@ export const orderSchema = z.object({
   id: z.string(),
   userId: z.string(),
   bookId: z.string(),
+  orderType: z.enum(["book_creation", "shipping"]).default("book_creation"),
   firstName: z.string(),
   lastName: z.string(),
   address: z.string(),
@@ -320,7 +321,16 @@ export const orderSchema = z.object({
   state: z.string(),
   zip: z.string(),
   country: z.string(),
-  status: z.enum(["pending", "payment_pending", "paid", "shipped", "completed", "cancelled"]).optional(),
+  status: z
+    .enum([
+      "pending",
+      "payment_pending",
+      "paid",
+      "shipped",
+      "completed",
+      "cancelled",
+    ])
+    .optional(),
   paymentId: z.string().optional(),
   paymentStatus: z.enum(["pending", "success", "failed"]).optional(),
   amount: z.number().optional(),
@@ -357,15 +367,16 @@ export const insertBookSchema = bookSchema
 
 export const insertOrderSchema = orderSchema
   .omit({ id: true, createdAt: true })
-  .partial({ 
-    status: true, 
-    paymentId: true, 
-    paymentStatus: true, 
-    amount: true, 
-    currency: true, 
-    razorpayOrderId: true, 
-    razorpayPaymentId: true, 
-    razorpaySignature: true 
+  .partial({
+    orderType: true,
+    status: true,
+    paymentId: true,
+    paymentStatus: true,
+    amount: true,
+    currency: true,
+    razorpayOrderId: true,
+    razorpayPaymentId: true,
+    razorpaySignature: true,
   });
 
 export const shippingFormSchema = z.object({
