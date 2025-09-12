@@ -2083,8 +2083,8 @@ const pageConfig = {
 };
 
 const DEFAULT_MESSAGE_LAYOUT = {
-  x: pageConfig.finalWidth/2 - 20,
-  y: pageConfig.finalHeight/2 - 20 ,
+  x: pageConfig.finalWidth / 2 - 20,
+  y: pageConfig.finalHeight / 2 - 20,
   width: pageConfig.finalWidth - 50, // leave a nice margin inside the border
   height: pageConfig.finalHeight - 192,
 };
@@ -3615,10 +3615,10 @@ export default function EditPDFPage() {
           bookId,
           userId: user.uid,
         });
-        
+
         console.log("✅ Order created:", orderResponse);
         console.log("🔄 Redirecting to:", `/payment/${orderResponse.id}`);
-        
+
         // Redirect to payment page instead of marking as completed
         setShowShippingForm(false);
         setLocation(`/payment/${orderResponse.id}`);
@@ -3859,7 +3859,7 @@ export default function EditPDFPage() {
                         {isCustom && (
                           <div className="pointer-events-none absolute inset-0.5 border border-black z-10" />
                         )}
-                        
+
                         <ScalablePreview onScaleChange={setCurrentScale}>
                           {/* {console.log(
                             "🎨 Image slice",
@@ -3895,10 +3895,10 @@ export default function EditPDFPage() {
                                   {/* Optional helper hint if empty */}
                                   {(!fp.content ||
                                     fp.content.join("").trim() === "") && (
-                                      <div
-                                        className="absolute left-1/2 -translate-x-1/2 top-[26%] w-[2%] text-center text-sm text-gray-600 select-none pointer-events-none z-10"
-                                        style={{ lineHeight: 1.35 }}
-                                      >
+                                    <div
+                                      className="absolute left-1/2 -translate-x-1/2 top-[26%] w-[50%] text-center text-sm text-gray-600 select-none pointer-events-none z-10"
+                                      style={{ lineHeight: 1.35 }}
+                                    >
                                       Type your personal message here, or leave
                                       this page blank to handwrite it later.
                                     </div>
