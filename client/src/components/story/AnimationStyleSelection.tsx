@@ -111,7 +111,7 @@ export function AnimationStyleSelection({
 
           {/* No background toonify here anymore – just selection */}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {styles.map((style) => (
               <div
                 key={style.id}
