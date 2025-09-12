@@ -2372,7 +2372,6 @@ function ensureArray<T>(value: T | T[] | undefined): T[] {
 
 export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
-  app.use(express.json({ limit: "5mb" }));
 
   // Configure session middleware with memory store for persistence
   app.use(
