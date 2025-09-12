@@ -27,6 +27,9 @@ app.use(
   }),
 );
 
+app.use(express.json({ limit: "2mb" }));
+app.use(express.urlencoded({ extended: true, limit: "2mb" }));
+
 // Add required headers for cookies in cross-origin requests
 // app.use((req, res, next) => {
 //   // Use the origin from the request or fall back to a wildcard

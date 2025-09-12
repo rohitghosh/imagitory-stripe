@@ -3893,7 +3893,7 @@ export default function EditPDFPage() {
                                   {(!fp.content ||
                                     fp.content.join("").trim() === "") && (
                                       <div
-                                        className="absolute left-1/2 -translate-x-1/2 top-[26%] w-[2%] text-center text-sm text-gray-600 select-none pointer-events-none z-10"
+                                        className="absolute left-1/2 -translate-x-1/2 top-[26%] w-[50%] text-center text-sm text-gray-600 select-none pointer-events-none z-10"
                                         style={{ lineHeight: 1.35 }}
                                       >
                                       Type your personal message here, or leave

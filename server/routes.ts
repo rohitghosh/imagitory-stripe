@@ -2093,6 +2093,7 @@
 
 //   return httpServer;
 // }
+
 import type { Express, Request, Response, NextFunction } from "express";
 import express from "express";
 import { useLocation } from "wouter";
@@ -2165,9 +2166,7 @@ import {
   generateImageForScene,
   generateImageForFrontCover,
 } from "./utils/story-generation-api/src/services/imageGenerationV2";
-import {
-  generateStoryScenesFromInputs,
-} from "./utils/story-generation-api/src/services/storyGeneration";
+import { generateStoryScenesFromInputs } from "./utils/story-generation-api/src/services/storyGeneration";
 
 type StoryResult = {
   pages: string[];
@@ -2240,7 +2239,6 @@ function ensureArray<T>(value: T | T[] | undefined): T[] {
 
 export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
-  app.use(express.json({ limit: "5mb" }));
 
   // Configure session middleware with memory store for persistence
   app.use(
@@ -2788,7 +2786,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (!currentJob || currentJob.phase !== currentPhase) return;
           const elapsed = Date.now() - currentPhaseStartTime;
           const timeBased = Math.min((elapsed / 90_000) * 8, maxPct - basePct); // up to +8% per 90s
-          const target = Math.min(basePct + timeBased + MIN_INCREMENT, maxPct - 3);
+          const target = Math.min(
+            basePct + timeBased + MIN_INCREMENT,
+            maxPct - 3,
+          );
           if ((currentJob.pct ?? 0) < target) {
             jobTracker.set(jobId, { ...currentJob, pct: target });
           }
@@ -2813,7 +2814,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
 
         const story = await generateStoryScenesFromInputs(
-          { kidName, pronoun, age, theme, subject, storyRhyming, characters, characterDescriptions },
+          {
+            kidName,
+            pronoun,
+            age,
+            theme,
+            subject,
+            storyRhyming,
+            characters,
+            characterDescriptions,
+          },
           (phase, pct, msg) => {
             if (phase === "reasoning") {
               jobTracker.set(jobId, {
@@ -2922,8 +2932,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const jobId = book.imagesJobId ?? jobTracker.newJob();
       await storage.updateBook(bookId, { imagesJobId: jobId });
 
-      console.log("[/api/startImageGeneration] Starting with style:", animationStyle);
-      console.log("[/api/startImageGeneration] characterImageMap keys:", Object.keys(characterImageMap || {}));
+      console.log(
+        "[/api/startImageGeneration] Starting with style:",
+        animationStyle,
+      );
+      console.log(
+        "[/api/startImageGeneration] characterImageMap keys:",
+        Object.keys(characterImageMap || {}),
+      );
       res.status(202).json({ jobId });
 
       (async () => {
@@ -2945,8 +2961,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
           const share = total > 0 ? 50 / total : 50;
 
-          const sides: ("left" | "right")[] = Array.from({ length: total }, () =>
-            Math.random() < 0.5 ? "left" : "right",
+          const sides: ("left" | "right")[] = Array.from(
+            { length: total },
+            () => (Math.random() < 0.5 ? "left" : "right"),
           );
 
           // Time-based fake progress while images generate in parallel (40% -> ~90%)
@@ -2958,7 +2975,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           let generatingTimer: NodeJS.Timeout | null = setInterval(() => {
             const elapsed = Date.now() - generatingStartTime;
             const progressed = Math.min(
-              GENERATING_START + (elapsed / GENERATING_DURATION_MS) * (GENERATING_END - GENERATING_START),
+              GENERATING_START +
+                (elapsed / GENERATING_DURATION_MS) *
+                  (GENERATING_END - GENERATING_START),
               GENERATING_END - 1,
             );
             const current = jobTracker.get(jobId);
@@ -2975,8 +2994,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Prepare all scene generation promises in parallel
           const scenePromises = Array.from({ length: total }, async (_, i) => {
             const scene = (book as any).pages[i];
-            const present = scene?.scene_inputs?.scene_description?.Present_Characters || [];
-            const missingRefs = present.filter((name: string) => !(characterImageMap?.[name]?.image_url));
+            const present =
+              scene?.scene_inputs?.scene_description?.Present_Characters || [];
+            const missingRefs = present.filter(
+              (name: string) => !characterImageMap?.[name]?.image_url,
+            );
             if (missingRefs.length) {
               console.warn(
                 `[/api/startImageGeneration] Missing image_url for characters on scene ${i + 1}:`,
@@ -2987,7 +3009,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
             // Each scene reports local progress; map to an overall slice
             return generateImageForScene(
               bookId,
-              { scene_description: scene.scene_inputs?.scene_description ?? { Scene_Number: i + 1 }, scene_text: scene.content },
+              {
+                scene_description: scene.scene_inputs?.scene_description ?? {
+                  Scene_Number: i + 1,
+                },
+                scene_text: scene.content,
+              },
               null, // no previous image in parallel mode
               characterImageMap,
               animationStyle,
@@ -2997,7 +3024,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 // Respect fake loader; never decrease progress
                 if (!current || current.phase !== "generating") return;
                 if ((current.pct ?? 0) < overall) {
-                  jobTracker.set(jobId, { phase: "generating", pct: Math.min(overall, 89), message: msg });
+                  jobTracker.set(jobId, {
+                    phase: "generating",
+                    pct: Math.min(overall, 89),
+                    message: msg,
+                  });
                 }
               },
             );
@@ -3055,9 +3086,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
               content: scene.content,
               side: sides[i],
               scene_inputs: {
-                scene_description: scene.scene_inputs?.scene_description ?? { Scene_Number: i + 1 },
+                scene_description: scene.scene_inputs?.scene_description ?? {
+                  Scene_Number: i + 1,
+                },
                 characterImageMap,
-                previousImageUrl: i > 0 ? generatedScenes[i - 1]?.firebaseUrl ?? null : null,
+                previousImageUrl:
+                  i > 0 ? (generatedScenes[i - 1]?.firebaseUrl ?? null) : null,
                 seed: 3,
               },
             } as any;
@@ -3074,7 +3108,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
               current_base_cover_index: 0,
               story_title: book.title || "",
               base_cover_inputs: {
-                front_cover: (book as any).cover?.base_cover_inputs?.front_cover ?? {},
+                front_cover:
+                  (book as any).cover?.base_cover_inputs?.front_cover ?? {},
                 characterImageMap,
                 seed: 3,
               },
@@ -3664,12 +3699,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         res.status(200).json({ results });
       } catch (error: any) {
         console.error("Error in batch cartoonify:", error);
-        res
-          .status(500)
-          .json({
-            message: "Failed to cartoonify characters",
-            error: error.message,
-          });
+        res.status(500).json({
+          message: "Failed to cartoonify characters",
+          error: error.message,
+        });
       }
     },
   );
@@ -3989,8 +4022,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     "/api/cartoonify",
     authenticate,
     async (req: Request, res: Response) => {
-      const { characterId, imageUrl, guidance_scale, num_inference_steps, style } =
-        req.body;
+      const {
+        characterId,
+        imageUrl,
+        guidance_scale,
+        num_inference_steps,
+        style,
+      } = req.body;
       if (!characterId || !imageUrl) {
         return res
           .status(400)
@@ -4005,7 +4043,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
         // Persist style-specific avatar URL for reuse
         const existing = await storage.getCharacter(characterId);
-        const toonUrls = { ...(existing?.toonUrls ?? {}), [style || "default"]: toonUrl } as any;
+        const toonUrls = {
+          ...(existing?.toonUrls ?? {}),
+          [style || "default"]: toonUrl,
+        } as any;
         await storage.updateCharacter(characterId, { toonUrl, toonUrls });
 
         return res.status(200).json({ toonUrl });
@@ -4051,8 +4092,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // persist to character when it's the user's character
           try {
             const existing = await storage.getCharacter(it.characterId);
-            const toonUrls = { ...(existing?.toonUrls ?? {}), [((req.body as any).style) || "default"]: url } as any;
-            await storage.updateCharacter(it.characterId, { toonUrl: url, toonUrls });
+            const toonUrls = {
+              ...(existing?.toonUrls ?? {}),
+              [(req.body as any).style || "default"]: url,
+            } as any;
+            await storage.updateCharacter(it.characterId, {
+              toonUrl: url,
+              toonUrls,
+            });
           } catch {}
         }
         res.status(200).json({ results });
