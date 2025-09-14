@@ -60,7 +60,7 @@ export function Footer() {
             <ul className="space-y-3 font-body text-muted-foreground">
               <li className="flex items-center">
                 <span className="mr-2">📧</span>
-                hello@imagitory.in
+                hello@imagitory.com
               </li>
               <li className="flex items-center">
                 <span className="mr-2">💌</span>
@@ -90,7 +90,7 @@ export function Footer() {
                 Privacy Policy
               </Link>
               <a
-                href="mailto:hello@imagitory.in"
+                href="mailto:hello@imagitory.com"
                 className="text-muted-foreground hover:text-imaginory-black transition-colors"
               >
                 Support
