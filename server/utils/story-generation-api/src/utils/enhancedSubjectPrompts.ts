@@ -14,9 +14,9 @@ export interface StoryArchetype {
 }
 
 export interface SceneGuidance {
-  setupPhase: string[]; // Scenes 1-4: Introduction and problem establishment
-  developmentPhase: string[]; // Scenes 5-8: Challenge escalation and growth
-  resolutionPhase: string[]; // Scenes 9-11: Climax and satisfying conclusion
+  setupPhase: string[]; // Scenes 1-3: Introduction and problem establishment
+  developmentPhase: string[]; // Scenes 4-6: Challenge escalation and growth
+  resolutionPhase: string[]; // Scenes 7-9: Climax and satisfying conclusion
 }
 
 export interface SubjectPrompt {
@@ -1802,7 +1802,7 @@ export const CUSTOM_THEME_GUIDELINES = {
     "When using a custom theme with a user-provided subject description, treat the subject as the foundational premise for the story. Expand thoughtfully on the user's vision while maintaining age-appropriate content and educational value.",
   storyGuidelines: `
     - Carefully analyze the user's subject description for key themes and elements
-    - Expand the premise into a full eleven-beat narrative structure
+    - Expand the premise into a full ${sceneCount}beat narrative structure
     - Maintain consistency with the tone and style implied by the user's description
     - Add educational or moral elements that align with the story premise
     - Ensure all elements remain appropriate for children aged 3-8
@@ -2074,29 +2074,29 @@ ${ageGroup.learningIntegration}
 `,
 
     narrativeStructuringGuidelines: `
-### Nine-Scene Story Structure Framework
++### ${sceneCount}-Scene Story Structure Framework
 
-**Scenes 1-2: Foundation & Hook**
+**Scenes 1-3: Foundation & Hook**
 • Establish characters in their normal world
 • Introduce the central challenge or opportunity
 • Create immediate engagement appropriate for age ${age}
 
-**Scenes 3-4: Development & Complications** 
+**Scenes 4-6: Development & Complications** 
 • Develop the main conflict or adventure
 • Show character attempts to address the challenge
 • Introduce obstacles that require growth or learning
 
-**Scenes 5-6: Growth & Discovery**
+**Scenes 7-9: Growth & Discovery**
 • Characters learn new information or develop new skills
 • Relationship dynamics evolve and strengthen
 • Build toward climactic resolution
 
-**Scenes 7-8: Climax & Resolution**
+**Scenes 10: Climax & Resolution**
 • Characters apply what they've learned to overcome the main challenge
 • Show successful problem-solving or goal achievement
 • Demonstrate character growth and positive outcomes
 
-**Scene 9: Reflection & Celebration**
+**Scene 11: Reflection & Celebration**
 • Acknowledge character growth and lessons learned
 • Celebrate positive outcomes and strengthened relationships
 • End with forward-looking optimism appropriate for age
@@ -2310,7 +2310,7 @@ function getDetailedExamples(age: number, ageGroup: any): ProcessedExample[] {
 **Setting:** Create environment where sharing naturally occurs and has visible positive effects`,
 
         finalStructure: `
-**Nine-Scene Arc:**
++**${sceneCount}-Scene Arc:**
 1. Characters encounter situation where one has something others want
 2. Initial reluctance or uncertainty about sharing
 3. Wise character suggests trying sharing approach
@@ -2371,7 +2371,7 @@ function getDetailedExamples(age: number, ageGroup: any): ProcessedExample[] {
 - Emma's growing understanding of community and caring`,
 
         finalStructure: `
-**Nine-Scene Adaptation of Real Experience:**
++**${sceneCount}-Scene Adaptation of Real Experience:**
 1. Emma sees Mrs. Johnson struggling with heavy bags
 2. Emma offers to help and successfully carries bags upstairs
 3. Mrs. Johnson's grateful response and cookie gift
@@ -2401,126 +2401,6 @@ function getDetailedExamples(age: number, ageGroup: any): ProcessedExample[] {
  * @param characterDescriptions - Array of character descriptions to integrate
  * @returns Formatted story premise section with structured development process
  */
-
-// export function generateStoryPremiseSection(
-//   theme: string,
-//   subject: string,
-//   isCustom: boolean,
-//   age?: number,
-// ): string {
-//   if (isCustom) {
-//     if (!age) {
-//       throw new Error("Age is required for custom theme stories");
-//     }
-
-//     const customGuidelines = getCustomTheme(age);
-
-//     return `# Custom Story Development Framework (Age ${age})
-
-// ## User Input Analysis Required:
-// **Input to Transform:** "${subject}"
-
-// ${customGuidelines.storyAnalysisFramework}
-
-// ${customGuidelines.ageAdaptationGuidelines}
-
-// ${customGuidelines.characterIntegrationStrategy}
-
-// ${customGuidelines.contentExpansionStrategies}
-
-// ${customGuidelines.narrativeStructuringGuidelines}
-
-// ${customGuidelines.detailedExamples}
-
-// ---
-
-// ## Final Story Development Instructions:
-
-// **Process Summary:**
-// 1. **Analyze** the user input to identify the core goal and story purpose
-// 2. **Adapt** the complexity and approach for age ${age}
-// 3. **Integrate** provided characters naturally and meaningfully
-// 4. **Develop** missing story elements while preserving authentic details
-// 5. **Structure** everything into a compelling nine-scene narrative
-
-// **Remember:** Be flexible and creative while following this structured approach. The goal is creating an engaging, age-appropriate story that achieves the user's intended outcome while providing a complete, satisfying narrative experience.`;
-//   }
-
-//   // Keep existing logic for non-custom themes
-//   const subjectPrompt = getSubjectPrompt(theme, subject);
-//   if (!subjectPrompt) {
-//     return `## Story Premise (${theme} - ${subject}):
-// Create an engaging story that incorporates the theme of "${theme}" with the subject "${subject}". Focus on age-appropriate content that teaches positive values while entertaining young readers.
-
-// ### Story Guidelines:
-// - Integrate the subject naturally into the narrative
-// - Ensure the theme influences the story's tone and approach
-// - Create educational moments that feel organic to the story
-// - Include conflict resolution appropriate for ages 3-8
-// - Build towards a satisfying conclusion that reinforces positive messages
-
-// ### Character Integration:
-// Design character roles that support the story's theme and subject matter. Each character should contribute meaningfully to exploring the chosen subject.`;
-//   }
-//   const narrativeArcName = sceneCount === 11 ? "Eleven-Beat Narrative Arc" : "Nine-Beat Narrative Arc";
-
-//   return `## Story Premise (${theme} - ${subject}):
-// **Core Concept:** ${subjectPrompt.premise}
-
-// **Central Conflict:** ${subjectPrompt.coreConflict}
-
-// **Emotional Journey:** ${subjectPrompt.emotionalJourney}
-
-// ### Story Development Example Approaches:
-// ${subjectPrompt.storyArchetypes
-//   .map(
-//     (archetype, index) =>
-//       `**${index + 1}. ${archetype.name}:**
-//   ${archetype.description}
-//   ${archetype.characterRoles ? `*Character Roles:* ${archetype.characterRoles}` : ""}
-//   ${archetype.exampleScenario ? `*Example:* ${archetype.exampleScenario}` : ""}`,
-//   )
-//   .join("\n\n")}
-
-// ### Character Integration Guidelines:
-// **Solo Adventure:** ${subjectPrompt.characterDynamics.soloCharacterApproach}
-
-// **With Companions:** ${subjectPrompt.characterDynamics.companionIntegration}
-
-// **Group Dynamics:** ${subjectPrompt.characterDynamics.groupDynamics}
-
-// ### Scene Development Framework:
-// **Setup Phase (Scenes 1-3):** ${subjectPrompt.sceneGuidance.setupPhase.join(" ")}
-
-// **Development Phase (Scenes 4-6):** ${subjectPrompt.sceneGuidance.developmentPhase.join(" ")}
-
-// **Resolution Phase (Scenes 7-9):** ${subjectPrompt.sceneGuidance.resolutionPhase.join(" ")}
-
-// ### Visual & Atmospheric Guidelines:
-// **Setting Variations:** ${subjectPrompt.settingVariations.join(" • ")}
-
-// **Visual Motifs:** ${subjectPrompt.visualMotifs.join(" • ")}
-
-// **Color Palette Suggestions:** ${subjectPrompt.colorPaletteSuggestions.join(" • ")}
-
-// ${
-//   subjectPrompt.learningObjectives
-//     ? `### Learning Objectives:
-// ${subjectPrompt.learningObjectives.join(" • ")}`
-//     : ""
-// }
-
-// ${
-//   subjectPrompt.skillBuilding
-//     ? `### Skill Building Focus:
-// ${subjectPrompt.skillBuilding.join(" • ")}`
-//     : ""
-// }
-
-// ### Theme Integration:
-// ${subjectPrompt.themeIntegration}`;
-// }
-
 export function generateStoryPremiseSection(
   theme: string,
   subject: string,
@@ -2531,32 +2411,49 @@ export function generateStoryPremiseSection(
     if (!age) {
       throw new Error("Age is required for custom theme stories");
     }
-    // This section would also be updated to reflect the 11-beat arc and continuity rules for custom stories.
-    // For now, returning a simplified version acknowledging the update.
-    return `## Story Premise (Custom Theme):
-${CUSTOM_THEME_GUIDELINES.premise}
 
-### Custom Story Guidelines:
-${CUSTOM_THEME_GUIDELINES.storyGuidelines}
+    const customGuidelines = getCustomTheme(age);
 
-### Subject Description:
-"${subject}"
+    return `# Custom Story Development Framework (Age ${age})
 
-### Character Integration for Custom Theme:
-${CUSTOM_THEME_GUIDELINES.characterIntegration}
+## User Input Analysis Required:
+**Input to Transform:** "${subject}"
 
-### Theme Overlay:
-${CUSTOM_THEME_GUIDELINES.themeOverlay}`;
+${customGuidelines.storyAnalysisFramework}
+
+${customGuidelines.ageAdaptationGuidelines}
+
+${customGuidelines.characterIntegrationStrategy}
+
+${customGuidelines.contentExpansionStrategies}
+
+${customGuidelines.narrativeStructuringGuidelines}
+
+${customGuidelines.detailedExamples}
+
+---
+
+## Final Story Development Instructions:
+
+**Process Summary:**
+1. **Analyze** the user input to identify the core goal and story purpose
+2. **Adapt** the complexity and approach for age ${age} 
+3. **Integrate** provided characters naturally and meaningfully
+4. **Develop** missing story elements while preserving authentic details
+5. **Structure** everything into a compelling ${sceneCount}-scene narrative
+
+**Remember:** Be flexible and creative while following this structured approach. The goal is creating an engaging, age-appropriate story that achieves the user's intended outcome while providing a complete, satisfying narrative experience.`;
   }
 
+  // Keep existing logic for non-custom themes
   const subjectPrompt = getSubjectPrompt(theme, subject);
   if (!subjectPrompt) {
     return `## Story Premise (${theme} - ${subject}):
 Create an engaging story that incorporates the theme of "${theme}" with the subject "${subject}". Focus on age-appropriate content that teaches positive values while entertaining young readers.
 
 ### Story Guidelines:
-- Integrate the subject naturally into the narrative and an eleven-beat arc.
-- Ensure the theme influences the story's tone and approach
+- Integrate the subject naturally into the narrative
+- Ensure the theme influences the story's tone and approach  
 - Create educational moments that feel organic to the story
 - Include conflict resolution appropriate for ages 3-8
 - Build towards a satisfying conclusion that reinforces positive messages
@@ -2565,20 +2462,12 @@ Create an engaging story that incorporates the theme of "${theme}" with the subj
 Design character roles that support the story's theme and subject matter. Each character should contribute meaningfully to exploring the chosen subject.`;
   }
 
-  const narrativeArcName =
-    sceneCount === 11 ? "Eleven-Beat Narrative Arc" : "Nine-Beat Narrative Arc";
-
   return `## Story Premise (${theme} - ${subject}):
 **Core Concept:** ${subjectPrompt.premise}
 
 **Central Conflict:** ${subjectPrompt.coreConflict}
 
 **Emotional Journey:** ${subjectPrompt.emotionalJourney}
-
-### Story Development Guidelines (${narrativeArcName}):
-- **Camera Shot Pattern:** Wide (1, 4, 7, 10), Medium (2, 5, 8, 11), Close-up (3, 6, 9).
-- **Continuity Rule:** For scenes 2–${sceneCount}, the first line of story_text must gently reference the prior scene. For scenes 1–${sceneCount - 1}, the last line should softly set a micro-goal or question.
-- **Open & Close Formula:** Scene 1 (3 lines): ordinary world → gentle trigger → small decision. Scene ${sceneCount} (2–3 lines): calm resolution → child-friendly lesson → cosy final image.
 
 ### Story Development Example Approaches:
 ${subjectPrompt.storyArchetypes
@@ -2598,7 +2487,7 @@ ${subjectPrompt.storyArchetypes
 
 **Group Dynamics:** ${subjectPrompt.characterDynamics.groupDynamics}
 
-### Scene Development Framework (${sceneCount} Scenes):
+### Scene Development Framework:
 **Setup Phase (Scenes 1-4):** ${subjectPrompt.sceneGuidance.setupPhase.join(" ")}
 
 **Development Phase (Scenes 5-8):** ${subjectPrompt.sceneGuidance.developmentPhase.join(" ")}

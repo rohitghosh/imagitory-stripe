@@ -12,3 +12,4 @@ outputs/*
 *.png
 *.webp
 __pycache__/
+rough.ts
