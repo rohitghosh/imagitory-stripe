@@ -153,7 +153,7 @@ export function SideCharacterSelection({
         id: response.id, // if your API already returns these,
         name: customName,
         imageUrls: [tempAvatar],
-        toonUrl: cartoonUrl,
+        toonUrl: tempAvatar,
         description: customRelation || customDescription,
         character_type: "side",
         type: "custom",
