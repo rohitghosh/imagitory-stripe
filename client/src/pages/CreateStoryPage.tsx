@@ -1236,6 +1236,51 @@ export default function CreateStoryPage() {
     }
   }, [imagesProg?.phase, bookId]);
 
+  const shouldBlockNav = currentStep === 3 && isRunning(imagesProg);
+  useEffect(() => {
+    if (!shouldBlockNav) return;
+
+    const confirmMessage =
+      "Your story is still generating. Are you sure you want to leave this page?";
+
+    // 1) Block tab close/refresh
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = ""; // Required for Chrome to show prompt
+      return "";
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+
+    // 2) Trap browser back/forward, including swipe gestures, via popstate
+    // Push a sentinel state so the first Back stays on this page
+    try {
+      history.pushState(null, "", document.URL);
+    } catch {}
+
+    const handlePopState = () => {
+      // Ask user; if they cancel, re-push the sentinel to stay; if confirm, allow leaving
+      const ok = window.confirm(confirmMessage);
+      if (ok) {
+        // Remove guards and go back one more entry to actually leave
+        window.removeEventListener("beforeunload", handleBeforeUnload);
+        window.removeEventListener("popstate", handlePopState);
+        try {
+          history.back();
+        } catch {}
+      } else {
+        try {
+          history.pushState(null, "", document.URL);
+        } catch {}
+      }
+    };
+    window.addEventListener("popstate", handlePopState);
+
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, [shouldBlockNav]);
+
   // Hydrate active character details (imageUrls, toonUrl) after mount/refresh
   useEffect(() => {
     (async () => {
